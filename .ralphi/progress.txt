@@ -191,6 +191,25 @@ Corrective Plan: N/A
   - Import sort order matters: ruff I001 flagged unsorted imports in `main.py` — fix with `ruff check --fix` before committing; imports must be alphabetically sorted within each isort section
 ---
 
+## 2026-03-22T13:00:00Z - US-016
+Session: iter-3c236310
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/user.py` — `user` group with all 9 subcommands: `list`, `get`, `get-by-name`, `create`, `update`, `remove`, `enable`, `disable`, `is-active`
+- Replaced stub `user` `@click.group()` definition in `main.py` with real import from `kanboard_cli.commands.user`
+- Added import in `main.py`: `from kanboard_cli.commands.user import user`
+- Added 35 tests in `tests/cli/test_user.py` covering: all 9 subcommands, all 4 output formats (table/json/csv/quiet), not-found errors, API errors, `--yes` confirmation flow (with_yes, without_yes aborts, interactive confirm), password prompt via `input=`, `--help` for all subcommands
+- All 969 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `click.prompt("Password", hide_input=True, confirmation_prompt=True)` prompts for password + confirmation; in tests supply `input="s3cret\ns3cret\n"` (twice — once for prompt, once for confirmation) via CliRunner's `input=` parameter
+  - `user update` SDK signature is `update_user(id, **kwargs)` — CLI passes `user_id` (int) as first positional; do NOT use keyword `id=` to avoid shadowing the Python builtin; pass it positionally as the first arg
+  - `user is-active` returns a boolean and does NOT raise on False — it's a query, not a command; CLI renders "active"/"inactive" status message via `format_success`
+  - `enable_user` and `disable_user` return `bool(result)` without raising — same passive-return pattern as `remove_*` methods; CLI renders success message regardless
+  - Import sort order matters when adding new command imports to `main.py` — ruff I001 flagged unsorted imports in previous stories; `from kanboard_cli.commands.user import user` must be placed in alphabetical order with other `kanboard_cli.commands.*` imports
+---
+
 ## Codebase Patterns
 - **KanboardNotFoundError signature**: uses `resource=` and `identifier=` kwargs (NOT `resource_type`/`resource_id`); `__str__` formats as `"Not found: {resource} '{identifier}' does not exist"` — match patterns in tests must reflect this.
 
