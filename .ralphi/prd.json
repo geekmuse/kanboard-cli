@@ -30,9 +30,12 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 1,
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
-      "notes": "M1/M2 foundations (transport, models, formatters, main.py) already on main."
+      "notes": "M1/M2 foundations (transport, models, formatters, main.py) already on main.",
+      "startedAt": "2026-03-22T06:06:13.662Z",
+      "updatedAt": "2026-03-22T06:10:00.000Z",
+      "completedAt": "2026-03-22T06:10:00.000Z"
     },
     {
       "id": "US-002",
@@ -168,7 +171,9 @@
       ],
       "priority": 6,
       "status": "open",
-      "dependsOn": ["US-005"],
+      "dependsOn": [
+        "US-005"
+      ],
       "notes": ""
     },
     {
@@ -225,7 +230,9 @@
       ],
       "priority": 8,
       "status": "open",
-      "dependsOn": ["US-007"],
+      "dependsOn": [
+        "US-007"
+      ],
       "notes": "Group members is a sub-group of the group CLI command (kanboard group member ...)."
     },
     {
@@ -423,7 +430,22 @@
       ],
       "priority": 15,
       "status": "open",
-      "dependsOn": ["US-001", "US-002", "US-003", "US-004", "US-005", "US-006", "US-007", "US-008", "US-009", "US-010", "US-011", "US-012", "US-013", "US-014"],
+      "dependsOn": [
+        "US-001",
+        "US-002",
+        "US-003",
+        "US-004",
+        "US-005",
+        "US-006",
+        "US-007",
+        "US-008",
+        "US-009",
+        "US-010",
+        "US-011",
+        "US-012",
+        "US-013",
+        "US-014"
+      ],
       "notes": "Closes the milestone. Run coverage before marking done."
     }
   ]
