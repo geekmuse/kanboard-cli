@@ -64,7 +64,7 @@
     {
       "id": "US-003",
       "title": "Configuration system",
-      "description": "Build src/kanboard/config.py with the KanboardConfig frozen dataclass and resolve() classmethod implementing layered config resolution: TOML config file \u2192 environment variables \u2192 CLI flags. Support named profiles, export path constants (CONFIG_DIR, CONFIG_FILE, WORKFLOW_DIR), and include get_workflow_config() for workflow plugin config.",
+      "description": "Build src/kanboard/config.py with the KanboardConfig frozen dataclass and resolve() classmethod implementing layered config resolution: TOML config file → environment variables → CLI flags. Support named profiles, export path constants (CONFIG_DIR, CONFIG_FILE, WORKFLOW_DIR), and include get_workflow_config() for workflow plugin config.",
       "acceptanceCriteria": [
         "KanboardConfig is a frozen dataclass with url, token, profile, output_format fields",
         "resolve() classmethod loads ~/.config/kanboard/config.toml via tomllib",
@@ -121,7 +121,7 @@
     },
     {
       "id": "US-005",
-      "title": "SDK response models \u2014 core models and helpers",
+      "title": "SDK response models — core models and helpers",
       "description": "Create src/kanboard/models.py with helper functions (_parse_date, _int) and the core dataclass models: Task, Project, Column, Swimlane, Comment, Subtask, User, Category. Each model has a from_api(data) classmethod that handles Kanboard's type inconsistencies.",
       "acceptanceCriteria": [
         "_parse_date() handles None, empty string, '0', 0, Unix timestamps (int/str), 'YYYY-MM-DD HH:MM', 'YYYY-MM-DD' formats and returns datetime | None",
@@ -152,7 +152,7 @@
     },
     {
       "id": "US-006",
-      "title": "SDK response models \u2014 extended models",
+      "title": "SDK response models — extended models",
       "description": "Add remaining dataclass models to src/kanboard/models.py: Tag, Link, TaskLink, ExternalTaskLink, Group, ProjectFile, TaskFile, Action. Follow the same from_api() pattern established in US-005.",
       "acceptanceCriteria": [
         "Tag dataclass with from_api() covering getTagsByProject response fields",
@@ -180,7 +180,7 @@
     },
     {
       "id": "US-007",
-      "title": "Tasks resource module \u2014 SDK",
+      "title": "Tasks resource module — SDK",
       "description": "Implement src/kanboard/resources/tasks.py with TasksResource class covering all 14 task API methods. Wire into KanboardClient as client.tasks. This establishes the resource-module pattern all subsequent resources will follow.",
       "acceptanceCriteria": [
         "TasksResource class with __init__(self, client) pattern",
@@ -217,7 +217,7 @@
     },
     {
       "id": "US-008",
-      "title": "Projects resource module \u2014 SDK",
+      "title": "Projects resource module — SDK",
       "description": "Implement src/kanboard/resources/projects.py with ProjectsResource class covering all 14 project API methods. Wire into KanboardClient as client.projects. Follow the exact same pattern established in US-007.",
       "acceptanceCriteria": [
         "ProjectsResource class with __init__(self, client) pattern",
@@ -274,8 +274,8 @@
       ],
       "notes": "",
       "startedAt": "2026-03-22T03:43:44.505Z",
-      "updatedAt": "2026-03-22T03:47:40.142098Z",
-      "completedAt": "2026-03-22T03:47:40.142098Z"
+      "updatedAt": "2026-03-22T03:48:44.546Z",
+      "completedAt": "2026-03-22T03:48:44.546Z"
     },
     {
       "id": "US-010",
@@ -287,18 +287,21 @@
         "json format: json.dumps with indent=2; single object for one result, array for many",
         "csv format: csv.DictWriter with proper escaping",
         "quiet format: prints only 'id' field, one per line",
-        "format_success(message, format) outputs {'status': 'ok', 'message': ...} in JSON mode, '\u2713 {message}' otherwise",
+        "format_success(message, format) outputs {'status': 'ok', 'message': ...} in JSON mode, '✓ {message}' otherwise",
         "Handles empty data gracefully (empty table, empty array, no output in quiet)",
         "Unit tests verify each format produces correct output",
         "All public functions have docstrings and full type hints",
         "ruff check passes, pytest passes"
       ],
       "priority": 10,
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-001"
       ],
-      "notes": ""
+      "notes": "",
+      "startedAt": "2026-03-22T03:48:44.620Z",
+      "updatedAt": "2026-03-22T04:05:00.000Z",
+      "completedAt": "2026-03-22T04:05:00.000Z"
     },
     {
       "id": "US-011",

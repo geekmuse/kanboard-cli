@@ -1,4 +1,11 @@
 ## Codebase Patterns
+- **`format_output(data, format, columns)` is the single formatter entry point**: normalises via `_normalize` → dispatches to `_format_table`, `_format_json`, `_format_csv`, or `_format_quiet`. `format_success(message, format)` is the success/confirmation companion.
+- **`_normalize` handles all SDK return types**: `None` → `[]`; single dataclass → `[asdict(dc)]`; list → list of dicts; plain dict → `[dict]`. Always call `_normalize` before rendering.
+- **JSON list vs object detection**: `_format_json` checks `isinstance(data, list)` on the ORIGINAL input (before normalisation) to decide array vs single-object output. Pass the raw SDK value to `format_output`, not pre-normalised rows.
+- **`_DatetimeEncoder` handles datetime in JSON**: `dataclasses.asdict` leaves `datetime` objects in-place; `_DatetimeEncoder(json.JSONEncoder)` converts them to ISO-8601 strings. Always use `cls=_DatetimeEncoder` when dumping SDK data.
+- **`capsys` captures Rich Console output**: `Console()` created inside a function call uses `sys.stdout` at construction time. In pytest with `capsys`, `sys.stdout` is already replaced when the function executes, so Rich output IS captured. No monkey-patching needed.
+- **CSV uses `csv.DictWriter(extrasaction="ignore")`**: `extrasaction="ignore"` prevents `ValueError` when a row dict has keys not in `fieldnames`. Always set this when columns filtering is in use.
+
 - **`ProjectsResource` follows the exact same `TYPE_CHECKING` + resource accessor pattern as `TasksResource`**: `from kanboard.client import KanboardClient` under `if TYPE_CHECKING:`, wired in `KanboardClient.__init__` as `self.projects = ProjectsResource(self)`.
 - **`updateProject` uses `id=` not `project_id=`**: Kanboard's `updateProject` JSON-RPC method takes `id` as the project identifier (same convention as `updateTask`). All other project methods use `project_id`. Map with `self._client.call("updateProject", id=project_id, **kwargs)`.
 - **Activity methods return `list[dict[str, Any]]`**: `get_project_activity` and `get_project_activities` return raw dicts (no typed model) — Kanboard activity payloads are complex nested structures. Use `list(result)` to normalise falsy → `[]`.
@@ -29,6 +36,30 @@
 - **src/ layout + hatchling**: Wheel packages must be explicitly listed in `[tool.hatch.build.targets.wheel]` as `packages = ["src/kanboard", "src/kanboard_cli"]`.
 - **strict ruff convention=google**: pydocstyle convention is Google-style (D2xx). Ignore D203+D213 (conflict with D211+D212).
 - **per-file-ignores F401**: Add `"src/**/__init__.py" = ["F401"]` to allow re-export patterns in `__init__.py`.
+---
+
+## 2026-03-22 - US-010
+Session: iter-87a8bf54
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `src/kanboard_cli/formatters.py` with `format_output()` and `format_success()`
+- `_normalize()` converts dataclasses (via `dataclasses.asdict`), dicts, lists, and None into a flat `list[dict[str, Any]]`
+- `_format_table()` — `rich.table.Table` with `header_style="bold cyan"`, auto-width columns, `_cell_str` for cell values
+- `_format_json()` — `json.dumps(indent=2, cls=_DatetimeEncoder)`; list input → array, single input → object, empty+non-list → `{}`
+- `_format_csv()` — `csv.DictWriter(extrasaction="ignore")` for proper escaping + column filtering
+- `_format_quiet()` — prints `row["id"]` one per line; rows without `id` silently skipped
+- `format_success()` — JSON mode: `{"status":"ok","message":...}`; else: `✓ {message}`
+- `_DatetimeEncoder` subclasses `json.JSONEncoder` to serialise `datetime` as ISO-8601
+- Created `tests/cli/test_formatters.py`: 41 tests covering normalisation, all 4 formats, edge cases, and `format_success`
+- All 377 tests pass; ruff clean; pre-commit hooks pass
+- **Learnings for future iterations:**
+  - `Console()` uses `sys.stdout` at constructor call time — pytest's `capsys` replacement of `sys.stdout` is already in effect, so Rich table output IS captured by `capsys`. No fixture patching needed.
+  - `dataclasses.asdict` leaves `datetime` objects as-is (does not convert to str/int); always use `_DatetimeEncoder` or equivalent when JSON-serialising SDK data
+  - `csv.DictWriter(extrasaction="ignore")` is essential when rendering a `columns` subset — without it, extra keys in the row dicts raise `ValueError`
+  - Test list-vs-object distinction in JSON by checking `isinstance(original_data, list)` BEFORE normalisation; do NOT infer from `len(rows)`
+  - `_cell_str(None) == ""` — ensures None fields render cleanly in table/CSV without crashing `Table.add_row`
 ---
 
 ## 2026-03-22 - US-002
