@@ -1,7 +1,9 @@
-"""CLI tests for ``kanboard me`` subcommands (US-012).
+"""CLI tests for ``kanboard me`` subcommands.
 
-All commands raise KanboardAuthError because User API auth is not yet
-implemented.  Tests verify the error message is displayed clearly.
+Covers:
+- App auth mode: all commands display a clear KanboardAuthError message.
+- User auth mode (--auth-mode user): commands succeed with mocked SDK.
+- --auth-mode flag wiring (CLI → config → client).
 """
 
 from __future__ import annotations
@@ -13,12 +15,13 @@ from click.testing import CliRunner
 
 from kanboard.config import KanboardConfig
 from kanboard.exceptions import KanboardAuthError
+from kanboard.models import User
 from kanboard_cli.main import cli
 
 _AUTH_MSG = (
     "The 'me' endpoints require User API authentication "
-    "(username + password). JSON-RPC API token auth is not supported "
-    "for these methods. User API auth will be available in a future release."
+    "(username + password). Application API token auth is not supported "
+    "for these methods."
 )
 
 
@@ -35,12 +38,27 @@ def runner() -> CliRunner:
 
 @pytest.fixture()
 def mock_config() -> KanboardConfig:
-    """Return a minimal resolved config."""
+    """Return a minimal resolved config (app auth mode)."""
     return KanboardConfig(
         url="http://kanboard.test/jsonrpc.php",
         token="test-token",
         profile="default",
         output_format="table",
+        auth_mode="app",
+    )
+
+
+@pytest.fixture()
+def mock_config_user_auth() -> KanboardConfig:
+    """Return a resolved config for user auth mode."""
+    return KanboardConfig(
+        url="http://kanboard.test/jsonrpc.php",
+        token="",
+        profile="default",
+        output_format="table",
+        auth_mode="user",
+        username="admin",
+        password="secret",
     )
 
 
@@ -55,6 +73,35 @@ def mock_client() -> MagicMock:
     client.me.get_my_overdue_tasks.side_effect = KanboardAuthError(_AUTH_MSG)
     client.me.create_my_private_project.side_effect = KanboardAuthError(_AUTH_MSG)
     client.me.get_my_projects_list.side_effect = KanboardAuthError(_AUTH_MSG)
+    return client
+
+
+_SAMPLE_USER = User(
+    id=1,
+    username="admin",
+    name="Admin User",
+    email="admin@example.com",
+    role="app-admin",
+    is_active=True,
+    is_ldap_user=False,
+    notification_method=0,
+    avatar_path=None,
+    timezone=None,
+    language=None,
+)
+
+
+@pytest.fixture()
+def mock_client_user_auth() -> MagicMock:
+    """Return a MagicMock client configured for successful user auth responses."""
+    client = MagicMock()
+    client.me.get_me.return_value = _SAMPLE_USER
+    client.me.get_my_dashboard.return_value = {"projects": [], "tasks": [], "subtasks": []}
+    client.me.get_my_activity_stream.return_value = [{"event_name": "task.open"}]
+    client.me.get_my_projects.return_value = [{"id": "1", "name": "Alpha"}]
+    client.me.get_my_overdue_tasks.return_value = [{"id": "3", "title": "Late task"}]
+    client.me.create_my_private_project.return_value = 42
+    client.me.get_my_projects_list.return_value = {"1": "Alpha"}
     return client
 
 
@@ -78,6 +125,21 @@ def _invoke(
         return runner.invoke(cli, args, input=input)
 
 
+def _invoke_user(
+    runner: CliRunner,
+    mock_config_user_auth: KanboardConfig,
+    mock_client_user_auth: MagicMock,
+    args: list[str],
+    input: str | None = None,
+) -> object:
+    """Invoke the CLI with user auth mode patched config + client."""
+    with (
+        patch("kanboard_cli.main.KanboardConfig.resolve", return_value=mock_config_user_auth),
+        patch("kanboard_cli.main.KanboardClient", return_value=mock_client_user_auth),
+    ):
+        return runner.invoke(cli, args, input=input)
+
+
 # ===========================================================================
 # kanboard me (default - show current user)
 # ===========================================================================
@@ -94,14 +156,14 @@ def test_me_default_shows_auth_error(
     assert "User API authentication" in result.output
 
 
-def test_me_default_mentions_json_rpc(
+def test_me_default_mentions_app_api_token(
     runner: CliRunner,
     mock_config: KanboardConfig,
     mock_client: MagicMock,
 ) -> None:
-    """``kanboard me`` error mentions JSON-RPC token is not supported."""
+    """``kanboard me`` error mentions Application API token is not supported."""
     result = _invoke(runner, mock_config, mock_client, ["me"])
-    assert "JSON-RPC API token" in result.output
+    assert "Application API token" in result.output
 
 
 # ===========================================================================
@@ -351,12 +413,12 @@ def test_me_create_project_json_format(
 # ===========================================================================
 
 
-def test_all_commands_mention_future_release(
+def test_all_commands_mention_user_api_authentication(
     runner: CliRunner,
     mock_config: KanboardConfig,
     mock_client: MagicMock,
 ) -> None:
-    """All commands mention the feature will be available in a future release."""
+    """All app-auth commands mention User API authentication requirement."""
     commands = [
         ["me"],
         ["me", "dashboard"],
@@ -367,6 +429,125 @@ def test_all_commands_mention_future_release(
     ]
     for cmd in commands:
         result = _invoke(runner, mock_config, mock_client, cmd)
-        assert "future release" in result.output, (
-            f"Command {cmd!r} did not mention 'future release'"
+        assert "User API authentication" in result.output, (
+            f"Command {cmd!r} did not mention 'User API authentication'"
         )
+
+
+# ===========================================================================
+# User auth mode — successful command invocations
+# ===========================================================================
+
+
+def test_me_default_user_auth_success(
+    runner: CliRunner,
+    mock_config_user_auth: KanboardConfig,
+    mock_client_user_auth: MagicMock,
+) -> None:
+    """``kanboard me`` with user auth succeeds and shows user info."""
+    result = _invoke_user(runner, mock_config_user_auth, mock_client_user_auth, ["me"])
+    assert result.exit_code == 0
+    assert "admin" in result.output
+
+
+def test_me_dashboard_user_auth_success(
+    runner: CliRunner,
+    mock_config_user_auth: KanboardConfig,
+    mock_client_user_auth: MagicMock,
+) -> None:
+    """``kanboard me dashboard`` with user auth exits 0."""
+    result = _invoke_user(runner, mock_config_user_auth, mock_client_user_auth, ["me", "dashboard"])
+    assert result.exit_code == 0
+
+
+def test_me_activity_user_auth_success(
+    runner: CliRunner,
+    mock_config_user_auth: KanboardConfig,
+    mock_client_user_auth: MagicMock,
+) -> None:
+    """``kanboard me activity`` with user auth exits 0."""
+    result = _invoke_user(runner, mock_config_user_auth, mock_client_user_auth, ["me", "activity"])
+    assert result.exit_code == 0
+
+
+def test_me_projects_user_auth_success(
+    runner: CliRunner,
+    mock_config_user_auth: KanboardConfig,
+    mock_client_user_auth: MagicMock,
+) -> None:
+    """``kanboard me projects`` with user auth exits 0."""
+    result = _invoke_user(runner, mock_config_user_auth, mock_client_user_auth, ["me", "projects"])
+    assert result.exit_code == 0
+
+
+def test_me_overdue_user_auth_success(
+    runner: CliRunner,
+    mock_config_user_auth: KanboardConfig,
+    mock_client_user_auth: MagicMock,
+) -> None:
+    """``kanboard me overdue`` with user auth exits 0."""
+    result = _invoke_user(runner, mock_config_user_auth, mock_client_user_auth, ["me", "overdue"])
+    assert result.exit_code == 0
+
+
+def test_me_create_project_user_auth_success(
+    runner: CliRunner,
+    mock_config_user_auth: KanboardConfig,
+    mock_client_user_auth: MagicMock,
+) -> None:
+    """``kanboard me create-project`` with user auth succeeds and prints ID."""
+    result = _invoke_user(
+        runner,
+        mock_config_user_auth,
+        mock_client_user_auth,
+        ["me", "create-project", "My Private"],
+    )
+    assert result.exit_code == 0
+    assert "42" in result.output
+
+
+def test_me_create_project_user_auth_with_description(
+    runner: CliRunner,
+    mock_config_user_auth: KanboardConfig,
+    mock_client_user_auth: MagicMock,
+) -> None:
+    """``kanboard me create-project --description`` with user auth succeeds."""
+    result = _invoke_user(
+        runner,
+        mock_config_user_auth,
+        mock_client_user_auth,
+        ["me", "create-project", "My Private", "--description", "A desc"],
+    )
+    assert result.exit_code == 0
+    assert "42" in result.output
+
+
+# ===========================================================================
+# --auth-mode flag wiring
+# ===========================================================================
+
+
+def test_auth_mode_flag_passed_to_config_resolve(runner: CliRunner) -> None:
+    """--auth-mode user is forwarded to KanboardConfig.resolve()."""
+    with patch("kanboard_cli.main.KanboardConfig.resolve") as mock_resolve:
+        mock_resolve.side_effect = Exception("stop")
+        runner.invoke(cli, ["--auth-mode", "user", "me"])
+    call_kwargs = mock_resolve.call_args.kwargs
+    assert call_kwargs.get("auth_mode") == "user"
+
+
+def test_auth_mode_app_is_default_in_cli(runner: CliRunner) -> None:
+    """Omitting --auth-mode passes None to KanboardConfig.resolve()."""
+    with patch("kanboard_cli.main.KanboardConfig.resolve") as mock_resolve:
+        mock_resolve.side_effect = Exception("stop")
+        runner.invoke(cli, ["me"])
+    call_kwargs = mock_resolve.call_args.kwargs
+    # No explicit --auth-mode → None passed, config uses its own default
+    assert call_kwargs.get("auth_mode") is None
+
+
+def test_auth_mode_choice_validated(runner: CliRunner) -> None:
+    """--auth-mode with invalid value is rejected by Click."""
+    result = runner.invoke(cli, ["--auth-mode", "invalid", "me"])
+    assert result.exit_code != 0
+    assert "Invalid value" in result.output or "invalid" in result.output.lower()

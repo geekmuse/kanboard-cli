@@ -116,6 +116,17 @@ class AppContext:
     default=False,
     help="Enable DEBUG-level logging.",
 )
+@click.option(
+    "--auth-mode",
+    "auth_mode",
+    envvar="KANBOARD_AUTH_MODE",
+    type=click.Choice(["app", "user"], case_sensitive=False),
+    default=None,
+    help=(
+        "Authentication mode: 'app' (API token, default) or 'user' "
+        "(username + password, required for 'me' commands)."
+    ),
+)
 @click.pass_context
 def cli(
     ctx: click.Context,
@@ -124,6 +135,7 @@ def cli(
     profile: str | None,
     output: str,
     verbose: bool,
+    auth_mode: str | None,
 ) -> None:
     r"""Kanboard CLI — manage your Kanboard instance from the terminal.
 
@@ -132,12 +144,16 @@ def cli(
     ``~/.config/kanboard/config.toml``) to avoid repeating them on every
     invocation.
 
+    For 'me' commands, use ``--auth-mode user`` with ``KANBOARD_USERNAME``
+    and ``KANBOARD_PASSWORD`` environment variables.
+
     \b
     Examples:
         kanboard project list
         kanboard task get 42
         kanboard task create 1 "Fix login bug" --due 2025-12-31
         kanboard --output json task list 1
+        kanboard --auth-mode user me
     """
     if verbose:
         logging.basicConfig(level=logging.DEBUG)
@@ -150,9 +166,16 @@ def cli(
             token=token,
             profile=profile,
             output_format=output,
+            auth_mode=auth_mode,
         )
         app_ctx.config = config
-        app_ctx.client = KanboardClient(url=config.url, token=config.token)
+        app_ctx.client = KanboardClient(
+            url=config.url,
+            token=config.token,
+            auth_mode=config.auth_mode,
+            username=config.username,
+            password=config.password,
+        )
     except KanboardConfigError:
         # Config-less commands (e.g., ``kanboard config init``) handle missing
         # configuration themselves.  We silently absorb the error here so the

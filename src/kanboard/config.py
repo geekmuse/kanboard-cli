@@ -13,10 +13,17 @@ Supported config file format (``~/.config/kanboard/config.toml``)::
     url = "http://localhost/jsonrpc.php"
     token = "my-api-token"
     output_format = "table"
+    auth_mode = "app"
 
     [profiles.work]
     url = "https://kanboard.example.com/jsonrpc.php"
     token = "another-token"
+
+    [profiles.me]
+    url = "https://kanboard.example.com/jsonrpc.php"
+    auth_mode = "user"
+    username = "admin"
+    password = "my-password"
 
     [workflows.my_workflow]
     some_setting = "value"
@@ -53,6 +60,9 @@ _ENV_URL = "KANBOARD_URL"
 _ENV_TOKEN = "KANBOARD_TOKEN"
 _ENV_PROFILE = "KANBOARD_PROFILE"
 _ENV_OUTPUT_FORMAT = "KANBOARD_OUTPUT_FORMAT"
+_ENV_AUTH_MODE = "KANBOARD_AUTH_MODE"
+_ENV_USERNAME = "KANBOARD_USERNAME"
+_ENV_PASSWORD = "KANBOARD_PASSWORD"
 
 
 def _load_toml(path: Path) -> dict[str, Any]:
@@ -87,21 +97,33 @@ class KanboardConfig:
     1. CLI argument (parameter passed to :meth:`resolve`)
     2. Environment variable
     3. Config file value for the active profile
-    4. Built-in default (``output_format`` only; ``url`` and ``token`` are
-       required)
+    4. Built-in default (``output_format`` and ``auth_mode`` only;
+       ``url`` is always required; ``token`` is required for app auth
+       and ``username`` + ``password`` are required for user auth)
 
     Attributes:
         url: The Kanboard JSON-RPC endpoint URL.
-        token: The Kanboard API token used for authentication.
+        token: The Kanboard API token used for Application API authentication.
+            Required when ``auth_mode`` is ``'app'``; may be empty for user
+            auth mode.
         profile: The active configuration profile name.
         output_format: The default output format (``table``, ``json``,
             ``csv``, or ``quiet``).
+        auth_mode: Authentication mode — ``'app'`` (default, JSON-RPC token) or
+            ``'user'`` (HTTP Basic Auth with username + password).
+        username: Username for User API authentication.  Required when
+            ``auth_mode`` is ``'user'``.
+        password: Password or personal access token for User API
+            authentication.  Required when ``auth_mode`` is ``'user'``.
     """
 
     url: str
     token: str
     profile: str
     output_format: str
+    auth_mode: str = "app"
+    username: str | None = None
+    password: str | None = None
 
     @classmethod
     def resolve(
@@ -110,6 +132,9 @@ class KanboardConfig:
         token: str | None = None,
         profile: str | None = None,
         output_format: str | None = None,
+        auth_mode: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
         config_file: Path | None = None,
     ) -> KanboardConfig:
         """Resolve configuration from all available layers.
@@ -121,19 +146,32 @@ class KanboardConfig:
         3. ``settings.default_profile`` key in the config file
         4. Literal ``"default"``
 
-        Field resolution order for ``url``, ``token``, and ``output_format``:
+        Field resolution order for ``url``, ``token``, ``output_format``,
+        ``auth_mode``, ``username``, and ``password``:
 
         1. CLI argument (parameter passed to this method)
         2. Environment variable (``KANBOARD_URL`` / ``KANBOARD_TOKEN`` /
-           ``KANBOARD_OUTPUT_FORMAT``)
+           ``KANBOARD_OUTPUT_FORMAT`` / ``KANBOARD_AUTH_MODE`` /
+           ``KANBOARD_USERNAME`` / ``KANBOARD_PASSWORD``)
         3. Config file value for the active profile
-        4. Built-in default (``"table"`` for ``output_format`` only)
+        4. Built-in default (``"table"`` for ``output_format``;
+           ``"app"`` for ``auth_mode``)
+
+        Required fields depend on ``auth_mode``:
+
+        - ``'app'`` (default): ``url`` and ``token`` are required.
+        - ``'user'``: ``url``, ``username``, and ``password`` are required.
+          ``token`` is optional and may be left unset.
 
         Args:
             url: Kanboard JSON-RPC endpoint URL from a CLI flag, or ``None``.
             token: Kanboard API token from a CLI flag, or ``None``.
             profile: Profile name from a CLI flag, or ``None``.
             output_format: Output format from a CLI flag, or ``None``.
+            auth_mode: Authentication mode (``'app'`` or ``'user'``) from a
+                CLI flag, or ``None`` to fall back to env var / config file.
+            username: Username for User API auth from a CLI flag, or ``None``.
+            password: Password for User API auth from a CLI flag, or ``None``.
             config_file: Path to the TOML config file.  Defaults to
                 :data:`CONFIG_FILE` when ``None``.
 
@@ -141,9 +179,9 @@ class KanboardConfig:
             A fully resolved, frozen :class:`KanboardConfig` instance.
 
         Raises:
-            KanboardConfigError: If ``url`` or ``token`` cannot be resolved
-                from any layer.  The error message includes actionable advice
-                on how to supply the missing value.
+            KanboardConfigError: If required fields cannot be resolved from any
+                layer.  The error message includes actionable advice on how to
+                supply the missing value.
         """
         cfg_path = config_file if config_file is not None else CONFIG_FILE
         raw_cfg = _load_toml(cfg_path)
@@ -172,6 +210,18 @@ class KanboardConfig:
             or "table"
         )
 
+        resolved_auth_mode: str = (
+            auth_mode or os.environ.get(_ENV_AUTH_MODE) or profile_data.get("auth_mode") or "app"
+        )
+
+        resolved_username: str | None = (
+            username or os.environ.get(_ENV_USERNAME) or profile_data.get("username")
+        )
+
+        resolved_password: str | None = (
+            password or os.environ.get(_ENV_PASSWORD) or profile_data.get("password")
+        )
+
         # ── Required field validation ─────────────────────────────────────
         if not resolved_url:
             raise KanboardConfigError(
@@ -181,19 +231,38 @@ class KanboardConfig:
                 field="url",
             )
 
-        if not resolved_token:
-            raise KanboardConfigError(
-                "Kanboard API token is required. "
-                "Set it via --token, the KANBOARD_TOKEN environment variable, "
-                "or 'token' in your config file profile.",
-                field="token",
-            )
+        if resolved_auth_mode == "user":
+            if not resolved_username:
+                raise KanboardConfigError(
+                    "Username is required for user auth mode. "
+                    "Set it via --username, the KANBOARD_USERNAME environment variable, "
+                    "or 'username' in your config file profile.",
+                    field="username",
+                )
+            if not resolved_password:
+                raise KanboardConfigError(
+                    "Password is required for user auth mode. "
+                    "Set it via --password, the KANBOARD_PASSWORD environment variable, "
+                    "or 'password' in your config file profile.",
+                    field="password",
+                )
+        else:
+            if not resolved_token:
+                raise KanboardConfigError(
+                    "Kanboard API token is required. "
+                    "Set it via --token, the KANBOARD_TOKEN environment variable, "
+                    "or 'token' in your config file profile.",
+                    field="token",
+                )
 
         return cls(
             url=resolved_url,
-            token=resolved_token,
+            token=resolved_token or "",
             profile=active_profile,
             output_format=resolved_output_format,
+            auth_mode=resolved_auth_mode,
+            username=resolved_username,
+            password=resolved_password,
         )
 
 

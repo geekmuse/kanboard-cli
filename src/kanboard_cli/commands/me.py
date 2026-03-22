@@ -1,15 +1,18 @@
-"""Me CLI commands - current authenticated user information.
+"""Me CLI commands — current authenticated user information.
 
 Subcommands: (default) show, dashboard, activity, projects, overdue,
 create-project.
 
-All commands require User API authentication (username + password). Until
-that auth method is implemented, every command displays a clear error message.
+All commands require User API authentication (``--auth-mode user`` with
+``KANBOARD_USERNAME`` and ``KANBOARD_PASSWORD``).  When Application API
+token auth is active (the default), every command displays a clear error
+message directing the user to switch auth modes.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import dataclasses
+from typing import TYPE_CHECKING, Any
 
 import click
 
@@ -30,16 +33,21 @@ if TYPE_CHECKING:
 def me(ctx: click.Context) -> None:
     r"""Commands for the authenticated user ("me" endpoints).
 
+    All subcommands require User API authentication.  Use
+    ``--auth-mode user`` together with ``KANBOARD_USERNAME`` and
+    ``KANBOARD_PASSWORD`` environment variables (or set them in your
+    config profile).
+
     When invoked without a subcommand, shows the current user profile.
 
     \b
     Examples:
-        kanboard me
-        kanboard me dashboard
-        kanboard me activity
-        kanboard me projects
-        kanboard me overdue
-        kanboard me create-project "My Project"
+        kanboard --auth-mode user me
+        kanboard --auth-mode user me dashboard
+        kanboard --auth-mode user me activity
+        kanboard --auth-mode user me projects
+        kanboard --auth-mode user me overdue
+        kanboard --auth-mode user me create-project "My Project"
     """
     if ctx.invoked_subcommand is None:
         _show_me(ctx)
@@ -53,15 +61,17 @@ _USER_COLUMNS = ["id", "username", "name", "email", "role", "is_active"]
 
 
 def _show_me(ctx: click.Context) -> None:
-    """Show the current authenticated user profile."""
+    """Show the current authenticated user profile.
+
+    Args:
+        ctx: The Click context carrying the :class:`~kanboard_cli.main.AppContext`.
+    """
     app: AppContext = ctx.obj
     try:
         user = app.client.me.get_me()
     except KanboardAuthError as exc:
         raise click.ClickException(str(exc)) from exc
-    from dataclasses import asdict
-
-    format_output([asdict(user)], app.output, columns=_USER_COLUMNS)
+    format_output([dataclasses.asdict(user)], app.output, columns=_USER_COLUMNS)
 
 
 # ---------------------------------------------------------------------------
@@ -74,16 +84,20 @@ def _show_me(ctx: click.Context) -> None:
 def me_dashboard(ctx: click.Context) -> None:
     r"""Show the dashboard for the current user.
 
+    Displays a summary of the current user's projects, tasks, and subtasks.
+
     \b
     Examples:
-        kanboard me dashboard
-        kanboard --output json me dashboard
+        kanboard --auth-mode user me dashboard
+        kanboard --auth-mode user --output json me dashboard
     """
     app: AppContext = ctx.obj
     try:
-        app.client.me.get_my_dashboard()
+        dashboard: dict[str, Any] = app.client.me.get_my_dashboard()
     except KanboardAuthError as exc:
         raise click.ClickException(str(exc)) from exc
+    # Dashboard is a nested dict; render as a single-row JSON-friendly output
+    format_output([dashboard] if dashboard else [], app.output)
 
 
 # ---------------------------------------------------------------------------
@@ -96,16 +110,19 @@ def me_dashboard(ctx: click.Context) -> None:
 def me_activity(ctx: click.Context) -> None:
     r"""Show the activity stream for the current user.
 
+    Lists recent activity events for the authenticated user.
+
     \b
     Examples:
-        kanboard me activity
-        kanboard --output json me activity
+        kanboard --auth-mode user me activity
+        kanboard --auth-mode user --output json me activity
     """
     app: AppContext = ctx.obj
     try:
-        app.client.me.get_my_activity_stream()
+        events: list[dict[str, Any]] = app.client.me.get_my_activity_stream()
     except KanboardAuthError as exc:
         raise click.ClickException(str(exc)) from exc
+    format_output(events, app.output)
 
 
 # ---------------------------------------------------------------------------
@@ -120,14 +137,15 @@ def me_projects(ctx: click.Context) -> None:
 
     \b
     Examples:
-        kanboard me projects
-        kanboard --output json me projects
+        kanboard --auth-mode user me projects
+        kanboard --auth-mode user --output json me projects
     """
     app: AppContext = ctx.obj
     try:
-        app.client.me.get_my_projects()
+        projects: list[dict[str, Any]] = app.client.me.get_my_projects()
     except KanboardAuthError as exc:
         raise click.ClickException(str(exc)) from exc
+    format_output(projects, app.output)
 
 
 # ---------------------------------------------------------------------------
@@ -142,14 +160,15 @@ def me_overdue(ctx: click.Context) -> None:
 
     \b
     Examples:
-        kanboard me overdue
-        kanboard --output json me overdue
+        kanboard --auth-mode user me overdue
+        kanboard --auth-mode user --output json me overdue
     """
     app: AppContext = ctx.obj
     try:
-        app.client.me.get_my_overdue_tasks()
+        tasks: list[dict[str, Any]] = app.client.me.get_my_overdue_tasks()
     except KanboardAuthError as exc:
         raise click.ClickException(str(exc)) from exc
+    format_output(tasks, app.output)
 
 
 # ---------------------------------------------------------------------------
@@ -168,10 +187,12 @@ def me_create_project(
 ) -> None:
     r"""Create a private project for the current user.
 
+    NAME is the project title.
+
     \b
     Examples:
-        kanboard me create-project "My Private Project"
-        kanboard me create-project "My Project" --description "Notes"
+        kanboard --auth-mode user me create-project "My Private Project"
+        kanboard --auth-mode user me create-project "My Project" --description "Notes"
     """
     app: AppContext = ctx.obj
     kwargs: dict[str, str] = {}

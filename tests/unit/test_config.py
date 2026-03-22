@@ -540,6 +540,182 @@ def test_get_workflow_config_default_path_used_when_none(
 
 
 # ---------------------------------------------------------------------------
+# KanboardConfig.resolve — auth_mode / username / password resolution
+# ---------------------------------------------------------------------------
+
+
+def test_auth_mode_defaults_to_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """auth_mode defaults to 'app' when not specified anywhere."""
+    monkeypatch.delenv("KANBOARD_AUTH_MODE", raising=False)
+    cfg_file = _write_toml(
+        tmp_path, "[profiles.default]\nurl='http://kb/jsonrpc.php'\ntoken='tok'\n"
+    )
+    config = KanboardConfig.resolve(config_file=cfg_file)
+    assert config.auth_mode == "app"
+
+
+def test_auth_mode_from_profile(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """auth_mode is read from the profile config file."""
+    monkeypatch.delenv("KANBOARD_AUTH_MODE", raising=False)
+    monkeypatch.delenv("KANBOARD_USERNAME", raising=False)
+    monkeypatch.delenv("KANBOARD_PASSWORD", raising=False)
+    cfg_file = _write_toml(
+        tmp_path,
+        """
+[profiles.default]
+url = "http://kb/jsonrpc.php"
+auth_mode = "user"
+username = "admin"
+password = "secret"
+""",
+    )
+    config = KanboardConfig.resolve(config_file=cfg_file)
+    assert config.auth_mode == "user"
+    assert config.username == "admin"
+    assert config.password == "secret"
+
+
+def test_auth_mode_env_var_overrides_profile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """KANBOARD_AUTH_MODE env var overrides profile value."""
+    monkeypatch.setenv("KANBOARD_AUTH_MODE", "user")
+    monkeypatch.setenv("KANBOARD_USERNAME", "env-user")
+    monkeypatch.setenv("KANBOARD_PASSWORD", "env-pass")
+    cfg_file = _write_toml(
+        tmp_path,
+        "[profiles.default]\nurl='http://kb/jsonrpc.php'\nauth_mode='app'\ntoken='tok'\n",
+    )
+    config = KanboardConfig.resolve(config_file=cfg_file)
+    assert config.auth_mode == "user"
+    assert config.username == "env-user"
+    assert config.password == "env-pass"
+
+
+def test_auth_mode_cli_arg_overrides_env_var(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CLI auth_mode arg overrides env var."""
+    monkeypatch.setenv("KANBOARD_AUTH_MODE", "app")
+    monkeypatch.setenv("KANBOARD_USERNAME", "env-user")
+    monkeypatch.setenv("KANBOARD_PASSWORD", "env-pass")
+    cfg_file = _write_toml(tmp_path, "[profiles.default]\nurl='http://kb/jsonrpc.php'\n")
+    config = KanboardConfig.resolve(
+        auth_mode="user",
+        username="cli-user",
+        password="cli-pass",
+        config_file=cfg_file,
+    )
+    assert config.auth_mode == "user"
+    assert config.username == "cli-user"
+    assert config.password == "cli-pass"
+
+
+def test_user_auth_mode_does_not_require_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No KanboardConfigError raised when token is absent in user auth mode."""
+    monkeypatch.delenv("KANBOARD_TOKEN", raising=False)
+    monkeypatch.delenv("KANBOARD_AUTH_MODE", raising=False)
+    monkeypatch.delenv("KANBOARD_USERNAME", raising=False)
+    monkeypatch.delenv("KANBOARD_PASSWORD", raising=False)
+    cfg_file = _write_toml(
+        tmp_path,
+        """
+[profiles.default]
+url = "http://kb/jsonrpc.php"
+auth_mode = "user"
+username = "admin"
+password = "secret"
+""",
+    )
+    config = KanboardConfig.resolve(config_file=cfg_file)
+    assert config.token == ""
+
+
+def test_user_auth_mode_missing_username_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """KanboardConfigError raised when username is missing in user auth mode."""
+    monkeypatch.delenv("KANBOARD_USERNAME", raising=False)
+    monkeypatch.delenv("KANBOARD_PASSWORD", raising=False)
+    monkeypatch.delenv("KANBOARD_AUTH_MODE", raising=False)
+    cfg_file = _write_toml(
+        tmp_path,
+        "[profiles.default]\nurl='http://kb/jsonrpc.php'\nauth_mode='user'\npassword='pass'\n",
+    )
+    with pytest.raises(KanboardConfigError) as exc_info:
+        KanboardConfig.resolve(config_file=cfg_file)
+    assert exc_info.value.field == "username"
+    assert "KANBOARD_USERNAME" in str(exc_info.value)
+
+
+def test_user_auth_mode_missing_password_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """KanboardConfigError raised when password is missing in user auth mode."""
+    monkeypatch.delenv("KANBOARD_USERNAME", raising=False)
+    monkeypatch.delenv("KANBOARD_PASSWORD", raising=False)
+    monkeypatch.delenv("KANBOARD_AUTH_MODE", raising=False)
+    cfg_file = _write_toml(
+        tmp_path,
+        "[profiles.default]\nurl='http://kb/jsonrpc.php'\nauth_mode='user'\nusername='admin'\n",
+    )
+    with pytest.raises(KanboardConfigError) as exc_info:
+        KanboardConfig.resolve(config_file=cfg_file)
+    assert exc_info.value.field == "password"
+    assert "KANBOARD_PASSWORD" in str(exc_info.value)
+
+
+def test_app_auth_mode_still_requires_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Token is still required when auth_mode is 'app' (existing behaviour)."""
+    monkeypatch.delenv("KANBOARD_TOKEN", raising=False)
+    monkeypatch.delenv("KANBOARD_AUTH_MODE", raising=False)
+    cfg_file = _write_toml(tmp_path, "[profiles.default]\nurl='http://kb/jsonrpc.php'\n")
+    with pytest.raises(KanboardConfigError) as exc_info:
+        KanboardConfig.resolve(config_file=cfg_file)
+    assert exc_info.value.field == "token"
+
+
+def test_username_from_env_var(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """KANBOARD_USERNAME env var is resolved for user auth mode."""
+    monkeypatch.setenv("KANBOARD_USERNAME", "env-admin")
+    monkeypatch.setenv("KANBOARD_PASSWORD", "env-pass")
+    monkeypatch.delenv("KANBOARD_AUTH_MODE", raising=False)
+    cfg_file = _write_toml(
+        tmp_path, "[profiles.default]\nurl='http://kb/jsonrpc.php'\nauth_mode='user'\n"
+    )
+    config = KanboardConfig.resolve(config_file=cfg_file)
+    assert config.username == "env-admin"
+
+
+def test_password_from_env_var(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """KANBOARD_PASSWORD env var is resolved for user auth mode."""
+    monkeypatch.setenv("KANBOARD_USERNAME", "admin")
+    monkeypatch.setenv("KANBOARD_PASSWORD", "env-secret")
+    monkeypatch.delenv("KANBOARD_AUTH_MODE", raising=False)
+    cfg_file = _write_toml(
+        tmp_path, "[profiles.default]\nurl='http://kb/jsonrpc.php'\nauth_mode='user'\n"
+    )
+    config = KanboardConfig.resolve(config_file=cfg_file)
+    assert config.password == "env-secret"
+
+
+def test_username_none_in_app_auth_mode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """username is None when not configured in app auth mode."""
+    monkeypatch.delenv("KANBOARD_USERNAME", raising=False)
+    monkeypatch.delenv("KANBOARD_AUTH_MODE", raising=False)
+    cfg_file = _write_toml(
+        tmp_path, "[profiles.default]\nurl='http://kb/jsonrpc.php'\ntoken='tok'\n"
+    )
+    config = KanboardConfig.resolve(config_file=cfg_file)
+    assert config.username is None
+    assert config.password is None
+
+
+# ---------------------------------------------------------------------------
 # Integration: re-exported from kanboard package
 # ---------------------------------------------------------------------------
 

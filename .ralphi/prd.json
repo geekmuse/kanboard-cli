@@ -48,8 +48,8 @@
       "dependsOn": [],
       "notes": "Uses Click's built-in _<PROG_NAME>_COMPLETE mechanism.",
       "startedAt": "2026-03-22T14:09:58.125Z",
-      "updatedAt": "2026-03-22T14:30:00.000Z",
-      "completedAt": "2026-03-22T14:30:00.000Z"
+      "updatedAt": "2026-03-22T14:18:28.446Z",
+      "completedAt": "2026-03-22T14:18:28.446Z"
     },
     {
       "id": "US-003",
@@ -70,9 +70,12 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 3,
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
-      "notes": "Unblocks integration tests for 'Me' resource. Must preserve backward compatibility for app auth (default)."
+      "notes": "Unblocks integration tests for 'Me' resource. Must preserve backward compatibility for app auth (default).",
+      "startedAt": "2026-03-22T14:18:29.105Z",
+      "updatedAt": "2026-03-22T14:18:29.105Z",
+      "completedAt": null
     },
     {
       "id": "US-004",

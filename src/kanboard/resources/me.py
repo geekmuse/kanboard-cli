@@ -1,14 +1,16 @@
-"""Current user ("Me") resource module - authenticated user endpoints.
+"""Current user ("Me") resource module — authenticated user endpoints.
 
-All methods in this module require **User API authentication** (username +
-password), which is not yet available in the SDK transport layer.  Every
-method raises :class:`~kanboard.exceptions.KanboardAuthError` until User
-API auth is implemented (Milestone 4).
+These endpoints use the **User API** authentication mode (username +
+password / personal access token).  When the client is configured with
+``auth_mode='user'``, all methods make real API calls.  When the client
+uses the default Application API token auth (``auth_mode='app'``), every
+method raises :class:`~kanboard.exceptions.KanboardAuthError` with an
+actionable message.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from kanboard.exceptions import KanboardAuthError
 from kanboard.models import User
@@ -16,35 +18,43 @@ from kanboard.models import User
 if TYPE_CHECKING:
     from kanboard.client import KanboardClient
 
-_AUTH_MSG = (
+_AUTH_MODE_USER = "user"
+
+_APP_AUTH_MSG = (
     "The 'me' endpoints require User API authentication "
-    "(username + password). JSON-RPC API token auth is not supported "
-    "for these methods. User API auth will be available in a future release."
+    "(username + password). Application API token auth is not supported "
+    "for these methods. Configure auth_mode = 'user' with a username and "
+    "password in your profile, or use --auth-mode user."
 )
 
 
 class MeResource:
-    """Kanboard "Me" API resource - current authenticated user.
+    """Kanboard "Me" API resource — current authenticated user.
 
     Exposes all seven ``getMe*`` / ``createMyPrivateProject`` JSON-RPC
-    methods.  These endpoints are unique in that they operate on the
-    *currently authenticated user* rather than accepting an explicit user ID.
+    methods.  These endpoints operate on the *currently authenticated user*
+    rather than accepting an explicit user ID.
 
     .. important::
 
-        All methods require **User API authentication** (username + password
-        credentials).  The SDK currently only supports JSON-RPC API token
-        auth, so every method raises
-        :class:`~kanboard.exceptions.KanboardAuthError` until User API auth
-        is implemented.
+        All methods require **User API authentication** (``auth_mode='user'``
+        with username + password credentials).  When the client uses
+        Application API token auth (the default ``auth_mode='app'``), every
+        method raises :class:`~kanboard.exceptions.KanboardAuthError` with an
+        actionable error message.
 
     Accessed via ``KanboardClient.me``.
 
-    Example (future, once User API auth is available)::
+    Example::
 
-        >>> me = client.me.get_me()
-        >>> me.username
-        'admin'
+        with KanboardClient(
+            url="https://kb.example.com/jsonrpc.php",
+            auth_mode="user",
+            username="admin",
+            password="secret",
+        ) as client:
+            me = client.me.get_me()
+            print(me.username)
     """
 
     def __init__(self, client: KanboardClient) -> None:
@@ -56,6 +66,15 @@ class MeResource:
         """
         self._client = client
 
+    def _require_user_auth(self) -> None:
+        """Raise :class:`~kanboard.exceptions.KanboardAuthError` if not in user auth mode.
+
+        Raises:
+            KanboardAuthError: When the client is not using ``auth_mode='user'``.
+        """
+        if self._client.auth_mode != _AUTH_MODE_USER:
+            raise KanboardAuthError(_APP_AUTH_MSG)
+
     def get_me(self) -> User:
         """Get the profile of the currently authenticated user.
 
@@ -65,11 +84,14 @@ class MeResource:
             A :class:`~kanboard.models.User` instance for the authenticated user.
 
         Raises:
-            KanboardAuthError: Always raised - User API auth is required.
+            KanboardAuthError: When the client is not using ``auth_mode='user'``.
+            KanboardAPIError: The API returned an error response.
         """
-        raise KanboardAuthError(_AUTH_MSG)
+        self._require_user_auth()
+        data: dict[str, Any] = self._client.call("getMe")
+        return User.from_api(data)
 
-    def get_my_dashboard(self) -> dict:
+    def get_my_dashboard(self) -> dict[str, Any]:
         """Get the dashboard for the currently authenticated user.
 
         Maps to the Kanboard ``getMyDashboard`` JSON-RPC method.
@@ -78,11 +100,13 @@ class MeResource:
             A dict containing dashboard data (projects, tasks, subtasks).
 
         Raises:
-            KanboardAuthError: Always raised - User API auth is required.
+            KanboardAuthError: When the client is not using ``auth_mode='user'``.
+            KanboardAPIError: The API returned an error response.
         """
-        raise KanboardAuthError(_AUTH_MSG)
+        self._require_user_auth()
+        return self._client.call("getMyDashboard")  # type: ignore[no-any-return]
 
-    def get_my_activity_stream(self) -> list[dict]:
+    def get_my_activity_stream(self) -> list[dict[str, Any]]:
         """Get the activity stream for the currently authenticated user.
 
         Maps to the Kanboard ``getMyActivityStream`` JSON-RPC method.
@@ -91,11 +115,14 @@ class MeResource:
             A list of activity event dicts.
 
         Raises:
-            KanboardAuthError: Always raised - User API auth is required.
+            KanboardAuthError: When the client is not using ``auth_mode='user'``.
+            KanboardAPIError: The API returned an error response.
         """
-        raise KanboardAuthError(_AUTH_MSG)
+        self._require_user_auth()
+        result = self._client.call("getMyActivityStream")
+        return result if isinstance(result, list) else []
 
-    def create_my_private_project(self, name: str, **kwargs: object) -> int:
+    def create_my_private_project(self, name: str, **kwargs: Any) -> int:
         """Create a private project owned by the currently authenticated user.
 
         Maps to the Kanboard ``createMyPrivateProject`` JSON-RPC method.
@@ -109,12 +136,15 @@ class MeResource:
             The ID of the newly created project.
 
         Raises:
-            KanboardAuthError: Always raised - User API auth is required.
+            KanboardAuthError: When the client is not using ``auth_mode='user'``.
+            KanboardAPIError: The API returned an error response.
         """
-        raise KanboardAuthError(_AUTH_MSG)
+        self._require_user_auth()
+        result = self._client.call("createMyPrivateProject", name=name, **kwargs)
+        return int(result)
 
-    def get_my_projects_list(self) -> dict:
-        """Get a list of projects the currently authenticated user has access to.
+    def get_my_projects_list(self) -> dict[str, Any]:
+        """Get a mapping of project IDs to names for the current user.
 
         Maps to the Kanboard ``getMyProjectsList`` JSON-RPC method.
 
@@ -122,11 +152,13 @@ class MeResource:
             A dict mapping project IDs (as strings) to project names.
 
         Raises:
-            KanboardAuthError: Always raised - User API auth is required.
+            KanboardAuthError: When the client is not using ``auth_mode='user'``.
+            KanboardAPIError: The API returned an error response.
         """
-        raise KanboardAuthError(_AUTH_MSG)
+        self._require_user_auth()
+        return self._client.call("getMyProjectsList")  # type: ignore[no-any-return]
 
-    def get_my_overdue_tasks(self) -> list[dict]:
+    def get_my_overdue_tasks(self) -> list[dict[str, Any]]:
         """Get overdue tasks assigned to the currently authenticated user.
 
         Maps to the Kanboard ``getMyOverdueTasks`` JSON-RPC method.
@@ -135,11 +167,14 @@ class MeResource:
             A list of dicts representing overdue task data.
 
         Raises:
-            KanboardAuthError: Always raised - User API auth is required.
+            KanboardAuthError: When the client is not using ``auth_mode='user'``.
+            KanboardAPIError: The API returned an error response.
         """
-        raise KanboardAuthError(_AUTH_MSG)
+        self._require_user_auth()
+        result = self._client.call("getMyOverdueTasks")
+        return result if isinstance(result, list) else []
 
-    def get_my_projects(self) -> list[dict]:
+    def get_my_projects(self) -> list[dict[str, Any]]:
         """Get all projects the currently authenticated user is a member of.
 
         Maps to the Kanboard ``getMyProjects`` JSON-RPC method.
@@ -148,6 +183,9 @@ class MeResource:
             A list of dicts representing project data.
 
         Raises:
-            KanboardAuthError: Always raised - User API auth is required.
+            KanboardAuthError: When the client is not using ``auth_mode='user'``.
+            KanboardAPIError: The API returned an error response.
         """
-        raise KanboardAuthError(_AUTH_MSG)
+        self._require_user_auth()
+        result = self._client.call("getMyProjects")
+        return result if isinstance(result, list) else []

@@ -44,6 +44,8 @@ logger = logging.getLogger(__name__)
 
 _JSONRPC_VERSION = "2.0"
 _JSONRPC_USERNAME = "jsonrpc"
+_AUTH_MODE_APP = "app"
+_AUTH_MODE_USER = "user"
 
 
 class KanboardClient:
@@ -84,21 +86,54 @@ class KanboardClient:
         ...     task = c.tasks.get_task(42)
     """
 
-    def __init__(self, url: str, token: str, timeout: float = 30.0) -> None:
+    def __init__(
+        self,
+        url: str,
+        token: str = "",
+        timeout: float = 30.0,
+        auth_mode: str = _AUTH_MODE_APP,
+        username: str | None = None,
+        password: str | None = None,
+    ) -> None:
         """Initialise the client with connection parameters.
+
+        Two authentication modes are supported:
+
+        - **Application API** (``auth_mode='app'``, default): uses HTTP Basic
+          Auth with ``jsonrpc`` as the username and the API *token* as the
+          password.  This is the standard Kanboard authentication mode for
+          machine clients.
+        - **User API** (``auth_mode='user'``): uses HTTP Basic Auth with the
+          Kanboard *username* and *password* (or personal access token).
+          Required to access the ``me.*`` endpoints.
 
         Args:
             url: The Kanboard JSON-RPC endpoint URL
                 (e.g. ``"https://kb.example.com/jsonrpc.php"``).
-            token: The Kanboard API token used as the HTTP Basic Auth password.
+            token: The Kanboard API token used as the HTTP Basic Auth password
+                in ``'app'`` auth mode.  May be omitted when ``auth_mode``
+                is ``'user'``.
             timeout: Request timeout in seconds.  Defaults to ``30.0``.
+            auth_mode: Authentication mode — ``'app'`` (default) or ``'user'``.
+            username: Kanboard username for ``'user'`` auth mode.
+            password: Kanboard password or personal access token for ``'user'``
+                auth mode.
         """
         self._url = url
         self._token = token
         self._timeout = timeout
+        self._auth_mode = auth_mode
+        self._username = username
+        self._password = password
         self._request_id: int = 0
+
+        if auth_mode == _AUTH_MODE_USER:
+            http_auth: tuple[str, str] = (username or "", password or "")
+        else:
+            http_auth = (_JSONRPC_USERNAME, token)
+
         self._http = httpx.Client(
-            auth=(_JSONRPC_USERNAME, token),
+            auth=http_auth,
             timeout=timeout,
         )
         self.actions: ActionsResource = ActionsResource(self)
@@ -129,6 +164,15 @@ class KanboardClient:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    @property
+    def auth_mode(self) -> str:
+        """Return the active authentication mode (``'app'`` or ``'user'``).
+
+        Returns:
+            The authentication mode string passed at construction time.
+        """
+        return self._auth_mode
 
     def call(self, method: str, **params: Any) -> Any:
         """Send a single JSON-RPC 2.0 request and return the ``result``.
