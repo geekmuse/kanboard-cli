@@ -1,5 +1,6 @@
 """Kanboard Python SDK — public API surface."""
 
+from kanboard.client import KanboardClient
 from kanboard.config import (
     CONFIG_DIR,
     CONFIG_FILE,
@@ -24,6 +25,7 @@ __all__ = [
     "WORKFLOW_DIR",
     "KanboardAPIError",
     "KanboardAuthError",
+    "KanboardClient",
     "KanboardConfig",
     "KanboardConfigError",
     "KanboardConnectionError",
