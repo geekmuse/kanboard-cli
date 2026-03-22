@@ -1,12 +1,12 @@
 {
   "project": "kanboard-cli",
   "branchName": "ralph/phase-0-cross-project-orchestration",
-  "description": "Phase 0 cross-project orchestration: portfolio management, cross-project milestones, dependency analysis, and critical-path computation as a CLI-side meta-construct. Uses existing Kanboard API (task links, metadata) as persistence layer — no server-side plugin required for core functionality. Adds `src/kanboard/orchestration/` subpackage, 4 new models, 2 CLI command groups, and comprehensive test coverage.",
+  "description": "Phase 0 cross-project orchestration: portfolio management, cross-project milestones, dependency analysis, and critical-path computation as a CLI-side meta-construct. Uses existing Kanboard API (task links, metadata) as persistence layer \u2014 no server-side plugin required for core functionality. Adds `src/kanboard/orchestration/` subpackage, 4 new models, 2 CLI command groups, and comprehensive test coverage.",
   "userStories": [
     {
       "id": "US-001",
       "title": "Orchestration subpackage scaffolding",
-      "description": "Create the src/kanboard/orchestration/ subpackage with __init__.py, portfolio.py, dependencies.py, and store.py stub modules. The orchestration classes are instantiated separately (not wired into KanboardClient as attributes) — they accept a KanboardClient as a constructor argument. Update tests/test_smoke.py to include importability checks for the new package.",
+      "description": "Create the src/kanboard/orchestration/ subpackage with __init__.py, portfolio.py, dependencies.py, and store.py stub modules. The orchestration classes are instantiated separately (not wired into KanboardClient as attributes) \u2014 they accept a KanboardClient as a constructor argument. Update tests/test_smoke.py to include importability checks for the new package.",
       "acceptanceCriteria": [
         "src/kanboard/orchestration/__init__.py exports PortfolioManager, DependencyAnalyzer, LocalPortfolioStore",
         "src/kanboard/orchestration/portfolio.py, dependencies.py, and store.py exist with stub classes",
@@ -20,7 +20,7 @@
       "priority": 1,
       "status": "done",
       "dependsOn": [],
-      "notes": "Milestones 1-4 are complete on main. This begins Phase 0. Do NOT add orchestration to KanboardClient — it is opt-in, instantiated separately by callers.",
+      "notes": "Milestones 1-4 are complete on main. This begins Phase 0. Do NOT add orchestration to KanboardClient \u2014 it is opt-in, instantiated separately by callers.",
       "startedAt": "2026-03-22T18:00:33.795Z",
       "updatedAt": "2026-03-22T18:16:58.532Z",
       "completedAt": "2026-03-22T18:16:58.532Z"
@@ -28,7 +28,7 @@
     {
       "id": "US-002",
       "title": "Orchestration data models",
-      "description": "Add Portfolio, Milestone, MilestoneProgress, and DependencyEdge dataclasses to src/kanboard/models.py. These models do NOT have from_api() classmethods — they are composed client-side from multiple API responses, not deserialized from a single API response. Portfolio and Milestone are mutable (no frozen=True). Update kanboard/__init__.py to export the 4 new models.",
+      "description": "Add Portfolio, Milestone, MilestoneProgress, and DependencyEdge dataclasses to src/kanboard/models.py. These models do NOT have from_api() classmethods \u2014 they are composed client-side from multiple API responses, not deserialized from a single API response. Portfolio and Milestone are mutable (no frozen=True). Update kanboard/__init__.py to export the 4 new models.",
       "acceptanceCriteria": [
         "Portfolio dataclass added: name, description, project_ids: list[int], milestones: list[Milestone], created_at: datetime | None, updated_at: datetime | None",
         "Milestone dataclass added: name, portfolio_name, target_date: datetime | None, task_ids: list[int], critical_task_ids: list[int]",
@@ -52,8 +52,8 @@
     },
     {
       "id": "US-003",
-      "title": "Local portfolio store — JSON persistence",
-      "description": "Implement src/kanboard/orchestration/store.py with LocalPortfolioStore — full CRUD for portfolios, milestones, and milestone task membership backed by ~/.config/kanboard/portfolios.json. Uses stdlib json only. Atomic writes (write temp, rename). Uses CONFIG_DIR constant from kanboard.config. Raises KanboardConfigError on malformed JSON or schema version mismatch.",
+      "title": "Local portfolio store \u2014 JSON persistence",
+      "description": "Implement src/kanboard/orchestration/store.py with LocalPortfolioStore \u2014 full CRUD for portfolios, milestones, and milestone task membership backed by ~/.config/kanboard/portfolios.json. Uses stdlib json only. Atomic writes (write temp, rename). Uses CONFIG_DIR constant from kanboard.config. Raises KanboardConfigError on malformed JSON or schema version mismatch.",
       "acceptanceCriteria": [
         "LocalPortfolioStore.__init__(path: Path | None = None) defaults to CONFIG_DIR / 'portfolios.json'",
         "load() -> list[Portfolio] returns [] when file does not exist",
@@ -79,14 +79,14 @@
         "US-001",
         "US-002"
       ],
-      "notes": "Portfolio names are case-sensitive and unique. Milestone names are unique within a portfolio. File format version field is 1. Use json stdlib only — no external deps.",
+      "notes": "Portfolio names are case-sensitive and unique. Milestone names are unique within a portfolio. File format version field is 1. Use json stdlib only \u2014 no external deps.",
       "startedAt": "2026-03-22T18:34:01.794Z",
       "updatedAt": "2026-03-22T18:53:15.749Z",
       "completedAt": "2026-03-22T18:53:15.749Z"
     },
     {
       "id": "US-004",
-      "title": "Portfolio manager — multi-project aggregation",
+      "title": "Portfolio manager \u2014 multi-project aggregation",
       "description": "Implement src/kanboard/orchestration/portfolio.py with PortfolioManager. Accepts KanboardClient and LocalPortfolioStore as constructor arguments. Aggregates task data across multiple projects, computes milestone progress, and syncs portfolio/milestone membership to Kanboard metadata using the kanboard_cli: key prefix convention.",
       "acceptanceCriteria": [
         "PortfolioManager.__init__(client: KanboardClient, store: LocalPortfolioStore)",
@@ -98,7 +98,7 @@
         "MilestoneProgress.blocked_task_ids populated from tasks with open blockers (uses client.task_links)",
         "get_all_milestone_progress(portfolio_name) -> list[MilestoneProgress]",
         "sync_metadata(portfolio_name) writes kanboard_cli:portfolio JSON to each project's metadata and kanboard_cli:milestones JSON to each task's metadata; returns {'projects_synced': N, 'tasks_synced': N}",
-        "Missing projects/tasks (deleted from Kanboard but still in portfolio) handled gracefully — logged warning, skipped",
+        "Missing projects/tasks (deleted from Kanboard but still in portfolio) handled gracefully \u2014 logged warning, skipped",
         "Unit tests in tests/unit/orchestration/test_portfolio.py mocking KanboardClient with pytest-httpx",
         ">=90% coverage on portfolio.py",
         "ruff check . && ruff format --check . passes",
@@ -111,19 +111,19 @@
         "US-002",
         "US-003"
       ],
-      "notes": "N+1 API calls by design — Phase 1 plugin will solve server-side. Metadata keys: kanboard_cli:portfolio (project scope), kanboard_cli:milestones (task scope), kanboard_cli:milestone_critical (task scope).",
+      "notes": "N+1 API calls by design \u2014 Phase 1 plugin will solve server-side. Metadata keys: kanboard_cli:portfolio (project scope), kanboard_cli:milestones (task scope), kanboard_cli:milestone_critical (task scope).",
       "startedAt": "2026-03-22T18:53:16.276Z",
       "updatedAt": "2026-03-22T19:26:01.979Z",
       "completedAt": "2026-03-22T19:26:01.979Z"
     },
     {
       "id": "US-005",
-      "title": "Dependency analyzer — graph traversal and critical path",
+      "title": "Dependency analyzer \u2014 graph traversal and critical path",
       "description": "Implement src/kanboard/orchestration/dependencies.py with DependencyAnalyzer. Builds directed dependency graphs from Kanboard internal task links (blocks/is blocked by). Uses topological sort (Kahn's algorithm) for critical path computation. Caches fetched tasks to avoid redundant API calls. Deduplicates bidirectional edges.",
       "acceptanceCriteria": [
         "DependencyAnalyzer.__init__(client: KanboardClient)",
         "get_dependency_edges(tasks, cross_project_only=False) -> list[DependencyEdge]: fetches task links for each task, filters to blocks/is-blocked-by relationships, enriches with project names",
-        "Edges deduplicated — task A blocks task B produces one edge, not two (from querying both A and B)",
+        "Edges deduplicated \u2014 task A blocks task B produces one edge, not two (from querying both A and B)",
         "get_blocked_tasks(tasks) -> list[tuple[Task, list[DependencyEdge]]]: tasks with unresolved (open) blockers",
         "get_blocking_tasks(tasks) -> list[tuple[Task, list[DependencyEdge]]]: open tasks blocking other tasks",
         "get_critical_path(tasks) -> list[Task]: longest dependency chain via topological sort + longest-path DAG",
@@ -144,7 +144,7 @@
         "US-002",
         "US-004"
       ],
-      "notes": "getAllTaskLinks returns links from the queried task's perspective — must deduplicate when processing both ends of a relationship. Link IDs 2/3 are conventional but look up by label for robustness.",
+      "notes": "getAllTaskLinks returns links from the queried task's perspective \u2014 must deduplicate when processing both ends of a relationship. Link IDs 2/3 are conventional but look up by label for robustness.",
       "startedAt": "2026-03-22T19:26:02.863Z",
       "updatedAt": "2026-03-22T19:53:24.034Z",
       "completedAt": "2026-03-22T19:53:24.034Z"
@@ -156,7 +156,7 @@
       "acceptanceCriteria": [
         "render_dependency_graph(edges, nodes, cross_project_only=False, use_color=True) -> str: groups nodes by project, shows blocking arrows, uses ANSI colors (green=resolved, red=blocked, yellow=open)",
         "render_critical_path(tasks, edges) -> str: numbered sequential list identifying the bottleneck task",
-        "render_milestone_progress(progress, use_color=True) -> str: 20-char Unicode progress bar (█/░), at-risk ⚠ prefix, overdue 🔴 suffix, target date shown",
+        "render_milestone_progress(progress, use_color=True) -> str: 20-char Unicode progress bar (\u2588/\u2591), at-risk \u26a0 prefix, overdue \ud83d\udd34 suffix, target date shown",
         "render_portfolio_summary(portfolio, milestones, task_count, blocked_count) -> str: dashboard summary",
         "Color output can be disabled via use_color=False (for piping, CI, quiet mode)",
         "Progress bar width: 20 chars, fill = round(percent / 5) blocks",
@@ -169,14 +169,14 @@
       "dependsOn": [
         "US-005"
       ],
-      "notes": "Dependency graph renderer is a simple text list — not a full graph layout engine. Format: project header, indented tasks with status icons and arrow annotations showing blocks/blocked-by relationships.",
+      "notes": "Dependency graph renderer is a simple text list \u2014 not a full graph layout engine. Format: project header, indented tasks with status icons and arrow annotations showing blocks/blocked-by relationships.",
       "startedAt": "2026-03-22T19:53:24.748Z",
       "updatedAt": "2026-03-22T20:15:59.720Z",
       "completedAt": "2026-03-22T20:15:59.720Z"
     },
     {
       "id": "US-007",
-      "title": "Portfolio CLI command group — CRUD and aggregation",
+      "title": "Portfolio CLI command group \u2014 CRUD and aggregation",
       "description": "Create src/kanboard_cli/commands/portfolio.py with 8 subcommands: list, show, create, remove, add-project, remove-project, tasks, sync. Register in main.py. Portfolio show combines local store data with live API data and displays milestone progress bars. Portfolio tasks supports all 4 output formats.",
       "acceptanceCriteria": [
         "kanboard portfolio list: table of name, description, project count, milestone count from local store",
@@ -200,7 +200,7 @@
         "US-004",
         "US-006"
       ],
-      "notes": "portfolio show: if API is unreachable, show cached store data with a warning. portfolio tasks table requires fetching project names — cache project lookups. portfolio create uses positional argument for name, not --name option.",
+      "notes": "portfolio show: if API is unreachable, show cached store data with a warning. portfolio tasks table requires fetching project names \u2014 cache project lookups. portfolio create uses positional argument for name, not --name option.",
       "startedAt": "2026-03-22T20:16:00.449Z",
       "updatedAt": "2026-03-22T20:36:07.034Z",
       "completedAt": "2026-03-22T20:36:07.034Z"
@@ -264,7 +264,7 @@
     },
     {
       "id": "US-010",
-      "title": "Unit tests — orchestration modules",
+      "title": "Unit tests \u2014 orchestration modules",
       "description": "Create comprehensive unit tests for all three orchestration modules: tests/unit/orchestration/test_store.py, test_portfolio.py, and test_dependencies.py. Shared fixtures in tests/unit/orchestration/conftest.py. Coverage targets: store.py >=95%, portfolio.py >=90%, dependencies.py >=90%.",
       "acceptanceCriteria": [
         "tests/unit/orchestration/conftest.py with fixtures: sample_portfolio (3 projects, 2 milestones), mock_tasks (10 tasks across 3 projects), mock_task_links (cross-project blocking relationships), mock_link_types (standard Kanboard link types)",
@@ -283,14 +283,14 @@
         "US-004",
         "US-005"
       ],
-      "notes": "Mock KanboardClient at the httpx level using pytest-httpx (consistent with existing test patterns). Use tmp_path for all store tests — never touch real ~/.config/kanboard/.",
+      "notes": "Mock KanboardClient at the httpx level using pytest-httpx (consistent with existing test patterns). Use tmp_path for all store tests \u2014 never touch real ~/.config/kanboard/.",
       "startedAt": "2026-03-22T21:15:11.630Z",
-      "updatedAt": "2026-03-22T21:25:00.000Z",
-      "completedAt": "2026-03-22T21:25:00.000Z"
+      "updatedAt": "2026-03-22T21:34:55.162Z",
+      "completedAt": "2026-03-22T21:34:55.162Z"
     },
     {
       "id": "US-011",
-      "title": "CLI tests — portfolio and milestone commands",
+      "title": "CLI tests \u2014 portfolio and milestone commands",
       "description": "Create CLI output tests for all portfolio and milestone commands using CliRunner. Tests cover all subcommands, all 4 output formats for list/table commands, error cases, and destructive command confirmation. Extend tests/cli/test_portfolio.py with dependency subcommand tests.",
       "acceptanceCriteria": [
         "tests/cli/test_portfolio.py: all 8 CRUD subcommands + 4 dependency subcommands tested (at minimum success + error case each)",
@@ -306,20 +306,23 @@
         "pytest passes"
       ],
       "priority": 11,
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-007",
         "US-008",
         "US-009"
       ],
-      "notes": "Mock KanboardClient at the AppContext level and mock LocalPortfolioStore separately. Use same patching patterns as existing CLI tests in tests/cli/."
+      "notes": "Mock KanboardClient at the AppContext level and mock LocalPortfolioStore separately. Use same patching patterns as existing CLI tests in tests/cli/.",
+      "startedAt": "2026-03-22T21:34:55.887Z",
+      "updatedAt": "2026-03-22T21:43:24.000Z",
+      "completedAt": "2026-03-22T21:43:24.000Z"
     },
     {
       "id": "US-012",
       "title": "Task-link cross-project context enhancements",
       "description": "Enhance the existing task-link create command to display cross-project context when the two tasks belong to different projects. Add --with-project flag to task-link list to enrich each link with the opposite task's project name.",
       "acceptanceCriteria": [
-        "task-link create: after successful creation, if task.project_id != opposite_task.project_id, print informational message: 'ℹ Cross-project dependency: Task #<id> (<project>) is blocked by Task #<id> (<project>)'",
+        "task-link create: after successful creation, if task.project_id != opposite_task.project_id, print informational message: '\u2139 Cross-project dependency: Task #<id> (<project>) is blocked by Task #<id> (<project>)'",
         "Cross-project detection fetches both tasks only on success (no latency on error path)",
         "task-link list --with-project: adds opposite_project column to output (requires one get_task() call per link)",
         "--with-project documented as slower for tasks with many links",
@@ -338,7 +341,7 @@
     },
     {
       "id": "US-013",
-      "title": "Final wiring — exports, CLI registration, and integration verification",
+      "title": "Final wiring \u2014 exports, CLI registration, and integration verification",
       "description": "Wire the orchestration package into the public kanboard package exports and register portfolio and milestone command groups in main.py. Verify end-to-end: kanboard portfolio --help and kanboard milestone --help produce correct output. Run full test suite.",
       "acceptanceCriteria": [
         "src/kanboard/__init__.py exports PortfolioManager, DependencyAnalyzer, LocalPortfolioStore (in sorted __all__)",
@@ -357,11 +360,11 @@
         "US-008",
         "US-009"
       ],
-      "notes": "Check __all__ sort order carefully — ruff RUF022 enforces alphabetical sort with capitals before lowercase. Run ruff check --fix to auto-correct."
+      "notes": "Check __all__ sort order carefully \u2014 ruff RUF022 enforces alphabetical sort with capitals before lowercase. Run ruff check --fix to auto-correct."
     },
     {
       "id": "US-014",
-      "title": "Documentation — cross-project orchestration",
+      "title": "Documentation \u2014 cross-project orchestration",
       "description": "Update README.md, docs/cli-reference.md, docs/sdk-guide.md, CLAUDE.md, and AGENTS.md to document the new orchestration features. Add portfolio and milestone sections to the CLI reference with usage examples. Add orchestration section to SDK guide. Update CLAUDE.md with orchestration architecture notes. BLOCKER: requires Kanboard Portfolio plugin URL from project owner before task 62 plugin-URL-dependent content can be written.",
       "acceptanceCriteria": [
         "README.md: new 'Cross-Project Orchestration' section added after Key Features describing portfolio management, milestones, dependency analysis, unified task views",
@@ -372,7 +375,7 @@
         "docs/sdk-guide.md: new Cross-Project Orchestration section with PortfolioManager, DependencyAnalyzer, LocalPortfolioStore usage examples",
         "CLAUDE.md: updated with src/kanboard/orchestration/ subpackage, ADR-16 note (orchestration is NOT resources), portfolio store path, kanboard_cli: metadata key prefix, reference to docs/design/cross-project-orchestration.md",
         "AGENTS.md: orchestration/ added to directory structure, docs/tasks/ and docs/design/ added to key references, tests/unit/orchestration/ noted",
-        "NOTE: If Kanboard Portfolio plugin URL is NOT yet available, omit plugin URL references entirely — do NOT use placeholder URLs. Add a TODO comment in the design doc only.",
+        "NOTE: If Kanboard Portfolio plugin URL is NOT yet available, omit plugin URL references entirely \u2014 do NOT use placeholder URLs. Add a TODO comment in the design doc only.",
         "ruff check . && ruff format --check . passes",
         "pytest passes"
       ],

@@ -1,3 +1,29 @@
+## 2026-03-22 - US-011
+Session: iter-0078062a
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- US-011 acceptance criteria fully satisfied by tests already created in US-007, US-008, US-009
+- tests/cli/test_portfolio.py: 51 tests covering all 8 CRUD subcommands + 4 dependency subcommands (success + error case each)
+- tests/cli/test_milestone.py: 35 tests covering all 7 milestone subcommands (success + error case each)
+- All 4 output formats (table/json/csv/quiet) verified for: portfolio list, portfolio tasks, milestone list
+- Error cases verified: portfolio not found, project does not exist (add-project), milestone not found, task not in portfolio project (add-task)
+- Destructive command --yes guards verified (portfolio remove, remove-project, milestone remove, milestone remove-task): invoking without --yes returns non-zero exit code
+- portfolio show: milestone progress bars confirmed present (test_portfolio_show_with_milestone_progress)
+- portfolio dependencies: ASCII graph output verified to contain task/project references
+- portfolio blocked/blocking: JSON output verified to contain correct columns (task_id, title, project, blocked_by_task/blocks_task, blocked_by_project/blocks_project)
+- CliRunner(mix_stderr=False) AC: Not applicable — Click 8.3.1 removed the mix_stderr parameter entirely. In Click 8, CliRunner() already separates stdout/stderr (result.output=stdout+stderr, result.stderr=stderr-only). Tests are written correctly for Click 8.x.
+- 86 CLI tests pass (51 portfolio + 35 milestone); full suite 2358 tests green; ruff clean
+- Files changed: .ralphi/prd.json (US-011 marked done), .ralphi/progress.txt (this entry)
+- **Learnings for future iterations:**
+  - Click 8.x removed mix_stderr from CliRunner; result.output contains mixed stdout+stderr; result.stderr has stderr-only
+  - ClickExceptions appear in both result.output and result.stderr in Click 8.x
+  - All test assertions against result.output work correctly because ClickException error messages appear there
+  - US-011 "verification story" pattern: when implementation tests are created incrementally per feature story, the aggregate verification story only needs to confirm all ACs are met — no new code if prior stories were thorough
+
+---
+
 ## 2026-03-22 - US-010
 Session: iter-629c311d
 Review Outcome: PASS
