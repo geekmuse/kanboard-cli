@@ -16,6 +16,7 @@ import click
 from kanboard.client import KanboardClient
 from kanboard.config import KanboardConfig
 from kanboard.exceptions import KanboardConfigError
+from kanboard_cli.commands.task import task
 
 logger = logging.getLogger(__name__)
 
@@ -140,11 +141,6 @@ def cli(
 # Stub command groups
 # (Populated with real sub-commands in later user stories)
 # ---------------------------------------------------------------------------
-
-
-@click.group()
-def task() -> None:
-    """Manage Kanboard tasks."""
 
 
 @click.group()
