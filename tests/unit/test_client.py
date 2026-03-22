@@ -122,10 +122,12 @@ def test_batch_passes_params(httpx_mock: HTTPXMock) -> None:
         ]
     )
     with KanboardClient(_URL, _TOKEN) as client:
-        results = client.batch([
-            ("getProjectById", {"project_id": 1}),
-            ("getProjectById", {"project_id": 2}),
-        ])
+        results = client.batch(
+            [
+                ("getProjectById", {"project_id": 1}),
+                ("getProjectById", {"project_id": 2}),
+            ]
+        )
     assert len(results) == 2
     assert results[0]["id"] == 1
     assert results[1]["id"] == 2

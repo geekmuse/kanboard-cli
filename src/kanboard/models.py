@@ -427,3 +427,272 @@ class Category:
             project_id=_int(data.get("project_id", 0)),
             color_id=str(data.get("color_id", "")),
         )
+
+
+# ---------------------------------------------------------------------------
+# Extended models (US-006)
+# ---------------------------------------------------------------------------
+
+
+@dataclasses.dataclass
+class Tag:
+    """Represents a Kanboard tag returned by ``getTagsByProject`` and related endpoints."""
+
+    id: int
+    name: str
+    project_id: int
+    color_id: str
+
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> Tag:
+        """Construct a :class:`Tag` from a raw Kanboard API response dict.
+
+        Args:
+            data: Dictionary from a ``getTagsByProject`` API response item.
+
+        Returns:
+            A populated :class:`Tag` instance.
+        """
+        return cls(
+            id=_int(data.get("id", 0)),
+            name=str(data.get("name", "")),
+            project_id=_int(data.get("project_id", 0)),
+            color_id=str(data.get("color_id", "")),
+        )
+
+
+@dataclasses.dataclass
+class Link:
+    """Represents a Kanboard internal link type returned by ``getLinkById`` and related endpoints.
+
+    Links describe the *relationship label* between two tasks (e.g. "blocks", "is blocked by").
+    Each link has an opposite label that mirrors the relationship from the other direction.
+    """
+
+    id: int
+    label: str
+    opposite_id: int
+
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> Link:
+        """Construct a :class:`Link` from a raw Kanboard API response dict.
+
+        Args:
+            data: Dictionary from a ``getLinkById`` or ``getAllLinks`` API response item.
+
+        Returns:
+            A populated :class:`Link` instance.
+        """
+        return cls(
+            id=_int(data.get("id", 0)),
+            label=str(data.get("label", "")),
+            opposite_id=_int(data.get("opposite_id", 0)),
+        )
+
+
+@dataclasses.dataclass
+class TaskLink:
+    """Represents a task-to-task link returned by ``getTaskLinkById`` and related endpoints.
+
+    A task link associates two tasks via a :class:`Link` relationship type.
+    """
+
+    id: int
+    task_id: int
+    opposite_task_id: int
+    link_id: int
+
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> TaskLink:
+        """Construct a :class:`TaskLink` from a raw Kanboard API response dict.
+
+        Args:
+            data: Dictionary from a ``getTaskLinkById`` or ``getAllTaskLinks`` API response item.
+
+        Returns:
+            A populated :class:`TaskLink` instance.
+        """
+        return cls(
+            id=_int(data.get("id", 0)),
+            task_id=_int(data.get("task_id", 0)),
+            opposite_task_id=_int(data.get("opposite_task_id", 0)),
+            link_id=_int(data.get("link_id", 0)),
+        )
+
+
+@dataclasses.dataclass
+class ExternalTaskLink:
+    """Represents an external task link returned by ``getExternalTaskLinkById``.
+
+    External task links associate a task with an external URL (e.g. a GitHub issue or document).
+    """
+
+    id: int
+    task_id: int
+    url: str
+    title: str
+    link_type: str
+    dependency: str
+
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> ExternalTaskLink:
+        """Construct a :class:`ExternalTaskLink` from a raw Kanboard API response dict.
+
+        Args:
+            data: Dictionary from a ``getExternalTaskLinkById`` or ``getAllExternalTaskLinks``
+                API response item.
+
+        Returns:
+            A populated :class:`ExternalTaskLink` instance.
+        """
+        return cls(
+            id=_int(data.get("id", 0)),
+            task_id=_int(data.get("task_id", 0)),
+            url=str(data.get("url", "")),
+            title=str(data.get("title", "")),
+            link_type=str(data.get("link_type", "")),
+            dependency=str(data.get("dependency", "")),
+        )
+
+
+@dataclasses.dataclass
+class Group:
+    """Represents a Kanboard user group returned by ``getGroup`` and related endpoints."""
+
+    id: int
+    name: str
+    external_id: str
+
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> Group:
+        """Construct a :class:`Group` from a raw Kanboard API response dict.
+
+        Args:
+            data: Dictionary from a ``getGroup`` or ``getAllGroups`` API response item.
+
+        Returns:
+            A populated :class:`Group` instance.
+        """
+        return cls(
+            id=_int(data.get("id", 0)),
+            name=str(data.get("name", "")),
+            external_id=str(data.get("external_id", "")),
+        )
+
+
+@dataclasses.dataclass
+class ProjectFile:
+    """Represents a Kanboard project-level file.
+
+    Returned by ``getProjectFile`` and related endpoints.
+    """
+
+    id: int
+    name: str
+    path: str
+    is_image: bool
+    project_id: int
+    owner_id: int
+    date: datetime | None
+    size: int
+    username: str
+    task_id: int
+    mime_type: str
+
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> ProjectFile:
+        """Construct a :class:`ProjectFile` from a raw Kanboard API response dict.
+
+        Args:
+            data: Dictionary from a ``getProjectFile`` or ``getAllProjectFiles`` API response item.
+
+        Returns:
+            A populated :class:`ProjectFile` instance.
+        """
+        return cls(
+            id=_int(data.get("id", 0)),
+            name=str(data.get("name", "")),
+            path=str(data.get("path", "")),
+            is_image=bool(_int(data.get("is_image", 0))),
+            project_id=_int(data.get("project_id", 0)),
+            owner_id=_int(data.get("owner_id", 0)),
+            date=_parse_date(data.get("date")),
+            size=_int(data.get("size", 0)),
+            username=str(data.get("username", "")),
+            task_id=_int(data.get("task_id", 0)),
+            mime_type=str(data.get("mime_type", "")),
+        )
+
+
+@dataclasses.dataclass
+class TaskFile:
+    """Represents a Kanboard task-level file returned by ``getTaskFile`` and related endpoints."""
+
+    id: int
+    name: str
+    path: str
+    is_image: bool
+    task_id: int
+    date: datetime | None
+    size: int
+    username: str
+    user_id: int
+    project_id: int
+    mime_type: str
+
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> TaskFile:
+        """Construct a :class:`TaskFile` from a raw Kanboard API response dict.
+
+        Args:
+            data: Dictionary from a ``getTaskFile`` or ``getAllTaskFiles`` API response item.
+
+        Returns:
+            A populated :class:`TaskFile` instance.
+        """
+        return cls(
+            id=_int(data.get("id", 0)),
+            name=str(data.get("name", "")),
+            path=str(data.get("path", "")),
+            is_image=bool(_int(data.get("is_image", 0))),
+            task_id=_int(data.get("task_id", 0)),
+            date=_parse_date(data.get("date")),
+            size=_int(data.get("size", 0)),
+            username=str(data.get("username", "")),
+            user_id=_int(data.get("user_id", 0)),
+            project_id=_int(data.get("project_id", 0)),
+            mime_type=str(data.get("mime_type", "")),
+        )
+
+
+@dataclasses.dataclass
+class Action:
+    """Represents a Kanboard automatic action returned by ``getActions`` and related endpoints.
+
+    Actions automate task changes when a specific event fires (e.g. assign a user when
+    a task is moved to a column).
+    """
+
+    id: int
+    project_id: int
+    event_name: str
+    action_name: str
+    params: dict[str, Any]
+
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> Action:
+        """Construct a :class:`Action` from a raw Kanboard API response dict.
+
+        Args:
+            data: Dictionary from a ``getActions`` API response item.
+
+        Returns:
+            A populated :class:`Action` instance.
+        """
+        return cls(
+            id=_int(data.get("id", 0)),
+            project_id=_int(data.get("project_id", 0)),
+            event_name=str(data.get("event_name", "")),
+            action_name=str(data.get("action_name", "")),
+            params=dict(data.get("params") or {}),
+        )

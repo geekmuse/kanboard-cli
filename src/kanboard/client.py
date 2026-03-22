@@ -117,9 +117,7 @@ class KanboardClient:
                 raw_body=raw,
             )
 
-        id_to_item: dict[int, dict[str, Any]] = {
-            item.get("id"): item for item in response_list
-        }
+        id_to_item: dict[int, dict[str, Any]] = {item.get("id"): item for item in response_list}
 
         results: list[Any] = []
         for req in requests:

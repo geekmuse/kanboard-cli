@@ -230,9 +230,7 @@ def test_cli_output_format_overrides_env_var(
 # ---------------------------------------------------------------------------
 
 
-def test_missing_config_file_uses_env_vars(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_missing_config_file_uses_env_vars(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("KANBOARD_URL", "http://env/jsonrpc.php")
     monkeypatch.setenv("KANBOARD_TOKEN", "env-tok")
     monkeypatch.delenv("KANBOARD_PROFILE", raising=False)
@@ -245,9 +243,7 @@ def test_missing_config_file_uses_env_vars(
     assert config.output_format == "table"
 
 
-def test_missing_config_file_uses_cli_args(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_missing_config_file_uses_cli_args(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("KANBOARD_URL", raising=False)
     monkeypatch.delenv("KANBOARD_TOKEN", raising=False)
     monkeypatch.delenv("KANBOARD_PROFILE", raising=False)
@@ -281,9 +277,7 @@ def test_missing_url_raises_config_error(tmp_path: Path, monkeypatch: pytest.Mon
     assert "KANBOARD_URL" in str(exc_info.value)
 
 
-def test_missing_token_raises_config_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_missing_token_raises_config_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("KANBOARD_URL", raising=False)
     monkeypatch.delenv("KANBOARD_TOKEN", raising=False)
     monkeypatch.delenv("KANBOARD_PROFILE", raising=False)
@@ -428,9 +422,7 @@ token = "default-tok"
     assert config.profile == "default"
 
 
-def test_cli_profile_overrides_env_profile(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_cli_profile_overrides_env_profile(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("KANBOARD_URL", raising=False)
     monkeypatch.delenv("KANBOARD_TOKEN", raising=False)
     monkeypatch.setenv("KANBOARD_PROFILE", "env-profile")

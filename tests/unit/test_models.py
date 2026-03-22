@@ -5,13 +5,21 @@ from datetime import datetime
 import pytest
 
 from kanboard.models import (
+    Action,
     Category,
     Column,
     Comment,
+    ExternalTaskLink,
+    Group,
+    Link,
     Project,
+    ProjectFile,
     Subtask,
     Swimlane,
+    Tag,
     Task,
+    TaskFile,
+    TaskLink,
     User,
     _float,
     _int,
@@ -556,6 +564,336 @@ class TestCategory:
 
 
 # ---------------------------------------------------------------------------
+# Tag tests
+# ---------------------------------------------------------------------------
+
+_TAG_PAYLOAD = {
+    "id": "1",
+    "name": "security",
+    "project_id": "2",
+    "color_id": "blue",
+}
+
+
+class TestTag:
+    def test_from_api_basic(self):
+        tag = Tag.from_api(_TAG_PAYLOAD)
+        assert tag.id == 1
+        assert tag.name == "security"
+        assert tag.project_id == 2
+        assert tag.color_id == "blue"
+
+    def test_from_api_string_id_coerced(self):
+        tag = Tag.from_api({**_TAG_PAYLOAD, "id": "99"})
+        assert tag.id == 99
+
+    def test_from_api_missing_color_uses_default(self):
+        data = {"id": "1", "name": "bug", "project_id": "1"}
+        tag = Tag.from_api(data)
+        assert tag.color_id == ""
+
+    def test_from_api_empty_dict_uses_defaults(self):
+        tag = Tag.from_api({})
+        assert tag.id == 0
+        assert tag.name == ""
+        assert tag.project_id == 0
+        assert tag.color_id == ""
+
+
+# ---------------------------------------------------------------------------
+# Link tests
+# ---------------------------------------------------------------------------
+
+_LINK_PAYLOAD = {
+    "id": "1",
+    "label": "blocks",
+    "opposite_id": "2",
+}
+
+
+class TestLink:
+    def test_from_api_basic(self):
+        link = Link.from_api(_LINK_PAYLOAD)
+        assert link.id == 1
+        assert link.label == "blocks"
+        assert link.opposite_id == 2
+
+    def test_from_api_string_ids_coerced(self):
+        link = Link.from_api({"id": "5", "label": "relates to", "opposite_id": "5"})
+        assert link.id == 5
+        assert link.opposite_id == 5
+
+    def test_from_api_empty_dict_uses_defaults(self):
+        link = Link.from_api({})
+        assert link.id == 0
+        assert link.label == ""
+        assert link.opposite_id == 0
+
+
+# ---------------------------------------------------------------------------
+# TaskLink tests
+# ---------------------------------------------------------------------------
+
+_TASK_LINK_PAYLOAD = {
+    "id": "10",
+    "task_id": "3",
+    "opposite_task_id": "7",
+    "link_id": "1",
+}
+
+
+class TestTaskLink:
+    def test_from_api_basic(self):
+        tl = TaskLink.from_api(_TASK_LINK_PAYLOAD)
+        assert tl.id == 10
+        assert tl.task_id == 3
+        assert tl.opposite_task_id == 7
+        assert tl.link_id == 1
+
+    def test_from_api_string_ids_coerced(self):
+        tl = TaskLink.from_api({**_TASK_LINK_PAYLOAD, "id": "99", "link_id": "3"})
+        assert tl.id == 99
+        assert tl.link_id == 3
+
+    def test_from_api_empty_dict_uses_defaults(self):
+        tl = TaskLink.from_api({})
+        assert tl.id == 0
+        assert tl.task_id == 0
+        assert tl.opposite_task_id == 0
+        assert tl.link_id == 0
+
+
+# ---------------------------------------------------------------------------
+# ExternalTaskLink tests
+# ---------------------------------------------------------------------------
+
+_EXT_LINK_PAYLOAD = {
+    "id": "5",
+    "task_id": "3",
+    "url": "https://github.com/example/repo/issues/42",
+    "title": "GitHub Issue #42",
+    "link_type": "weblink",
+    "dependency": "related",
+}
+
+
+class TestExternalTaskLink:
+    def test_from_api_basic(self):
+        el = ExternalTaskLink.from_api(_EXT_LINK_PAYLOAD)
+        assert el.id == 5
+        assert el.task_id == 3
+        assert el.url == "https://github.com/example/repo/issues/42"
+        assert el.title == "GitHub Issue #42"
+        assert el.link_type == "weblink"
+        assert el.dependency == "related"
+
+    def test_from_api_string_id_coerced(self):
+        el = ExternalTaskLink.from_api({**_EXT_LINK_PAYLOAD, "id": "77"})
+        assert el.id == 77
+
+    def test_from_api_empty_dict_uses_defaults(self):
+        el = ExternalTaskLink.from_api({})
+        assert el.id == 0
+        assert el.url == ""
+        assert el.title == ""
+        assert el.link_type == ""
+        assert el.dependency == ""
+
+
+# ---------------------------------------------------------------------------
+# Group tests
+# ---------------------------------------------------------------------------
+
+_GROUP_PAYLOAD = {
+    "id": "1",
+    "name": "Admins",
+    "external_id": "ldap-admins",
+}
+
+
+class TestGroup:
+    def test_from_api_basic(self):
+        g = Group.from_api(_GROUP_PAYLOAD)
+        assert g.id == 1
+        assert g.name == "Admins"
+        assert g.external_id == "ldap-admins"
+
+    def test_from_api_missing_external_id_defaults_empty(self):
+        g = Group.from_api({"id": "2", "name": "Developers"})
+        assert g.external_id == ""
+
+    def test_from_api_empty_external_id(self):
+        g = Group.from_api({**_GROUP_PAYLOAD, "external_id": ""})
+        assert g.external_id == ""
+
+    def test_from_api_empty_dict_uses_defaults(self):
+        g = Group.from_api({})
+        assert g.id == 0
+        assert g.name == ""
+        assert g.external_id == ""
+
+
+# ---------------------------------------------------------------------------
+# ProjectFile tests
+# ---------------------------------------------------------------------------
+
+_PROJECT_FILE_PAYLOAD = {
+    "id": "1",
+    "name": "spec.pdf",
+    "path": "1/abcdef.pdf",
+    "is_image": "0",
+    "project_id": "1",
+    "owner_id": "2",
+    "date": "1519578598",
+    "size": "52483",
+    "username": "alice",
+    "task_id": "0",
+    "mime_type": "application/pdf",
+}
+
+
+class TestProjectFile:
+    def test_from_api_basic(self):
+        pf = ProjectFile.from_api(_PROJECT_FILE_PAYLOAD)
+        assert pf.id == 1
+        assert pf.name == "spec.pdf"
+        assert pf.path == "1/abcdef.pdf"
+        assert pf.project_id == 1
+        assert pf.owner_id == 2
+        assert pf.size == 52483
+        assert pf.username == "alice"
+        assert pf.task_id == 0
+        assert pf.mime_type == "application/pdf"
+
+    def test_is_image_false(self):
+        pf = ProjectFile.from_api(_PROJECT_FILE_PAYLOAD)
+        assert pf.is_image is False
+
+    def test_is_image_true(self):
+        pf = ProjectFile.from_api({**_PROJECT_FILE_PAYLOAD, "is_image": "1"})
+        assert pf.is_image is True
+
+    def test_date_parsed(self):
+        pf = ProjectFile.from_api(_PROJECT_FILE_PAYLOAD)
+        assert isinstance(pf.date, datetime)
+        assert pf.date == datetime.fromtimestamp(1519578598)
+
+    def test_date_none_when_missing(self):
+        pf = ProjectFile.from_api({**_PROJECT_FILE_PAYLOAD, "date": None})
+        assert pf.date is None
+
+    def test_from_api_empty_dict_uses_defaults(self):
+        pf = ProjectFile.from_api({})
+        assert pf.id == 0
+        assert pf.name == ""
+        assert pf.is_image is False
+        assert pf.date is None
+        assert pf.size == 0
+
+
+# ---------------------------------------------------------------------------
+# TaskFile tests
+# ---------------------------------------------------------------------------
+
+_TASK_FILE_PAYLOAD = {
+    "id": "3",
+    "name": "screenshot.png",
+    "path": "1/task/5/screenshot.png",
+    "is_image": "1",
+    "task_id": "5",
+    "date": "1519578598",
+    "size": "12800",
+    "username": "bob",
+    "user_id": "4",
+    "project_id": "1",
+    "mime_type": "image/png",
+}
+
+
+class TestTaskFile:
+    def test_from_api_basic(self):
+        tf = TaskFile.from_api(_TASK_FILE_PAYLOAD)
+        assert tf.id == 3
+        assert tf.name == "screenshot.png"
+        assert tf.path == "1/task/5/screenshot.png"
+        assert tf.task_id == 5
+        assert tf.size == 12800
+        assert tf.username == "bob"
+        assert tf.user_id == 4
+        assert tf.project_id == 1
+        assert tf.mime_type == "image/png"
+
+    def test_is_image_true(self):
+        tf = TaskFile.from_api(_TASK_FILE_PAYLOAD)
+        assert tf.is_image is True
+
+    def test_is_image_false(self):
+        tf = TaskFile.from_api({**_TASK_FILE_PAYLOAD, "is_image": "0"})
+        assert tf.is_image is False
+
+    def test_date_parsed(self):
+        tf = TaskFile.from_api(_TASK_FILE_PAYLOAD)
+        assert isinstance(tf.date, datetime)
+        assert tf.date == datetime.fromtimestamp(1519578598)
+
+    def test_date_none_when_missing(self):
+        tf = TaskFile.from_api({**_TASK_FILE_PAYLOAD, "date": "0"})
+        assert tf.date is None
+
+    def test_from_api_empty_dict_uses_defaults(self):
+        tf = TaskFile.from_api({})
+        assert tf.id == 0
+        assert tf.name == ""
+        assert tf.is_image is False
+        assert tf.date is None
+        assert tf.size == 0
+        assert tf.project_id == 0
+
+
+# ---------------------------------------------------------------------------
+# Action tests
+# ---------------------------------------------------------------------------
+
+_ACTION_PAYLOAD = {
+    "id": "1",
+    "project_id": "2",
+    "event_name": "task.move.column",
+    "action_name": "TaskAssignSpecificUser",
+    "params": {"column_id": "3", "user_id": "5"},
+}
+
+
+class TestAction:
+    def test_from_api_basic(self):
+        a = Action.from_api(_ACTION_PAYLOAD)
+        assert a.id == 1
+        assert a.project_id == 2
+        assert a.event_name == "task.move.column"
+        assert a.action_name == "TaskAssignSpecificUser"
+
+    def test_params_dict(self):
+        a = Action.from_api(_ACTION_PAYLOAD)
+        assert a.params == {"column_id": "3", "user_id": "5"}
+
+    def test_params_none_becomes_empty_dict(self):
+        a = Action.from_api({**_ACTION_PAYLOAD, "params": None})
+        assert a.params == {}
+
+    def test_params_missing_becomes_empty_dict(self):
+        data = {k: v for k, v in _ACTION_PAYLOAD.items() if k != "params"}
+        a = Action.from_api(data)
+        assert a.params == {}
+
+    def test_from_api_empty_dict_uses_defaults(self):
+        a = Action.from_api({})
+        assert a.id == 0
+        assert a.project_id == 0
+        assert a.event_name == ""
+        assert a.action_name == ""
+        assert a.params == {}
+
+
+# ---------------------------------------------------------------------------
 # Re-export from kanboard package
 # ---------------------------------------------------------------------------
 
@@ -564,6 +902,23 @@ class TestReExports:
     def test_all_models_importable_from_kanboard(self):
         import kanboard
 
-        names = ("Task", "Project", "Column", "Swimlane", "Comment", "Subtask", "User", "Category")
+        names = (
+            "Task",
+            "Project",
+            "Column",
+            "Swimlane",
+            "Comment",
+            "Subtask",
+            "User",
+            "Category",
+            "Tag",
+            "Link",
+            "TaskLink",
+            "ExternalTaskLink",
+            "Group",
+            "ProjectFile",
+            "TaskFile",
+            "Action",
+        )
         for name in names:
             assert hasattr(kanboard, name), f"{name} not exported from kanboard"
