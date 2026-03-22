@@ -19,6 +19,7 @@ from kanboard.exceptions import KanboardConfigError
 from kanboard_cli.commands.board import board
 from kanboard_cli.commands.column import column
 from kanboard_cli.commands.project import project
+from kanboard_cli.commands.swimlane import swimlane
 from kanboard_cli.commands.task import task
 
 logger = logging.getLogger(__name__)
@@ -144,11 +145,6 @@ def cli(
 # Stub command groups
 # (Populated with real sub-commands in later user stories)
 # ---------------------------------------------------------------------------
-
-
-@click.group()
-def swimlane() -> None:
-    """Manage project swimlanes."""
 
 
 @click.group()
