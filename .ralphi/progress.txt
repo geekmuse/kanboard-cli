@@ -206,3 +206,28 @@ Corrective Plan: N/A
   - Resource method contract: single-item getters raise `KanboardNotFoundError`; list getters return `[]`; create raises on False/0; update raises on False; state transitions return `bool(result)`
   - `test_tasks_resource_accessible_on_client` is a useful sanity test confirming the accessor is wired — add equivalent for every future resource
 ---
+
+## 2026-03-22 - US-009
+Session: iter-480489ce
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `src/kanboard_cli/main.py` with root Click group `cli` and 25 stub command groups
+- Global options: `--url` (envvar KANBOARD_URL), `--token` (envvar KANBOARD_TOKEN), `--profile` (envvar KANBOARD_PROFILE), `--output/-o` (Choice: table/json/csv/quiet, default: table), `--verbose/-v`
+- `AppContext` dataclass holds `config`, `client`, `output`, `verbose`; stored in `ctx.obj`
+- `KanboardConfig.resolve()` called with all CLI overrides; `KanboardConfigError` silently absorbed (config-less commands work)
+- `KanboardClient` instantiated from resolved config and stored in `ctx.obj`
+- All 25 stub groups registered: task, project, board, column, swimlane, category, comment, subtask, timer, user, me, tag, link, task-link, external-link, group, action, project-file, task-file, project-meta, task-meta, project-access, app, config (as `config_group`), workflow
+- Hyphenated names (task-link, external-link, project-file, task-file, project-meta, task-meta, project-access) use `name=` param on `@click.group()`; function name uses underscore
+- `config` group uses `config_group` as the function name to avoid shadowing Python built-in `config`; registered as `cli.add_command(config_group)` — CLI name is `config`
+- Created `tests/cli/test_main.py`: 43 tests covering all acceptance criteria; dynamic test commands registered/cleaned up inline
+- Fixed: D301 ruff error — `\b` in Click docstring requires `r"""` raw string prefix
+- Fixed: `--help` short-circuits option validation in Click — test `--output yaml` with a real subcommand to trigger validation
+- **Learnings for future iterations:**
+  - Click `--help` flag bypasses all option validation — to test invalid choice rejection, pass a real subcommand name after the bad option (e.g., `--output yaml task --help` exits non-zero from the group level)
+  - `\b` in Click docstrings (used to suppress paragraph wrapping) triggers ruff D301 — always use `r"""` raw docstring prefix when `\b` is present
+  - `@click.group(name="task-link")` sets the CLI command name; the decorated function can use underscores (`task_link`) to avoid Python syntax issues
+  - `config` is a Python built-in — name the Click group function `config_group` and register with `cli.add_command(config_group)` to display as `config` in `--help`
+  - Dynamic test commands added to `cli.commands` during tests need explicit cleanup (`cli.commands.pop(...)`) to prevent test pollution
+---
