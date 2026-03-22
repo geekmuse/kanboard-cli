@@ -18,9 +18,12 @@
         "pytest passes"
       ],
       "priority": 1,
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
-      "notes": "Milestones 1-4 are complete on main. This begins Phase 0. Do NOT add orchestration to KanboardClient — it is opt-in, instantiated separately by callers."
+      "notes": "Milestones 1-4 are complete on main. This begins Phase 0. Do NOT add orchestration to KanboardClient — it is opt-in, instantiated separately by callers.",
+      "startedAt": "2026-03-22T18:00:33.795Z",
+      "updatedAt": "2026-03-22T18:05:00.000Z",
+      "completedAt": "2026-03-22T18:05:00.000Z"
     },
     {
       "id": "US-002",
@@ -39,7 +42,9 @@
       ],
       "priority": 2,
       "status": "open",
-      "dependsOn": ["US-001"],
+      "dependsOn": [
+        "US-001"
+      ],
       "notes": "Portfolio/Milestone are mutable (edited locally before syncing). MilestoneProgress and DependencyEdge are computed/read-only but kept mutable for simplicity."
     },
     {
@@ -67,7 +72,10 @@
       ],
       "priority": 3,
       "status": "open",
-      "dependsOn": ["US-001", "US-002"],
+      "dependsOn": [
+        "US-001",
+        "US-002"
+      ],
       "notes": "Portfolio names are case-sensitive and unique. Milestone names are unique within a portfolio. File format version field is 1. Use json stdlib only — no external deps."
     },
     {
@@ -92,7 +100,11 @@
       ],
       "priority": 4,
       "status": "open",
-      "dependsOn": ["US-001", "US-002", "US-003"],
+      "dependsOn": [
+        "US-001",
+        "US-002",
+        "US-003"
+      ],
       "notes": "N+1 API calls by design — Phase 1 plugin will solve server-side. Metadata keys: kanboard_cli:portfolio (project scope), kanboard_cli:milestones (task scope), kanboard_cli:milestone_critical (task scope)."
     },
     {
@@ -118,7 +130,11 @@
       ],
       "priority": 5,
       "status": "open",
-      "dependsOn": ["US-001", "US-002", "US-004"],
+      "dependsOn": [
+        "US-001",
+        "US-002",
+        "US-004"
+      ],
       "notes": "getAllTaskLinks returns links from the queried task's perspective — must deduplicate when processing both ends of a relationship. Link IDs 2/3 are conventional but look up by label for robustness."
     },
     {
@@ -138,7 +154,9 @@
       ],
       "priority": 6,
       "status": "open",
-      "dependsOn": ["US-005"],
+      "dependsOn": [
+        "US-005"
+      ],
       "notes": "Dependency graph renderer is a simple text list — not a full graph layout engine. Format: project header, indented tasks with status icons and arrow annotations showing blocks/blocked-by relationships."
     },
     {
@@ -162,7 +180,11 @@
       ],
       "priority": 7,
       "status": "open",
-      "dependsOn": ["US-003", "US-004", "US-006"],
+      "dependsOn": [
+        "US-003",
+        "US-004",
+        "US-006"
+      ],
       "notes": "portfolio show: if API is unreachable, show cached store data with a warning. portfolio tasks table requires fetching project names — cache project lookups. portfolio create uses positional argument for name, not --name option."
     },
     {
@@ -185,7 +207,11 @@
       ],
       "priority": 8,
       "status": "open",
-      "dependsOn": ["US-003", "US-004", "US-007"],
+      "dependsOn": [
+        "US-003",
+        "US-004",
+        "US-007"
+      ],
       "notes": "add-task validation: call client.tasks.get_task(task_id), verify task.project_id is in portfolio.project_ids. Error clearly if task is in a project not belonging to the portfolio."
     },
     {
@@ -205,7 +231,11 @@
       ],
       "priority": 9,
       "status": "open",
-      "dependsOn": ["US-005", "US-006", "US-007"],
+      "dependsOn": [
+        "US-005",
+        "US-006",
+        "US-007"
+      ],
       "notes": "dependencies fetches all portfolio tasks via PortfolioManager.get_portfolio_tasks() then passes to DependencyAnalyzer. bottleneck = task with highest count of transitively unblocked downstream tasks."
     },
     {
@@ -224,7 +254,11 @@
       ],
       "priority": 10,
       "status": "open",
-      "dependsOn": ["US-003", "US-004", "US-005"],
+      "dependsOn": [
+        "US-003",
+        "US-004",
+        "US-005"
+      ],
       "notes": "Mock KanboardClient at the httpx level using pytest-httpx (consistent with existing test patterns). Use tmp_path for all store tests — never touch real ~/.config/kanboard/."
     },
     {
@@ -246,7 +280,11 @@
       ],
       "priority": 11,
       "status": "open",
-      "dependsOn": ["US-007", "US-008", "US-009"],
+      "dependsOn": [
+        "US-007",
+        "US-008",
+        "US-009"
+      ],
       "notes": "Mock KanboardClient at the AppContext level and mock LocalPortfolioStore separately. Use same patching patterns as existing CLI tests in tests/cli/."
     },
     {
@@ -265,7 +303,10 @@
       ],
       "priority": 12,
       "status": "open",
-      "dependsOn": ["US-004", "US-005"],
+      "dependsOn": [
+        "US-004",
+        "US-005"
+      ],
       "notes": "Cross-project detection: call client.tasks.get_task() for both task_id and opposite_task_id after the link is created, compare project_id fields. Only on success to avoid adding latency to error paths."
     },
     {
@@ -284,7 +325,11 @@
       ],
       "priority": 13,
       "status": "open",
-      "dependsOn": ["US-007", "US-008", "US-009"],
+      "dependsOn": [
+        "US-007",
+        "US-008",
+        "US-009"
+      ],
       "notes": "Check __all__ sort order carefully — ruff RUF022 enforces alphabetical sort with capitals before lowercase. Run ruff check --fix to auto-correct."
     },
     {
@@ -306,7 +351,9 @@
       ],
       "priority": 14,
       "status": "open",
-      "dependsOn": ["US-013"],
+      "dependsOn": [
+        "US-013"
+      ],
       "notes": "BLOCKER on plugin URL for Task 62 plugin-specific content. Proceed with all other doc updates. For plugin URL references: if URL not provided by project owner, leave a clearly-marked TODO in docs/design/cross-project-orchestration.md only. Do NOT write placeholder URLs anywhere."
     }
   ]
