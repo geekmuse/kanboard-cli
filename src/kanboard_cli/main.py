@@ -16,6 +16,8 @@ import click
 from kanboard.client import KanboardClient
 from kanboard.config import KanboardConfig
 from kanboard.exceptions import KanboardConfigError
+from kanboard_cli.commands.board import board
+from kanboard_cli.commands.column import column
 from kanboard_cli.commands.project import project
 from kanboard_cli.commands.task import task
 
@@ -142,16 +144,6 @@ def cli(
 # Stub command groups
 # (Populated with real sub-commands in later user stories)
 # ---------------------------------------------------------------------------
-
-
-@click.group()
-def board() -> None:
-    """View and navigate project boards."""
-
-
-@click.group()
-def column() -> None:
-    """Manage board columns."""
 
 
 @click.group()
