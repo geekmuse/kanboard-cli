@@ -171,8 +171,8 @@
       ],
       "notes": "Dependency graph renderer is a simple text list — not a full graph layout engine. Format: project header, indented tasks with status icons and arrow annotations showing blocks/blocked-by relationships.",
       "startedAt": "2026-03-22T19:53:24.748Z",
-      "updatedAt": "2026-03-22T20:15:00.000Z",
-      "completedAt": "2026-03-22T20:15:00.000Z"
+      "updatedAt": "2026-03-22T20:15:59.720Z",
+      "completedAt": "2026-03-22T20:15:59.720Z"
     },
     {
       "id": "US-007",
@@ -194,13 +194,16 @@
         "pytest passes"
       ],
       "priority": 7,
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-003",
         "US-004",
         "US-006"
       ],
-      "notes": "portfolio show: if API is unreachable, show cached store data with a warning. portfolio tasks table requires fetching project names — cache project lookups. portfolio create uses positional argument for name, not --name option."
+      "notes": "portfolio show: if API is unreachable, show cached store data with a warning. portfolio tasks table requires fetching project names — cache project lookups. portfolio create uses positional argument for name, not --name option.",
+      "startedAt": "2026-03-22T20:16:00.449Z",
+      "updatedAt": "2026-03-22T20:44:00.000Z",
+      "completedAt": "2026-03-22T20:44:00.000Z"
     },
     {
       "id": "US-008",

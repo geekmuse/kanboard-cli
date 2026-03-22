@@ -46,6 +46,35 @@ Corrective Plan: N/A
   - Progress bar rounding: banker's rounding at x.5 boundaries — test exact counts with known percent values to avoid off-by-one surprises
 ---
 
+## 2026-03-22 - US-007
+Session: iter-971896e0
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/portfolio.py` with 8 Click subcommands: list, show, create, remove, add-project, remove-project, tasks, sync
+- Registered `portfolio` command group in `src/kanboard_cli/main.py` (sorted import position)
+- `portfolio list`: renders table with name, description, project_count, milestone_count from LocalPortfolioStore; all 4 output formats
+- `portfolio show`: renders portfolio summary + milestone progress bars via renderers; graceful fallback to cached store data with `⚠ Warning:` message on API unreachable
+- `portfolio create`: positional NAME arg + optional `--description` flag; raises ClickException on duplicate
+- `portfolio remove`: requires `--yes`; best-effort metadata cleanup via sync_metadata() before store removal; uses `remove_portfolio()` return value to detect not-found
+- `portfolio add-project`: validates project via API before adding to store; raises ClickException if project not found or portfolio not found
+- `portfolio remove-project`: requires `--yes`; raises ClickException if portfolio not found
+- `portfolio tasks`: fetches tasks via PortfolioManager with status/project/assignee filters; enriches with project_name via cached `get_project_by_id()` calls; all 4 output formats; columns: id, title, project_name, column_title, owner_username, date_due, priority
+- `portfolio sync`: calls sync_metadata(), prints "Synced N projects, N tasks"
+- Internal helpers: `_get_store()` (lazy LocalPortfolioStore), `_get_manager()` (lazy PortfolioManager with client check)
+- 34 CLI tests in `tests/cli/test_portfolio.py` using MagicMock for store and PortfolioManager
+- 2306 tests pass; ruff check + format clean; commit c61f9fb
+- Files changed: `src/kanboard_cli/commands/portfolio.py` (new), `src/kanboard_cli/main.py` (portfolio import + registration), `tests/cli/test_portfolio.py` (new)
+- **Learnings for future iterations:**
+  - `CliRunner(mix_stderr=False)` not supported in this Click version — use `CliRunner()` without kwargs
+  - Rich table word-wraps long strings (e.g. "Alpha Project" → "Alpha\nProject") — assert on partial match or use JSON output in tests for exact value checks
+  - Patch `kanboard_cli.commands.portfolio._get_store` to inject mock store without touching real filesystem
+  - Patch `kanboard.orchestration.portfolio.PortfolioManager` for manager-dependent commands (lazy import inside `_get_manager` picks up the patched class)
+  - `PortfolioManager.sync_metadata()` returns `{"projects_synced": N, "tasks_synced": N}` — use `.get()` defensively in case keys are absent
+  - `store.remove_portfolio()` returns True/False — use return value for not-found detection (not an exception)
+---
+
 ## PRD Run Context
 PRD Branch: ralph/phase-0-cross-project-orchestration
 Started: 2026-03-22T18:00:30.169Z
