@@ -45,6 +45,7 @@ from kanboard.resources.subtasks import SubtasksResource
 from kanboard.resources.swimlanes import SwimlanesResource
 from kanboard.resources.tags import TagsResource
 from kanboard.resources.tasks import TasksResource
+from kanboard.resources.users import UsersResource
 
 __all__ = [
     "CONFIG_DIR",
@@ -85,5 +86,6 @@ __all__ = [
     "TaskLink",
     "TasksResource",
     "User",
+    "UsersResource",
     "get_workflow_config",
 ]

@@ -24,6 +24,7 @@ from kanboard.resources.subtasks import SubtasksResource
 from kanboard.resources.swimlanes import SwimlanesResource
 from kanboard.resources.tags import TagsResource
 from kanboard.resources.tasks import TasksResource
+from kanboard.resources.users import UsersResource
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ class KanboardClient:
     - :attr:`swimlanes` — :class:`~kanboard.resources.swimlanes.SwimlanesResource`
     - :attr:`tags` — :class:`~kanboard.resources.tags.TagsResource`
     - :attr:`tasks` — :class:`~kanboard.resources.tasks.TasksResource`
+    - :attr:`users` — :class:`~kanboard.resources.users.UsersResource`
 
     Example:
         >>> with KanboardClient("https://kb.example.com/jsonrpc.php", "secret") as c:
@@ -80,6 +82,7 @@ class KanboardClient:
         self.tags: TagsResource = TagsResource(self)
         self.tasks: TasksResource = TasksResource(self)
         self.projects: ProjectsResource = ProjectsResource(self)
+        self.users: UsersResource = UsersResource(self)
 
     # ------------------------------------------------------------------
     # Public API
