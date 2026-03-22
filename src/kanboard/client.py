@@ -19,6 +19,7 @@ from kanboard.resources.board import BoardResource
 from kanboard.resources.categories import CategoriesResource
 from kanboard.resources.columns import ColumnsResource
 from kanboard.resources.comments import CommentsResource
+from kanboard.resources.links import LinksResource
 from kanboard.resources.projects import ProjectsResource
 from kanboard.resources.subtasks import SubtasksResource
 from kanboard.resources.swimlanes import SwimlanesResource
@@ -44,6 +45,7 @@ class KanboardClient:
     - :attr:`categories` — :class:`~kanboard.resources.categories.CategoriesResource`
     - :attr:`columns` — :class:`~kanboard.resources.columns.ColumnsResource`
     - :attr:`comments` — :class:`~kanboard.resources.comments.CommentsResource`
+    - :attr:`links` — :class:`~kanboard.resources.links.LinksResource`
     - :attr:`projects` — :class:`~kanboard.resources.projects.ProjectsResource`
     - :attr:`subtasks` — :class:`~kanboard.resources.subtasks.SubtasksResource`
     - :attr:`swimlanes` — :class:`~kanboard.resources.swimlanes.SwimlanesResource`
@@ -77,6 +79,7 @@ class KanboardClient:
         self.categories: CategoriesResource = CategoriesResource(self)
         self.columns: ColumnsResource = ColumnsResource(self)
         self.comments: CommentsResource = CommentsResource(self)
+        self.links: LinksResource = LinksResource(self)
         self.subtasks: SubtasksResource = SubtasksResource(self)
         self.swimlanes: SwimlanesResource = SwimlanesResource(self)
         self.tags: TagsResource = TagsResource(self)
