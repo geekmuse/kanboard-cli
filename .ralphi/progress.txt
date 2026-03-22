@@ -1,4 +1,9 @@
 ## Codebase Patterns
+- **tomllib built-in (Python 3.11+)**: Use `import tomllib` directly — no external dep. `tomli-w` is only for writing TOML.
+- **`ruff --fix` for auto-fixable issues**: RUF022 (`__all__` sort) and I001 (import order) are both auto-fixable. Run `ruff check --fix .` before committing.
+- **`__all__` must be sorted alphabetically**: ruff RUF022 enforces isort-style sort. Capital letters sort before lowercase (C before g, K before g).
+- **`monkeypatch.delenv(..., raising=False)`**: Always use `raising=False` when clearing env vars in config tests — the var may not exist in the test runner environment.
+- **config_file param for testability**: Any function reading CONFIG_FILE should accept `config_file: Path | None = None` and default to `CONFIG_FILE` internally — enables clean unit tests without touching the real config.
 - **ruff ANN101/ANN102 removed**: These rules no longer exist in ruff ≥0.15; remove from ignore list to avoid warnings.
 - **pytest exit code 5**: "no tests collected" is exit 5 — pre-commit hook fails. Add a `tests/test_smoke.py` with import tests to get exit 0.
 - **src/ layout + hatchling**: Wheel packages must be explicitly listed in `[tool.hatch.build.targets.wheel]` as `packages = ["src/kanboard", "src/kanboard_cli"]`.
@@ -24,6 +29,27 @@ Corrective Plan: N/A
   - ruff I001 fires on test files too — isort requires stdlib before third-party (pytest before local imports)
   - KanboardNotFoundError overrides `__str__` completely (doesn't call super) since the context format differs from KanboardAPIError
   - Raw bytes body in KanboardResponseError needs `.decode("utf-8", errors="replace")` for safe stringification
+---
+
+## 2026-03-22 - US-003
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `src/kanboard/config.py` with `KanboardConfig` frozen dataclass, `resolve()` classmethod, `get_workflow_config()`, `_load_toml()`, and `CONFIG_DIR`, `CONFIG_FILE`, `WORKFLOW_DIR` path constants
+- `KanboardConfig.resolve()` implements full layered resolution: CLI arg > env var > TOML profile > built-in default
+- Profile resolution: CLI flag > KANBOARD_PROFILE env var > settings.default_profile > "default"
+- `get_workflow_config(name)` reads `[workflows.<name>]` from config file; returns {} when absent or file missing
+- Updated `src/kanboard/__init__.py` to re-export all config symbols in sorted `__all__`
+- Created `tests/unit/test_config.py`: 32 tests covering all acceptance criteria (100% coverage on config.py)
+- Two ruff fixes required: RUF022 (`__all__` sort) and I001 (import order in test file); both auto-fixed with `ruff check --fix .`
+- **Learnings for future iterations:**
+  - `tomllib` is built-in to Python 3.11+ — no dep needed (only `tomli-w` for writing)
+  - ruff `--fix` auto-resolves RUF022 and I001; always run before committing
+  - `__all__` lists are sorted with capitals before lowercase (ASCII order for ruff)
+  - Always add `config_file: Path | None = None` param for testability — avoids touching user's real config
+  - `monkeypatch.delenv(..., raising=False)` is safe when the var might not exist in CI
 ---
 
 ## PRD Run Context

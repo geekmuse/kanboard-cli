@@ -79,15 +79,15 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 3,
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-001",
         "US-002"
       ],
       "notes": "Depends on US-002 because config raises KanboardConfigError.",
       "startedAt": "2026-03-22T03:06:31.449Z",
-      "updatedAt": "2026-03-22T03:06:31.449Z",
-      "completedAt": null
+      "updatedAt": "2026-03-22T03:24:00.000Z",
+      "completedAt": "2026-03-22T03:24:00.000Z"
     },
     {
       "id": "US-004",
