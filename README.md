@@ -6,6 +6,10 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 <!-- [![PyPI version](https://img.shields.io/pypi/v/kanboard-cli.svg)](https://pypi.org/project/kanboard-cli/) -->
 
+**Documentation:**
+[CLI Reference](docs/cli-reference.md) •
+[SDK Guide](docs/sdk-guide.md)
+
 ---
 
 ## Overview
@@ -124,6 +128,8 @@ with KanboardClient(url="https://kanboard.example.com/jsonrpc.php",
     kb.tags.set_task_tags(project_id, task_id, ["backend", "urgent"])
 ```
 
+For the full SDK guide including all resource examples, exception handling, and batch usage, see **[docs/sdk-guide.md](docs/sdk-guide.md)**.
+
 ## Configuration
 
 ### Config File
@@ -199,6 +205,8 @@ Every Kanboard resource has a corresponding command group:
 | `kanboard completion`| Shell completion (bash/zsh/fish)         |
 
 Use `kanboard <command> --help` for detailed usage of any command.
+
+For the full command reference, see **[docs/cli-reference.md](docs/cli-reference.md)**.
 
 ## Output Formats
 
