@@ -210,6 +210,27 @@ Corrective Plan: N/A
   - Import sort order matters when adding new command imports to `main.py` — ruff I001 flagged unsorted imports in previous stories; `from kanboard_cli.commands.user import user` must be placed in alphabetical order with other `kanboard_cli.commands.*` imports
 ---
 
+## 2026-03-22T14:00:00Z - US-017
+Session: iter-63370753
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/link.py` — `link` group with all 6 subcommands: `list`, `get`, `get-by-label`, `create`, `update`, `remove`
+- Implemented `src/kanboard_cli/commands/task_link.py` — `task_link` group (registered as `task-link`) with all 5 subcommands: `list`, `get`, `create`, `update`, `remove`
+- Replaced stub `link` and `task_link` `@click.group()` definitions in `main.py` with real imports from the new command modules
+- Added imports: `from kanboard_cli.commands.link import link` and `from kanboard_cli.commands.task_link import task_link` in alphabetical order
+- Added 26 tests in `tests/cli/test_link.py` covering: all 6 subcommands, all 4 output formats (table/json/csv/quiet), not-found errors, API errors, `--opposite-label` option, `--yes` confirmation flow (with_yes, without_yes aborts, interactive confirm), `--help` for all subcommands
+- Added 21 tests in `tests/cli/test_task_link.py` covering: all 5 subcommands, all 4 output formats (table/json/csv/quiet), not-found errors, API errors, `--yes` confirmation flow (with_yes, without_yes aborts, interactive confirm), `--help` for all subcommands
+- All 1016 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `link update` takes 3 positional args: `link_id`, `opposite_link_id`, `label` — all three are required; no optional kwargs unlike most update commands
+  - `task_link` Click group must specify `name="task-link"` to match the CLI command name (with hyphen), since the Python function name uses underscores
+  - `task-link update` takes 4 positional args: `task_link_id`, `task_id`, `opposite_task_id`, `link_id` — same signature as the SDK `update_task_link(task_link_id, task_id, opposite_task_id, link_id)`
+  - `link create` uses `--opposite-label` (hyphenated) as the Click option; Click maps it to `opposite_label` (underscored) as the Python parameter
+  - Both `remove_link` and `remove_task_link` return `bool` without raising on False — consistent with all other `remove_*` methods across the codebase
+---
+
 ## Codebase Patterns
 - **KanboardNotFoundError signature**: uses `resource=` and `identifier=` kwargs (NOT `resource_type`/`resource_id`); `__str__` formats as `"Not found: {resource} '{identifier}' does not exist"` — match patterns in tests must reflect this.
 
