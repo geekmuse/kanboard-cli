@@ -35,6 +35,7 @@ from kanboard_cli.commands.task import task
 from kanboard_cli.commands.task_file import task_file
 from kanboard_cli.commands.task_link import task_link
 from kanboard_cli.commands.task_meta import task_meta
+from kanboard_cli.commands.timer import timer
 from kanboard_cli.commands.user import user
 
 logger = logging.getLogger(__name__)
@@ -160,11 +161,6 @@ def cli(
 # Stub command groups
 # (Populated with real sub-commands in later user stories)
 # ---------------------------------------------------------------------------
-
-
-@click.group()
-def timer() -> None:
-    """Start and stop subtask timers."""
 
 
 @click.group()

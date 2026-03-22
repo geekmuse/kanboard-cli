@@ -28,6 +28,7 @@ from kanboard.resources.project_files import ProjectFilesResource
 from kanboard.resources.project_metadata import ProjectMetadataResource
 from kanboard.resources.project_permissions import ProjectPermissionsResource
 from kanboard.resources.projects import ProjectsResource
+from kanboard.resources.subtask_time_tracking import SubtaskTimeTrackingResource
 from kanboard.resources.subtasks import SubtasksResource
 from kanboard.resources.swimlanes import SwimlanesResource
 from kanboard.resources.tags import TagsResource
@@ -63,6 +64,7 @@ class KanboardClient:
     - :attr:`project_files` — :class:`~kanboard.resources.project_files.ProjectFilesResource`
     - :attr:`project_metadata` — :class:`ProjectMetadataResource`
     - :attr:`project_permissions` — :class:`ProjectPermissionsResource`
+    - :attr:`subtask_time_tracking` — :class:`SubtaskTimeTrackingResource`
     - :attr:`task_files` — :class:`~kanboard.resources.task_files.TaskFilesResource`
     - :attr:`task_links` — :class:`~kanboard.resources.task_links.TaskLinksResource`
     - :attr:`task_metadata` — :class:`~kanboard.resources.task_metadata.TaskMetadataResource`
@@ -110,6 +112,7 @@ class KanboardClient:
         self.task_files: TaskFilesResource = TaskFilesResource(self)
         self.task_links: TaskLinksResource = TaskLinksResource(self)
         self.task_metadata: TaskMetadataResource = TaskMetadataResource(self)
+        self.subtask_time_tracking: SubtaskTimeTrackingResource = SubtaskTimeTrackingResource(self)
         self.subtasks: SubtasksResource = SubtasksResource(self)
         self.swimlanes: SwimlanesResource = SwimlanesResource(self)
         self.tags: TagsResource = TagsResource(self)

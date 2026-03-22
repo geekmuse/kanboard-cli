@@ -49,6 +49,7 @@ from kanboard.resources.project_files import ProjectFilesResource
 from kanboard.resources.project_metadata import ProjectMetadataResource
 from kanboard.resources.project_permissions import ProjectPermissionsResource
 from kanboard.resources.projects import ProjectsResource
+from kanboard.resources.subtask_time_tracking import SubtaskTimeTrackingResource
 from kanboard.resources.subtasks import SubtasksResource
 from kanboard.resources.swimlanes import SwimlanesResource
 from kanboard.resources.tags import TagsResource
@@ -95,6 +96,7 @@ __all__ = [
     "ProjectPermissionsResource",
     "ProjectsResource",
     "Subtask",
+    "SubtaskTimeTrackingResource",
     "SubtasksResource",
     "Swimlane",
     "SwimlanesResource",
