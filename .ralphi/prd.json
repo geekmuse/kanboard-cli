@@ -128,8 +128,8 @@
       "dependsOn": [],
       "notes": "Note: getTaskMetadata returns [] (not {}) on empty — handle both.",
       "startedAt": "2026-03-22T06:28:47.525Z",
-      "updatedAt": "2026-03-22T06:35:00.000Z",
-      "completedAt": "2026-03-22T06:35:00.000Z"
+      "updatedAt": "2026-03-22T06:35:12.174Z",
+      "completedAt": "2026-03-22T06:35:12.174Z"
     },
     {
       "id": "US-005",
@@ -153,9 +153,12 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 5,
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
-      "notes": ""
+      "notes": "",
+      "startedAt": "2026-03-22T06:35:12.550Z",
+      "updatedAt": "2026-03-22T06:35:12.550Z",
+      "completedAt": null
     },
     {
       "id": "US-006",
