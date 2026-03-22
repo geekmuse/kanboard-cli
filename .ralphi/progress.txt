@@ -7,6 +7,8 @@
 - **Type hints**: all resource public methods use `from __future__ import annotations` + `TYPE_CHECKING` guard for `KanboardClient` to avoid circular imports.
 - **Tests**: use `_rpc_ok(result)` / `_rpc_err(code, message)` helpers; `httpx_mock.add_response(json=...)` pattern with `KanboardClient` as context manager.
 - **ruff noqa**: avoid `as ACRONYM` aliases in tests (N817); prefer `import module` + `module.Symbol` for import-verification tests.
+- **update vs add semantics**: `update_*` methods may return `bool` without raising on False (swimlane pattern) OR raise `KanboardAPIError` on False (column pattern) — always check the PRD acceptance criteria per method for the exact behavior.
+- **Kanboard list endpoint naming**: "All" prefix = full list (e.g. `getAllSwimlanes`, `getActiveSwimlanes` = filtered list); check Kanboard API docs carefully when naming resource methods.
 ---
 
 ## PRD Run Context
@@ -46,4 +48,21 @@ Corrective Plan: N/A
   - `KanboardNotFoundError` uses `resource=` and `identifier=` kwargs; `__str__` returns `"Not found: {resource} '{identifier}' does not exist"` — pytest `match=` patterns must use this format
   - `update_column` raises `KanboardAPIError` on `False`; `remove_column` just returns `False` (no raise) — asymmetry intentional per PRD
   - `add_column` uses `if not result` (catches `0` and `False`) to guard the int return
+---
+
+## 2026-03-22T05:30:00Z - US-003
+Session: iter-6c45c004
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/swimlanes.py` — `SwimlanesResource` with all 11 methods: `get_active_swimlanes`, `get_all_swimlanes`, `get_swimlane`, `get_swimlane_by_id`, `get_swimlane_by_name`, `change_swimlane_position`, `update_swimlane`, `add_swimlane`, `remove_swimlane`, `disable_swimlane`, `enable_swimlane`
+- Wired `self.swimlanes = SwimlanesResource(self)` into `KanboardClient.__init__`
+- Exported `SwimlanesResource` from `src/kanboard/__init__.py`
+- Added 45 unit tests in `tests/unit/resources/test_swimlanes.py` covering: all 11 methods, success + error + empty paths, not-found error attributes, importability, client accessor
+- All 550 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `update_swimlane` returns `bool(result)` without raising on `False` (unlike `update_column` which raises) — always verify exact error-raise vs return-bool semantics in the PRD acceptance criteria per method
+  - `get_swimlane_by_name` uses `identifier=name` (a string) in `KanboardNotFoundError`; ID-based lookups use `identifier=swimlane_id` (int) — match pattern in tests must use exact identifier value and type
+  - `getAllSwimlanes` (not `getSwimlanes`) is the correct Kanboard API method name for the full list — check Kanboard API naming carefully; "All" prefix is used consistently for full list endpoints
 ---
