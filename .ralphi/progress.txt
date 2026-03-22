@@ -79,4 +79,24 @@ Corrective Plan: N/A
   - `get_*_by_name` methods: `not result` fails to catch `False` because `False == 0` in Python — use explicit `result is None or result is False` guard.
   - Ruff `RUF002` flags en-dash characters in docstrings — always use plain hyphen-minus.
   - Ruff line-length `E501` applies to docstring lines too — keep class cross-references short when embedded in docstrings.
+  - `getTaskMetadata` returns `[]` (empty list) instead of `{}` on empty — check `isinstance(result, list)` explicitly.
+---
+
+## 2026-03-22 - US-004
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/task_metadata.py` with `TaskMetadataResource` (4 methods: get_task_metadata, get_task_metadata_by_name, save_task_metadata, remove_task_metadata).
+- Implemented `src/kanboard_cli/commands/task_meta.py` with 4 subcommands (list, get, set, remove).
+- Wired `TaskMetadataResource` into `KanboardClient.task_metadata`.
+- Exported `TaskMetadataResource` from `kanboard` package `__init__.py`.
+- Replaced stub `task_meta` group in `main.py` with real import.
+- Added 26 unit tests for SDK resource and 20 CLI tests (46 total); all pass.
+- Handles Kanboard quirk where `getTaskMetadata` returns `[]` instead of `{}` on empty.
+- Files changed: `src/kanboard/resources/task_metadata.py`, `src/kanboard_cli/commands/task_meta.py`, `src/kanboard/__init__.py`, `src/kanboard/client.py`, `src/kanboard_cli/main.py`, `tests/unit/resources/test_task_metadata.py`, `tests/cli/test_task_meta.py`.
+- **Learnings for future iterations:**
+  - Task metadata follows identical pattern to project metadata — only differs in parameter names (`task_id` vs `project_id`) and Kanboard API quirk (returns `[]` on empty).
+  - Added `isinstance(result, list)` guard in `get_task_metadata()` to handle the `[]` case — this is unique to this endpoint.
 ---

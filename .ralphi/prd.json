@@ -124,12 +124,12 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 4,
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "notes": "Note: getTaskMetadata returns [] (not {}) on empty — handle both.",
       "startedAt": "2026-03-22T06:28:47.525Z",
-      "updatedAt": "2026-03-22T06:28:47.525Z",
-      "completedAt": null
+      "updatedAt": "2026-03-22T06:35:00.000Z",
+      "completedAt": "2026-03-22T06:35:00.000Z"
     },
     {
       "id": "US-005",
