@@ -1,4 +1,9 @@
 ## Codebase Patterns
+- **Extended models follow the same from_api() pattern**: `_int()` for all integer fields, `_parse_date()` for date fields, `.get()` with sensible defaults. `params` dicts use `dict(data.get("params") or {})` — handles None, missing, and present cases.
+- **`Action.params` is `dict[str, Any]`**: Kanboard returns arbitrary key/value pairs for action parameters. Always wrap with `dict(...or {})` to normalise None/missing.
+- **File models (`ProjectFile`, `TaskFile`) share `date` (Unix timestamp), `is_image` (bool via `_int`), `size` (int), `mime_type` (str)** — consistent pattern for both resource types.
+- **`Link` vs `TaskLink` distinction**: `Link` = the relationship *type label* (e.g. "blocks"); `TaskLink` = the concrete association between two specific task IDs using a `link_id`.
+
 - **pytest-httpx 0.36 sync support**: `httpx_mock` fixture works seamlessly with `httpx.Client` (sync). `add_response(json=...)` and `add_exception(httpx.ConnectError("msg"))` are the main APIs. All registered responses must be consumed (strict by default) — match request count to registered responses.
 - **httpx exception hierarchy**: Catch `httpx.ConnectError` and `httpx.TimeoutException` first, then fall back to `httpx.HTTPError` for other transport errors. `ConnectError`, `ReadTimeout`, `ConnectTimeout` are all instantiatable with a message string alone.
 - **`typing.Self` for context managers**: Use `from typing import Self` and annotate `__enter__` return as `Self`. Use `import types` and `types.TracebackType | None` for the `exc_tb` parameter of `__exit__`.
@@ -128,4 +133,24 @@ Corrective Plan: N/A
   - `Subtask` time fields are floats (not ints) — need separate `_float` helper
   - `User` nullable fields (`avatar_path`, `timezone`, `language`) must be `str | None`, not `str` — check for `None` before `str()` cast
   - For `tags` field: use `list(data.get("tags") or [])` — handles both `None` and missing key cleanly
+---
+
+## 2026-03-22 - US-006
+Session: iter-9d907e57
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Added 8 extended dataclass models to `src/kanboard/models.py`: Tag, Link, TaskLink, ExternalTaskLink, Group, ProjectFile, TaskFile, Action
+- All models follow the `from_api(cls, data)` pattern with `_int()`, `_parse_date()`, and sensible `.get()` defaults
+- `Action.params` uses `dict(data.get("params") or {})` to handle None/missing/present uniformly
+- `ProjectFile` and `TaskFile` both carry `date`, `is_image`, `size`, `mime_type` fields
+- Updated `src/kanboard/__init__.py` to import and re-export all 8 new models in sorted `__all__`
+- Updated `tests/unit/test_models.py`: added 34 new tests (109 total in file, 213 total in suite)
+- All tests pass; ruff clean; pre-commit hooks pass
+- **Learnings for future iterations:**
+  - `dict(data.get("params") or {})` is the canonical pattern for arbitrary nested dict fields
+  - `Link` (relationship type label) and `TaskLink` (concrete task-to-task association) are distinct models
+  - File models share a consistent field set: `is_image` (bool via `_int`), `date` (Unix ts), `size` (int), `mime_type` (str)
+  - Docstrings for model classes with long endpoint names need line wrapping to stay under the 100-char ruff limit
 ---
