@@ -21,6 +21,7 @@ from kanboard_cli.commands.category import category
 from kanboard_cli.commands.column import column
 from kanboard_cli.commands.comment import comment
 from kanboard_cli.commands.project import project
+from kanboard_cli.commands.subtask import subtask
 from kanboard_cli.commands.swimlane import swimlane
 from kanboard_cli.commands.tag import tag
 from kanboard_cli.commands.task import task
@@ -148,11 +149,6 @@ def cli(
 # Stub command groups
 # (Populated with real sub-commands in later user stories)
 # ---------------------------------------------------------------------------
-
-
-@click.group()
-def subtask() -> None:
-    """Manage task subtasks."""
 
 
 @click.group()
