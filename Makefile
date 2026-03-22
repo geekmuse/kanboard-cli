@@ -1,4 +1,9 @@
-.PHONY: install lint format test coverage clean
+.PHONY: install lint format test coverage clean test-integration \
+        bump-patch bump-minor bump-major bump-version help
+
+help:  ## Show this help message
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 install:  ## Install package with dev dependencies
 	pip install -e '.[dev]'
@@ -25,3 +30,20 @@ clean:  ## Remove build artifacts
 
 test-integration:  ## Run integration tests (requires Docker)
 	pytest tests/integration/ -v
+
+# ---------------------------------------------------------------------------
+# Version management (scripts/bump_version.py — stdlib only, no extra deps)
+# ---------------------------------------------------------------------------
+
+bump-patch:  ## Bump patch version (e.g. 0.4.0 → 0.4.1)
+	python scripts/bump_version.py patch
+
+bump-minor:  ## Bump minor version (e.g. 0.4.0 → 0.5.0)
+	python scripts/bump_version.py minor
+
+bump-major:  ## Bump major version (e.g. 0.4.0 → 1.0.0)
+	python scripts/bump_version.py major
+
+bump-version:  ## Bump to specific version: make bump-version VERSION=x.y.z
+	@test -n "$(VERSION)" || (echo "Usage: make bump-version VERSION=x.y.z" && exit 1)
+	python scripts/bump_version.py $(VERSION)
