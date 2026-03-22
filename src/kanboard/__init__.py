@@ -38,6 +38,7 @@ from kanboard.models import (
 )
 from kanboard.resources.board import BoardResource
 from kanboard.resources.columns import ColumnsResource
+from kanboard.resources.comments import CommentsResource
 from kanboard.resources.projects import ProjectsResource
 from kanboard.resources.swimlanes import SwimlanesResource
 from kanboard.resources.tasks import TasksResource
@@ -52,6 +53,7 @@ __all__ = [
     "Column",
     "ColumnsResource",
     "Comment",
+    "CommentsResource",
     "ExternalTaskLink",
     "Group",
     "KanboardAPIError",
