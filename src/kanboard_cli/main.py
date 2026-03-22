@@ -39,6 +39,7 @@ from kanboard_cli.commands.task_link import task_link
 from kanboard_cli.commands.task_meta import task_meta
 from kanboard_cli.commands.timer import timer
 from kanboard_cli.commands.user import user
+from kanboard_cli.workflow_loader import discover_workflows
 
 logger = logging.getLogger(__name__)
 
@@ -170,9 +171,21 @@ def config_group() -> None:
     """Manage the Kanboard CLI configuration file."""
 
 
-@click.group()
+@click.group(name="workflow")
 def workflow() -> None:
     """Run and manage workflow plugins."""
+
+
+@workflow.command(name="list")
+@click.pass_context
+def workflow_list(ctx: click.Context) -> None:
+    """List all discovered workflow plugins."""
+    from kanboard_cli.formatters import format_output
+
+    app_ctx: AppContext = ctx.obj
+    workflows = discover_workflows()
+    data = [{"name": wf.name, "description": wf.description} for wf in workflows]
+    format_output(data, app_ctx.output, columns=["name", "description"])
 
 
 # ---------------------------------------------------------------------------
@@ -204,3 +217,17 @@ cli.add_command(project_access)
 cli.add_command(app)
 cli.add_command(config_group)
 cli.add_command(workflow)
+
+# ---------------------------------------------------------------------------
+# Discover and register workflow plugins
+# ---------------------------------------------------------------------------
+
+for _wf in discover_workflows():
+    try:
+        _wf.register_commands(cli)
+    except Exception:
+        logger.warning(
+            "Failed to register commands for workflow '%s'",
+            _wf.name,
+            exc_info=True,
+        )

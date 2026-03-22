@@ -419,12 +419,12 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 13,
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "notes": "",
       "startedAt": "2026-03-22T07:23:57.239Z",
-      "updatedAt": "2026-03-22T07:23:57.239Z",
-      "completedAt": null
+      "updatedAt": "2026-03-22T07:29:26.655Z",
+      "completedAt": "2026-03-22T07:29:26.655Z"
     },
     {
       "id": "US-014",
@@ -446,9 +446,12 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 14,
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
-      "notes": "Zero bundled workflows (ADR-11). Task 41 (example workflow) is in a separate repository and out of scope for this PRD."
+      "notes": "Zero bundled workflows (ADR-11). Task 41 (example workflow) is in a separate repository and out of scope for this PRD.",
+      "startedAt": "2026-03-22T07:29:27.203Z",
+      "updatedAt": "2026-03-22T07:29:27.203Z",
+      "completedAt": null
     },
     {
       "id": "US-015",

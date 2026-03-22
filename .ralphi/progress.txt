@@ -257,3 +257,23 @@ Corrective Plan: N/A
   - The `KanboardAuthError` class supports an optional `http_status` parameter, but for pre-emptive auth errors (before any HTTP call), omit it - the `__str__` format changes accordingly.
   - When all SDK methods raise errors, CLI tests can use `MagicMock` with `side_effect=KanboardAuthError(...)` on each method rather than patching the actual resource class.
 ---
+
+## 2026-03-22 - US-013
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/application.py` with `ApplicationResource` (7 methods: get_version, get_timezone, get_default_task_colors, get_default_task_color, get_color_list, get_application_roles, get_project_roles).
+- Implemented `src/kanboard_cli/commands/app_info.py` with 5 subcommands (version, timezone, colors, default-color, roles).
+- Wired `ApplicationResource` into `KanboardClient.application`.
+- Exported `ApplicationResource` from `kanboard` package `__init__.py`.
+- Replaced stub `app` group in `main.py` with real import from commands module.
+- Added 32 unit tests for SDK resource and 28 CLI tests (60 total); all pass.
+- Files changed: `src/kanboard/resources/application.py`, `src/kanboard_cli/commands/app_info.py`, `src/kanboard/__init__.py`, `src/kanboard/client.py`, `src/kanboard_cli/main.py`, `tests/unit/resources/test_application.py`, `tests/cli/test_app_info.py`.
+- **Learnings for future iterations:**
+  - Application info resource is entirely read-only (no mutations) - all methods return str or dict with falsy-default guards, no KanboardAPIError raises needed in the SDK layer.
+  - The `roles` CLI command combines two API calls (getApplicationRoles + getProjectRoles) into one table with a `scope` column to differentiate application vs project roles.
+  - The `colors` command formats dict values using `str(v)` since colour definitions can be nested dicts - keeps the definition column as a string representation.
+  - Stub groups in main.py must be removed when importing the real command group, otherwise Click raises a duplicate command name error.
+---
