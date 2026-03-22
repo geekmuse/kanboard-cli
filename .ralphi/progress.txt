@@ -173,3 +173,29 @@ Corrective Plan: N/A
   - `change_swimlane_position` requires at least 2 user-created swimlanes to test meaningfully; the default swimlane (id=0) does not count
   - `move_task_position` with `swimlane_id=0` targets the default swimlane successfully
 ---
+
+## 2026-03-22 - US-008
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `tests/integration/test_secondary_resources.py` with 33 integration tests covering all 7 secondary resource lifecycles
+- **Comment lifecycle** (4 tests): create/get, get_all, update (content), remove (verify via get_all)
+- **Category lifecycle** (4 tests): create/get, get_all, update (name), remove (verify via get_all)
+- **Tag lifecycle** (5 tests): create/get_all, get_tags_by_project, set_task_tags/get_task_tags (assign by name, retrieve as dict), update (name), remove
+- **Subtask lifecycle** (4 tests): create/get, get_all, update (title + status), remove (verify via get_all)
+- **User lifecycle** (6 tests): create/get, get_by_name, update (display name), enable/disable (verified via get_user), is_active (True→disable→False→enable), remove (verified via get_all_users)
+- **Link type lifecycle** (6 tests): create/get_by_id, get_by_label, get_all, get_opposite_link_id (bidirectional pair with explicit opposite_label), update (label via update_link), remove (verified via get_all_links)
+- **Task link lifecycle** (4 tests): create/get, get_all, update (change link_type), remove (verified via get_all_task_links)
+- Added `cleanup_link_ids` fixture to `tests/integration/conftest.py` — deduplicated cleanup of link type IDs (handles bidirectional pairs where forward/reverse are both tracked)
+- All 62 integration tests + 1951 unit tests pass (2013 total); ruff clean
+- Files changed: `tests/integration/conftest.py` (cleanup_link_ids fixture), `tests/integration/test_secondary_resources.py` (new)
+- **Learnings for future iterations:**
+  - `set_task_tags` takes a list of tag NAME strings (not IDs); `get_task_tags` returns a dict mapping tag_id (str) → tag_name (str) — verify membership via `.values()`
+  - `createLink` with `opposite_label` creates TWO link records; `getOppositeLinkId` returns the second one's ID; cleanup must remove both (deduplicate in cleanup fixture using a `seen` set)
+  - `createLink` without `opposite_label` creates a single self-referencing link; `getOppositeLinkId` returns the same ID
+  - Users require unique usernames — use `uuid.uuid4().hex[:8]` suffix; display `name` field is separate and can be non-unique
+  - Kanboard user lifecycle: `is_active_user` returns bool True/False reflecting active/disabled state; re-enable before `remove_user` is not strictly required but is good practice
+  - Task links cascade-delete when the parent task (or project) is removed — no dedicated cleanup needed beyond cleanup_task_ids/cleanup_project_ids
+---
