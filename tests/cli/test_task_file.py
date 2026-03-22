@@ -378,9 +378,7 @@ def test_task_file_remove_with_yes(
 ) -> None:
     """``task-file remove --yes`` removes without prompting."""
     mock_client.task_files.remove_task_file.return_value = True
-    result = _invoke(
-        runner, mock_config, mock_client, ["task-file", "remove", "10", "--yes"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["task-file", "remove", "10", "--yes"])
     assert result.exit_code == 0
     assert "10" in result.output
     mock_client.task_files.remove_task_file.assert_called_once_with(10)
@@ -390,9 +388,7 @@ def test_task_file_remove_without_yes_aborts(
     runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
 ) -> None:
     """``task-file remove`` without --yes and answering 'n' aborts."""
-    result = _invoke(
-        runner, mock_config, mock_client, ["task-file", "remove", "10"], input="n\n"
-    )
+    result = _invoke(runner, mock_config, mock_client, ["task-file", "remove", "10"], input="n\n")
     assert result.exit_code != 0
     mock_client.task_files.remove_task_file.assert_not_called()
 
@@ -402,9 +398,7 @@ def test_task_file_remove_interactive_confirm(
 ) -> None:
     """``task-file remove`` without --yes and answering 'y' proceeds."""
     mock_client.task_files.remove_task_file.return_value = True
-    result = _invoke(
-        runner, mock_config, mock_client, ["task-file", "remove", "10"], input="y\n"
-    )
+    result = _invoke(runner, mock_config, mock_client, ["task-file", "remove", "10"], input="y\n")
     assert result.exit_code == 0
     mock_client.task_files.remove_task_file.assert_called_once_with(10)
 

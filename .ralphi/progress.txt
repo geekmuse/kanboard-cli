@@ -38,3 +38,22 @@ Corrective Plan: N/A
   - `ProjectFile` and `TaskFile` dataclasses already pre-defined in `models.py` — no model work needed for these stories.
   - The `__all__` list in `kanboard/__init__.py` must stay sorted (RUF022 enforced by ruff).
 ---
+
+## 2026-03-22 - US-002
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/task_files.py` with `TaskFilesResource` (6 methods: create, get_all, get, download, remove, remove_all).
+- Implemented `src/kanboard_cli/commands/task_file.py` with 6 subcommands (list, get, upload, download, remove, remove-all).
+- Wired `TaskFilesResource` into `KanboardClient.task_files`.
+- Exported `TaskFilesResource` from `kanboard` package `__init__.py`.
+- Replaced stub `task_file` group in `main.py` with real import.
+- Added 31 unit tests for SDK resource and 27 CLI tests (58 total); all pass.
+- Files changed: `src/kanboard/resources/task_files.py`, `src/kanboard_cli/commands/task_file.py`, `src/kanboard/__init__.py`, `src/kanboard/client.py`, `src/kanboard_cli/main.py`, `tests/unit/resources/test_task_files.py`, `tests/cli/test_task_file.py`.
+- **Learnings for future iterations:**
+  - Task file API signatures differ from project files: `get_task_file(file_id)` and `download_task_file(file_id)` take only `file_id` (no project_id), while `create_task_file` takes both `project_id` and `task_id`.
+  - Import ordering in `client.py` must be alphabetical by module path — `task_files` goes after `tags` and before `task_links`.
+  - The `ruff format` pre-commit hook may reformat newly created files — watch for that in the commit output.
+---
