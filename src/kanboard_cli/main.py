@@ -35,6 +35,7 @@ from kanboard_cli.commands.external_link import external_link
 from kanboard_cli.commands.group import group
 from kanboard_cli.commands.link import link
 from kanboard_cli.commands.me import me
+from kanboard_cli.commands.milestone import milestone
 from kanboard_cli.commands.portfolio import portfolio
 from kanboard_cli.commands.project import project
 from kanboard_cli.commands.project_access import project_access
@@ -218,6 +219,7 @@ def workflow_list(ctx: click.Context) -> None:
 cli.add_command(task)
 cli.add_command(project)
 cli.add_command(portfolio)
+cli.add_command(milestone)
 cli.add_command(board)
 cli.add_command(column)
 cli.add_command(swimlane)
