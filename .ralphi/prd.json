@@ -81,8 +81,8 @@
       ],
       "notes": "Portfolio names are case-sensitive and unique. Milestone names are unique within a portfolio. File format version field is 1. Use json stdlib only — no external deps.",
       "startedAt": "2026-03-22T18:34:01.794Z",
-      "updatedAt": "2026-03-22T18:55:00.000Z",
-      "completedAt": "2026-03-22T18:55:00.000Z"
+      "updatedAt": "2026-03-22T18:53:15.749Z",
+      "completedAt": "2026-03-22T18:53:15.749Z"
     },
     {
       "id": "US-004",
@@ -105,13 +105,16 @@
         "pytest passes"
       ],
       "priority": 4,
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-001",
         "US-002",
         "US-003"
       ],
-      "notes": "N+1 API calls by design — Phase 1 plugin will solve server-side. Metadata keys: kanboard_cli:portfolio (project scope), kanboard_cli:milestones (task scope), kanboard_cli:milestone_critical (task scope)."
+      "notes": "N+1 API calls by design — Phase 1 plugin will solve server-side. Metadata keys: kanboard_cli:portfolio (project scope), kanboard_cli:milestones (task scope), kanboard_cli:milestone_critical (task scope).",
+      "startedAt": "2026-03-22T18:53:16.276Z",
+      "updatedAt": "2026-03-22T19:30:00.000Z",
+      "completedAt": "2026-03-22T19:30:00.000Z"
     },
     {
       "id": "US-005",

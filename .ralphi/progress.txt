@@ -1,4 +1,7 @@
 ## Codebase Patterns
+- **`_has_open_blocker` early-return optimization**: When `blocked_by_link_ids` is empty (getAllLinks returned no link types), `_has_open_blocker` returns `False` immediately — NO `getAllTaskLinks` HTTP call is made. Tests must account for this: mock responses should NOT include `getAllTaskLinks` responses when the `getAllLinks` mock returns empty.
+- **`list or default` vs `is not None`**: In test helpers with list defaults, use `param if param is not None else default` instead of `param or default` — the latter treats `[]` as falsy and substitutes the default.
+- **`pytest-httpx` response ordering**: Responses are consumed in FIFO order; extra mocked responses not consumed cause teardown failures. Always count exact expected HTTP calls per test.
 - Add reusable, project-wide implementation patterns here.
 - **Orchestration is opt-in**: `PortfolioManager`, `DependencyAnalyzer`, `LocalPortfolioStore` are NOT KanboardClient attributes — callers instantiate them with a client arg.
 - **Resource pattern**: resource classes take `KanboardClient` in `__init__`, store as `self._client`. Use `TYPE_CHECKING` guard for client import to avoid circular imports.
@@ -85,4 +88,31 @@ Corrective Plan: N/A
   - Import private helpers (`_dt_to_str`, etc.) in tests to get full serialiser coverage without needing integration tests
   - `monkeypatch.setattr(cfg_module, "CONFIG_DIR", fake_path)` is the correct pattern to test default path without touching real filesystem — avoids a `LocalPortfolioStore()` call that would hit `~/.config/kanboard/`
   - Pre-commit hook runs full 2155-test suite (takes ~4 min) — be patient; do not use `--no-verify`
+---
+
+## 2026-03-22 - US-004
+Session: iter-32d06577
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented full `PortfolioManager` in `src/kanboard/orchestration/portfolio.py`
+- `get_portfolio_projects(portfolio_name)` → fetches each project by ID, skips deleted with warning
+- `get_portfolio_tasks(portfolio_name, status, assignee_id, project_id)` → multi-project aggregation with optional filters
+- `get_milestone_progress(portfolio_name, milestone_name)` → full progress computation: percent, is_overdue, is_at_risk, blocked_task_ids
+- `get_all_milestone_progress(portfolio_name)` → delegates to get_milestone_progress for each milestone
+- `sync_metadata(portfolio_name)` → writes kanboard_cli:portfolio to projects, kanboard_cli:milestones + kanboard_cli:milestone_critical to tasks; returns {projects_synced, tasks_synced}
+- `_get_link_label_map()` → fetches all link types once, builds {link_id: label} cache for blocker detection
+- `_has_open_blocker()` → checks task links for "is blocked by" relationships pointing to active tasks; returns False immediately when no "is blocked by" link types exist (no HTTP call)
+- Missing projects/tasks handled gracefully: logged warning, skipped (total count adjusted for tasks)
+- Module-level constants: `_METADATA_KEY_PORTFOLIO`, `_METADATA_KEY_MILESTONES`, `_METADATA_KEY_MILESTONE_CRITICAL`, `_LINK_LABEL_BLOCKED_BY`, `_AT_RISK_DAYS`, `_AT_RISK_PERCENT_THRESHOLD`
+- Written 38 tests in `tests/unit/orchestration/test_portfolio.py` using pytest-httpx for HTTP mocking and real LocalPortfolioStore with tmp_path
+- Coverage: 96% on portfolio.py (≥90% required); uncovered lines are defensive exception paths in _get_link_label_map and _has_open_blocker
+- Files changed: `src/kanboard/orchestration/portfolio.py`, `tests/unit/orchestration/test_portfolio.py`
+- **Learnings for future iterations:**
+  - `_has_open_blocker` short-circuits when `blocked_by_link_ids` is empty — tests must NOT mock `getAllTaskLinks` in that case
+  - Test helper list defaults: use `param if param is not None else default` (not `param or default`) to allow empty lists as inputs
+  - pytest-httpx is strict: leftover unused mock responses cause teardown AssertionError — count expected HTTP calls precisely
+  - `_AT_RISK_DAYS` uses `float(_AT_RISK_DAYS)` for comparison with `days_remaining` (float) to avoid type mismatch
+  - `is_at_risk` requires `0.0 <= days_remaining <= 7.0` — negative days_remaining (past due) is excluded (overdue, not at-risk)
 ---
