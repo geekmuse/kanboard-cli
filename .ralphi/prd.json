@@ -104,8 +104,8 @@
       "dependsOn": [],
       "notes": "",
       "startedAt": "2026-03-22T04:40:19.784Z",
-      "updatedAt": "2026-03-22T05:55:00.000Z",
-      "completedAt": "2026-03-22T05:55:00.000Z"
+      "updatedAt": "2026-03-22T04:44:08.261Z",
+      "completedAt": "2026-03-22T04:44:08.261Z"
     },
     {
       "id": "US-005",
@@ -125,9 +125,12 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 5,
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
-      "notes": ""
+      "notes": "",
+      "startedAt": "2026-03-22T04:44:08.410Z",
+      "updatedAt": "2026-03-22T06:10:00.000Z",
+      "completedAt": "2026-03-22T06:10:00.000Z"
     },
     {
       "id": "US-006",

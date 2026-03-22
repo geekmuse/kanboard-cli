@@ -1,3 +1,21 @@
+## 2026-03-22T06:10:00Z - US-005
+Session: iter-30e30e5e
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/categories.py` — `CategoriesResource` with all 5 methods: `create_category`, `get_category`, `get_all_categories`, `update_category`, `remove_category`
+- Wired `self.categories = CategoriesResource(self)` into `KanboardClient.__init__`
+- Exported `CategoriesResource` from `src/kanboard/__init__.py`
+- Added 25 unit tests in `tests/unit/resources/test_categories.py` covering: all 5 methods, success + error + empty paths, not-found error attributes, importability, client accessor, kwargs forwarding
+- All 599 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `update_category` raises `KanboardAPIError` on False (same "update = must succeed" pattern as `update_column` and `update_comment`)
+  - `remove_category` returns `bool(result)` without raising on False — consistent with other remove_* methods
+  - `get_all_categories` uses `if not result: return []` which correctly handles False, None, and `[]` from the API
+  - `Category.from_api` maps: `id`, `name`, `project_id`, `color_id` — all string-encoded in the API response, cast via `_int()` and `str()`
+---
+
 ## Codebase Patterns
 - **KanboardNotFoundError signature**: uses `resource=` and `identifier=` kwargs (NOT `resource_type`/`resource_id`); `__str__` formats as `"Not found: {resource} '{identifier}' does not exist"` — match patterns in tests must reflect this.
 
