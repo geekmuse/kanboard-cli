@@ -100,3 +100,21 @@ Corrective Plan: N/A
   - Task metadata follows identical pattern to project metadata — only differs in parameter names (`task_id` vs `project_id`) and Kanboard API quirk (returns `[]` on empty).
   - Added `isinstance(result, list)` guard in `get_task_metadata()` to handle the `[]` case — this is unique to this endpoint.
 ---
+
+## 2026-03-22 - US-005
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/project_permissions.py` with `ProjectPermissionsResource` (9 methods: get_project_users, get_assignable_users, get_project_user_role, add_project_user, remove_project_user, change_project_user_role, add_project_group, remove_project_group, change_project_group_role).
+- Wired `ProjectPermissionsResource` into `KanboardClient.project_permissions`.
+- Exported `ProjectPermissionsResource` from `kanboard` package `__init__.py`.
+- Added 47 unit tests covering happy paths, error paths (KanboardAPIError), empty/falsy returns, kwargs forwarding, network failures (KanboardConnectionError), client wiring, and package importability; all pass.
+- Files changed: `src/kanboard/resources/project_permissions.py`, `src/kanboard/__init__.py`, `src/kanboard/client.py`, `tests/unit/resources/test_project_permissions.py`.
+- **Learnings for future iterations:**
+  - Permission APIs return dicts mapping user/group IDs (as strings) to usernames - no dataclass models needed (same pattern as metadata).
+  - `get_project_user_role` returns a role string - uses same `result is None or result is False or result == ""` guard as `get_*_metadata_by_name`.
+  - The `add_project_user` and `add_project_group` methods accept `**kwargs` for optional `role` parameter - follow same pattern for any API method with optional params.
+  - This is the largest single resource module (9 methods) - splitting SDK from CLI was a good decision for maintainability.
+---

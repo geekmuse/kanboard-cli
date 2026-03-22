@@ -153,12 +153,12 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 5,
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "notes": "",
       "startedAt": "2026-03-22T06:35:12.550Z",
-      "updatedAt": "2026-03-22T06:35:12.550Z",
-      "completedAt": null
+      "updatedAt": "2026-03-22T06:42:00.000Z",
+      "completedAt": "2026-03-22T06:42:00.000Z"
     },
     {
       "id": "US-006",
