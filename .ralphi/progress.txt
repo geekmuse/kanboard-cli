@@ -14,6 +14,9 @@
 - **Store CRUD pattern**: load() → mutate in-memory → save() — each write method loads current state, modifies, and persists atomically. No in-memory cache — always reads from disk.
 - **Store datetime serialization**: `datetime.isoformat()` for write, `datetime.fromisoformat()` for read. `None` dates stored as JSON `null`.
 - **ruff I001**: import block must be isort-sorted in tests — run `ruff check --fix` before committing.
+- **pytest-httpx response ordering for DependencyAnalyzer**: `getProjectById` is called *during inner-loop edge processing* (while iterating `getAllTaskLinks` results), not after the outer task loop finishes. Correct mock order is: `getAllLinks` → `getAllTaskLinks(A)` → `getProjectById(proj)` → `getAllTaskLinks(B)` → ... — NOT `getAllTaskLinks` for all tasks first, then project calls.
+- **DependencyEdge deduplication key**: canonical form is `(blocker_id, blocked_id)` — blocks direction always. An "A blocks B" entry from A's links AND "B is blocked by A" from B's links both normalize to key `(A.id, B.id)` and are deduplicated.
+- **get_critical_path calls get_dependency_edges(tasks) with ALL tasks** (including inactive ones) — this is intentional so resolved edges are still discoverable. The open-task filter only applies when building the active_edges list for Kahn's algorithm.
 ---
 
 ## PRD Run Context
@@ -115,4 +118,27 @@ Corrective Plan: N/A
   - pytest-httpx is strict: leftover unused mock responses cause teardown AssertionError — count expected HTTP calls precisely
   - `_AT_RISK_DAYS` uses `float(_AT_RISK_DAYS)` for comparison with `days_remaining` (float) to avoid type mismatch
   - `is_at_risk` requires `0.0 <= days_remaining <= 7.0` — negative days_remaining (past due) is excluded (overdue, not at-risk)
+---
+
+## 2026-03-22 - US-005
+Session: iter-f95f9251
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented full `DependencyAnalyzer` in `src/kanboard/orchestration/dependencies.py`
+- `_get_link_label_map()` fetches all link types once, returns `{link_id: label}` map
+- `_get_or_fetch_task(task_id)` checks `self._task_cache` first (populated from input tasks), fetches from API on miss, returns `None` on 404
+- `_get_project_name(project_id, project_name_cache)` uses caller-owned dict for within-call caching
+- `get_dependency_edges(tasks, cross_project_only)` normalises all edges to "blocks" direction; canonical dedup key `(blocker_id, blocked_id)` prevents A→B / B→A duplicate when querying both tasks
+- `get_blocked_tasks(tasks)` returns tasks with at least one unresolved inbound edge
+- `get_blocking_tasks(tasks)` returns open tasks with at least one unresolved outbound edge
+- `get_critical_path(tasks)` uses Kahn's topological sort + DP longest-path; cycle detection logs warning and returns partial result; considers only open tasks and unresolved inter-open-task edges
+- `get_dependency_graph(tasks, cross_project_only)` returns `{"nodes": [...], "edges": [...]}` dict
+- Written 33 tests in `tests/unit/orchestration/test_dependencies.py`; coverage: 97% on `dependencies.py` (≥90% required)
+- **Learnings for future iterations:**
+  - `getProjectById` is called INSIDE the edge processing inner loop, not after the outer task loop — mock response order must interleave project calls between `getAllTaskLinks` calls
+  - `get_critical_path` passes full task list to `get_dependency_edges` — `getAllTaskLinks` is called for inactive tasks too; only the active_edges filter (inside critical path logic) excludes them
+  - Deduplication set holds `(blocker_id, blocked_id)` tuples — different from `frozenset({A, B})` to preserve direction; two reverse edges in a cycle (A→B, B→A) are NOT duplicates
+  - ruff format reformatted both files after writing — always run `ruff format .` before committing
 ---
