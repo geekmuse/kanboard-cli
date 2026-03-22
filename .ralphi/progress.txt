@@ -1,4 +1,10 @@
 ## Codebase Patterns
+- Integration tests for file resources: use `base64.b64encode(b"content").decode()` as the blob; `ProjectFile.name` / `TaskFile.name` maps to the `filename` argument passed on upload.
+- Action create test: use `get_available_actions()` to discover action names, search for `AssignCurrentUser` or `CloseColumn` (both need only `column_id` param); pass `{"column_id": str(col_id)}` (value must be a string); event is `task.move.column`.
+- Subtask time tracking: `set_subtask_start_time` / `set_subtask_end_time` both accept `user_id` kwarg — pass `user_id=_ADMIN_USER_ID` (1) explicitly; `get_subtask_time_spent` returns float (0.0 is valid for short timings).
+- External task links: `create_external_task_link` requires `type="weblink"` kwarg for URL links; `dependency="related"` is always valid; `url` field in `ExternalTaskLink` model holds the URL.
+- Group membership: after `remove_group_member`, the group list returned by `get_group_members` immediately reflects the removal without needing a separate fetch — use `assert not any(m.id == X for m in members)` pattern.
+- Project permissions: `get_project_users` returns a dict keyed by user_id as STRING (not int) — assert `str(user_id) in users`, not `user_id in users`.
 - CLI commands: use `@click.pass_context` + `ctx.obj` (typed as `AppContext`) to access config, client, and output format. All output via `format_output()` / `format_success()` in `kanboard_cli/formatters.py`.
 - Patching for tests: use `patch("kanboard_cli.main.KanboardConfig.resolve", return_value=...)` and `patch("kanboard_cli.main.KanboardClient", return_value=...)` to inject config/client. For module-level Path constants in commands (CONFIG_FILE, CONFIG_DIR), patch at `kanboard_cli.commands.<module>.CONFIG_FILE`.
 - Config-less commands (e.g., `config init`): the root `cli` callback absorbs `KanboardConfigError`, so `ctx.obj.config` / `.client` are `None` but `ctx.obj.output` always has a value from the global `--output` flag.
@@ -198,4 +204,35 @@ Corrective Plan: N/A
   - Users require unique usernames — use `uuid.uuid4().hex[:8]` suffix; display `name` field is separate and can be non-unique
   - Kanboard user lifecycle: `is_active_user` returns bool True/False reflecting active/disabled state; re-enable before `remove_user` is not strictly required but is good practice
   - Task links cascade-delete when the parent task (or project) is removed — no dedicated cleanup needed beyond cleanup_task_ids/cleanup_project_ids
+---
+
+## 2026-03-22 - US-009
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `tests/integration/test_extended_resources.py` with 46 integration tests covering all 11 extended resource lifecycles
+- **Project file lifecycle** (5 tests): create/get_all, get, download, remove, remove_all
+- **Task file lifecycle** (5 tests): create/get_all, get, download, remove, remove_all
+- **Project metadata lifecycle** (3 tests): save/get_all, get_by_name, remove
+- **Task metadata lifecycle** (3 tests): save/get_all, get_by_name, remove
+- **Project permissions — user** (4 tests): add/get_users, get_user_role, change_role, remove_user
+- **Project permissions — group** (2 tests): add_group/change_group_role, remove_group
+- **Group lifecycle** (4 tests): create/get, get_all, update, remove
+- **Group member lifecycle** (4 tests): add/get_members, get_member_groups, is_member, remove
+- **External task link lifecycle** (5 tests): get_types, create/get, get_all, update, remove
+- **Actions lifecycle** (4 tests): get_available, get_events, get_compatible_events, create/get_actions/remove
+- **Subtask time tracking** (3 tests): start/has_timer, stop, get_time_spent
+- **Application info** (4 tests): get_version, get_timezone, get_colors, get_roles
+- Shared fixtures: `integration_project`, `integration_task`, `integration_subtask`, `integration_user`, `integration_group` all function-scoped with cleanup
+- All 108 integration tests pass (46 new + 62 existing); 2059 total tests pass; ruff clean
+- Files changed: `tests/integration/test_extended_resources.py` (new)
+- **Learnings for future iterations:**
+  - `createExternalTaskLink` requires `type="weblink"` for generic URL links; `dependency="related"` is universally valid
+  - `createAction` params values should be strings even when the underlying data is numeric (e.g. `{"column_id": "5"}`)
+  - Action discovery pattern: call `get_available_actions()`, search keys for known-simple action (`AssignCurrentUser`/`CloseColumn`), use `get_compatible_action_events()` to pick event name
+  - `get_project_users()` returns `dict[str, str]` with user_id as STRING key — must assert `str(user_id) in users`
+  - Subtask time tracking: `user_id` kwarg must be passed explicitly (admin=1) to all timer methods when using user auth mode
+  - `get_subtask_time_spent` after an immediate start→stop returns `0.0` (valid); assert `>= 0.0` not `> 0.0`
 ---
