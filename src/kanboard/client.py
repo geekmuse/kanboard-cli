@@ -19,6 +19,7 @@ from kanboard.resources.board import BoardResource
 from kanboard.resources.categories import CategoriesResource
 from kanboard.resources.columns import ColumnsResource
 from kanboard.resources.comments import CommentsResource
+from kanboard.resources.groups import GroupsResource
 from kanboard.resources.links import LinksResource
 from kanboard.resources.project_files import ProjectFilesResource
 from kanboard.resources.project_metadata import ProjectMetadataResource
@@ -51,6 +52,7 @@ class KanboardClient:
     - :attr:`categories` — :class:`~kanboard.resources.categories.CategoriesResource`
     - :attr:`columns` — :class:`~kanboard.resources.columns.ColumnsResource`
     - :attr:`comments` — :class:`~kanboard.resources.comments.CommentsResource`
+    - :attr:`groups` — :class:`~kanboard.resources.groups.GroupsResource`
     - :attr:`links` — :class:`~kanboard.resources.links.LinksResource`
     - :attr:`project_files` — :class:`~kanboard.resources.project_files.ProjectFilesResource`
     - :attr:`project_metadata` — :class:`ProjectMetadataResource`
@@ -91,6 +93,7 @@ class KanboardClient:
         self.categories: CategoriesResource = CategoriesResource(self)
         self.columns: ColumnsResource = ColumnsResource(self)
         self.comments: CommentsResource = CommentsResource(self)
+        self.groups: GroupsResource = GroupsResource(self)
         self.links: LinksResource = LinksResource(self)
         self.project_files: ProjectFilesResource = ProjectFilesResource(self)
         self.project_metadata: ProjectMetadataResource = ProjectMetadataResource(self)

@@ -40,6 +40,7 @@ from kanboard.resources.board import BoardResource
 from kanboard.resources.categories import CategoriesResource
 from kanboard.resources.columns import ColumnsResource
 from kanboard.resources.comments import CommentsResource
+from kanboard.resources.groups import GroupsResource
 from kanboard.resources.links import LinksResource
 from kanboard.resources.project_files import ProjectFilesResource
 from kanboard.resources.project_metadata import ProjectMetadataResource
@@ -68,6 +69,7 @@ __all__ = [
     "CommentsResource",
     "ExternalTaskLink",
     "Group",
+    "GroupsResource",
     "KanboardAPIError",
     "KanboardAuthError",
     "KanboardClient",

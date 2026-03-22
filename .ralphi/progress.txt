@@ -118,3 +118,19 @@ Corrective Plan: N/A
   - The `add_project_user` and `add_project_group` methods accept `**kwargs` for optional `role` parameter - follow same pattern for any API method with optional params.
   - This is the largest single resource module (9 methods) - splitting SDK from CLI was a good decision for maintainability.
 ---
+
+## 2026-03-22 - US-006
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/project_access.py` with 9 subcommands: list, assignable, add-user, add-group, remove-user, remove-group, set-user-role, set-group-role, user-role.
+- Replaced stub `project_access` group in `main.py` with real import from commands module.
+- Added 45 CLI tests covering all 9 subcommands with table/json/csv/quiet formats, error paths, --yes confirmation flows, empty results, and help output.
+- Files changed: `src/kanboard_cli/commands/project_access.py`, `src/kanboard_cli/main.py`, `tests/cli/test_project_access.py`.
+- **Learnings for future iterations:**
+  - Permission APIs returning dicts (user_id -> username) use the same formatting pattern as metadata: convert to `[{"user_id": k, "username": v}]` list of dicts for `format_output`.
+  - For `add-user`/`add-group` with optional `--role`, build kwargs dict conditionally rather than always passing `role=None` - the API may not accept explicit `None`.
+  - The `user-role` query command returns a single string role - format as `{"user_id": str(user_id), "role": role}` for consistent output across formats.
+---

@@ -20,6 +20,7 @@ from kanboard_cli.commands.board import board
 from kanboard_cli.commands.category import category
 from kanboard_cli.commands.column import column
 from kanboard_cli.commands.comment import comment
+from kanboard_cli.commands.group import group
 from kanboard_cli.commands.link import link
 from kanboard_cli.commands.project import project
 from kanboard_cli.commands.project_access import project_access
@@ -172,11 +173,6 @@ def me() -> None:
 @click.group(name="external-link")
 def external_link() -> None:
     """Manage external links on tasks."""
-
-
-@click.group()
-def group() -> None:
-    """Manage Kanboard user groups."""
 
 
 @click.group()
