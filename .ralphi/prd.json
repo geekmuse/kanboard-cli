@@ -5,7 +5,7 @@
   "userStories": [
     {
       "id": "US-001",
-      "title": "Project files \u2014 SDK + CLI",
+      "title": "Project files — SDK + CLI",
       "description": "Implement src/kanboard/resources/project_files.py with ProjectFilesResource covering all 6 project-file API methods, wire into KanboardClient as client.project_files, and implement src/kanboard_cli/commands/project_file.py with 6 subcommands. Replace the stub project-file group in main.py. Base64 encode/decode file content transparently in SDK; CLI upload reads from filesystem path and download writes to filesystem path.",
       "acceptanceCriteria": [
         "ProjectFilesResource class with __init__(self, client) pattern",
@@ -19,8 +19,8 @@
         "ProjectFilesResource exportable from kanboard package",
         "CLI: kanboard project-file list <project_id>",
         "CLI: kanboard project-file get <project_id> <file_id>",
-        "CLI: kanboard project-file upload <project_id> <filepath> \u2014 reads file, base64 encodes, sends",
-        "CLI: kanboard project-file download <project_id> <file_id> [--output path] \u2014 decodes base64 and writes",
+        "CLI: kanboard project-file upload <project_id> <filepath> — reads file, base64 encodes, sends",
+        "CLI: kanboard project-file download <project_id> <file_id> [--output path] — decodes base64 and writes",
         "CLI: kanboard project-file remove <project_id> <file_id> --yes",
         "CLI: kanboard project-file remove-all <project_id> --yes",
         "Stub project-file group in main.py replaced with real import",
@@ -39,7 +39,7 @@
     },
     {
       "id": "US-002",
-      "title": "Task files \u2014 SDK + CLI",
+      "title": "Task files — SDK + CLI",
       "description": "Implement src/kanboard/resources/task_files.py with TaskFilesResource covering all 6 task-file API methods, wire into KanboardClient as client.task_files, and implement src/kanboard_cli/commands/task_file.py with 6 subcommands. Replace the stub task-file group in main.py. Same base64 transparent handling as project files.",
       "acceptanceCriteria": [
         "TaskFilesResource class with __init__(self, client) pattern",
@@ -53,8 +53,8 @@
         "TaskFilesResource exportable from kanboard package",
         "CLI: kanboard task-file list <task_id>",
         "CLI: kanboard task-file get <file_id>",
-        "CLI: kanboard task-file upload <project_id> <task_id> <filepath> \u2014 reads file, base64 encodes, sends",
-        "CLI: kanboard task-file download <file_id> [--output path] \u2014 decodes base64 and writes",
+        "CLI: kanboard task-file upload <project_id> <task_id> <filepath> — reads file, base64 encodes, sends",
+        "CLI: kanboard task-file download <file_id> [--output path] — decodes base64 and writes",
         "CLI: kanboard task-file remove <file_id> --yes",
         "CLI: kanboard task-file remove-all <task_id> --yes",
         "Stub task-file group in main.py replaced with real import",
@@ -73,7 +73,7 @@
     },
     {
       "id": "US-003",
-      "title": "Project metadata \u2014 SDK + CLI",
+      "title": "Project metadata — SDK + CLI",
       "description": "Implement src/kanboard/resources/project_metadata.py with ProjectMetadataResource covering all 4 project metadata API methods, wire into KanboardClient as client.project_metadata, and implement src/kanboard_cli/commands/project_meta.py with 4 subcommands. Replace the stub project-meta group in main.py.",
       "acceptanceCriteria": [
         "ProjectMetadataResource class with __init__(self, client) pattern",
@@ -103,7 +103,7 @@
     },
     {
       "id": "US-004",
-      "title": "Task metadata \u2014 SDK + CLI",
+      "title": "Task metadata — SDK + CLI",
       "description": "Implement src/kanboard/resources/task_metadata.py with TaskMetadataResource covering all 4 task metadata API methods, wire into KanboardClient as client.task_metadata, and implement src/kanboard_cli/commands/task_meta.py with 4 subcommands. Replace the stub task-meta group in main.py.",
       "acceptanceCriteria": [
         "TaskMetadataResource class with __init__(self, client) pattern",
@@ -126,14 +126,14 @@
       "priority": 4,
       "status": "done",
       "dependsOn": [],
-      "notes": "Note: getTaskMetadata returns [] (not {}) on empty \u2014 handle both.",
+      "notes": "Note: getTaskMetadata returns [] (not {}) on empty — handle both.",
       "startedAt": "2026-03-22T06:28:47.525Z",
       "updatedAt": "2026-03-22T06:35:12.174Z",
       "completedAt": "2026-03-22T06:35:12.174Z"
     },
     {
       "id": "US-005",
-      "title": "Project permissions \u2014 SDK",
+      "title": "Project permissions — SDK",
       "description": "Implement src/kanboard/resources/project_permissions.py with ProjectPermissionsResource covering all 9 project permission API methods. Wire into KanboardClient as client.project_permissions. This is the largest resource module in M3 (9 methods) so SDK is split from CLI.",
       "acceptanceCriteria": [
         "ProjectPermissionsResource class with __init__(self, client) pattern",
@@ -162,11 +162,11 @@
     },
     {
       "id": "US-006",
-      "title": "Project permissions \u2014 CLI",
+      "title": "Project permissions — CLI",
       "description": "Implement src/kanboard_cli/commands/project_access.py with 9 subcommands for project permissions. Replace the stub project-access group in main.py with the real import.",
       "acceptanceCriteria": [
-        "CLI: kanboard project-access list <project_id> \u2014 shows project users",
-        "CLI: kanboard project-access assignable <project_id> \u2014 shows assignable users",
+        "CLI: kanboard project-access list <project_id> — shows project users",
+        "CLI: kanboard project-access assignable <project_id> — shows assignable users",
         "CLI: kanboard project-access add-user <project_id> <user_id> [--role]",
         "CLI: kanboard project-access add-group <project_id> <group_id> [--role]",
         "CLI: kanboard project-access remove-user <project_id> <user_id> --yes",
@@ -193,7 +193,7 @@
     },
     {
       "id": "US-007",
-      "title": "Groups \u2014 SDK + CLI",
+      "title": "Groups — SDK + CLI",
       "description": "Implement src/kanboard/resources/groups.py with GroupsResource covering all 5 group API methods, wire into KanboardClient as client.groups, and implement src/kanboard_cli/commands/group.py with 5 subcommands. Replace the stub group command in main.py.",
       "acceptanceCriteria": [
         "GroupsResource class with __init__(self, client) pattern",
@@ -220,12 +220,12 @@
       "dependsOn": [],
       "notes": "",
       "startedAt": "2026-03-22T06:45:01.993Z",
-      "updatedAt": "2026-03-22T06:50:44.493722+00:00",
-      "completedAt": "2026-03-22T06:50:44.493722+00:00"
+      "updatedAt": "2026-03-22T06:51:24.000Z",
+      "completedAt": "2026-03-22T06:51:24.000Z"
     },
     {
       "id": "US-008",
-      "title": "Group members \u2014 SDK + CLI",
+      "title": "Group members — SDK + CLI",
       "description": "Implement src/kanboard/resources/group_members.py with GroupMembersResource covering all 5 group-member API methods, wire into KanboardClient as client.group_members, and add group member subcommands to the existing group CLI command group (e.g., kanboard group member list|groups|add|remove|check).",
       "acceptanceCriteria": [
         "GroupMembersResource class with __init__(self, client) pattern",
@@ -236,8 +236,8 @@
         "is_group_member(group_id: int, user_id: int) -> bool",
         "Wired into KanboardClient as self.group_members",
         "GroupMembersResource exportable from kanboard package",
-        "CLI: kanboard group member list <group_id> \u2014 lists members of a group",
-        "CLI: kanboard group member groups <user_id> \u2014 lists groups a user belongs to",
+        "CLI: kanboard group member list <group_id> — lists members of a group",
+        "CLI: kanboard group member groups <user_id> — lists groups a user belongs to",
         "CLI: kanboard group member add <group_id> <user_id>",
         "CLI: kanboard group member remove <group_id> <user_id> --yes",
         "CLI: kanboard group member check <group_id> <user_id>",
@@ -247,15 +247,18 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 8,
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-007"
       ],
-      "notes": "Group members is a sub-group of the group CLI command (kanboard group member ...)."
+      "notes": "Group members is a sub-group of the group CLI command (kanboard group member ...).",
+      "startedAt": "2026-03-22T06:51:24.468Z",
+      "updatedAt": "2026-03-22T06:51:24.468Z",
+      "completedAt": null
     },
     {
       "id": "US-009",
-      "title": "External task links \u2014 SDK + CLI",
+      "title": "External task links — SDK + CLI",
       "description": "Implement src/kanboard/resources/external_task_links.py with ExternalTaskLinksResource covering all 7 external-task-link API methods, wire into KanboardClient as client.external_task_links, and implement src/kanboard_cli/commands/external_link.py with 7 subcommands. Replace the stub external-link group in main.py.",
       "acceptanceCriteria": [
         "ExternalTaskLinksResource class with __init__(self, client) pattern",
@@ -288,7 +291,7 @@
     },
     {
       "id": "US-010",
-      "title": "Automatic actions \u2014 SDK + CLI",
+      "title": "Automatic actions — SDK + CLI",
       "description": "Implement src/kanboard/resources/actions.py with ActionsResource covering all 6 automatic-action API methods, wire into KanboardClient as client.actions, and implement src/kanboard_cli/commands/action.py with 6 subcommands. Replace the stub action group in main.py.",
       "acceptanceCriteria": [
         "ActionsResource class with __init__(self, client) pattern",
@@ -301,9 +304,9 @@
         "Wired into KanboardClient as self.actions",
         "ActionsResource exportable from kanboard package",
         "CLI: kanboard action list <project_id>",
-        "CLI: kanboard action available \u2014 lists all available action types",
-        "CLI: kanboard action events \u2014 lists all available events",
-        "CLI: kanboard action compatible-events <action_name> \u2014 lists compatible events",
+        "CLI: kanboard action available — lists all available action types",
+        "CLI: kanboard action events — lists all available events",
+        "CLI: kanboard action compatible-events <action_name> — lists compatible events",
         "CLI: kanboard action create <project_id> <event_name> <action_name> --param key=value (repeatable)",
         "CLI: kanboard action remove <action_id> --yes",
         "Stub action group in main.py replaced with real import",
@@ -319,7 +322,7 @@
     },
     {
       "id": "US-011",
-      "title": "Subtask time tracking \u2014 SDK + CLI",
+      "title": "Subtask time tracking — SDK + CLI",
       "description": "Implement src/kanboard/resources/subtask_time_tracking.py with SubtaskTimeTrackingResource covering all 4 time-tracking API methods, wire into KanboardClient as client.subtask_time_tracking, and implement src/kanboard_cli/commands/timer.py with 4 subcommands. Replace the stub timer group in main.py.",
       "acceptanceCriteria": [
         "SubtaskTimeTrackingResource class with __init__(self, client) pattern",
@@ -346,8 +349,8 @@
     },
     {
       "id": "US-012",
-      "title": "Current user (\"Me\") \u2014 SDK + CLI",
-      "description": "Implement src/kanboard/resources/me.py with MeResource covering all 7 'me' API methods, wire into KanboardClient as client.me, and implement src/kanboard_cli/commands/me.py with subcommands. Replace the stub me group in main.py. IMPORTANT: All methods require User API auth \u2014 each method must raise KanboardAuthError with a clear message explaining User API auth is required until Task 46 is implemented.",
+      "title": "Current user (\"Me\") — SDK + CLI",
+      "description": "Implement src/kanboard/resources/me.py with MeResource covering all 7 'me' API methods, wire into KanboardClient as client.me, and implement src/kanboard_cli/commands/me.py with subcommands. Replace the stub me group in main.py. IMPORTANT: All methods require User API auth — each method must raise KanboardAuthError with a clear message explaining User API auth is required until Task 46 is implemented.",
       "acceptanceCriteria": [
         "MeResource class with __init__(self, client) pattern",
         "get_me() -> User; raises KanboardAuthError with clear message about User API auth requirement",
@@ -359,11 +362,11 @@
         "get_my_projects() -> list[dict]; raises KanboardAuthError",
         "Wired into KanboardClient as self.me",
         "MeResource exportable from kanboard package",
-        "CLI: kanboard me \u2014 show current user info",
-        "CLI: kanboard me dashboard \u2014 show dashboard",
-        "CLI: kanboard me activity \u2014 show activity stream",
-        "CLI: kanboard me projects \u2014 list my projects",
-        "CLI: kanboard me overdue \u2014 list my overdue tasks",
+        "CLI: kanboard me — show current user info",
+        "CLI: kanboard me dashboard — show dashboard",
+        "CLI: kanboard me activity — show activity stream",
+        "CLI: kanboard me projects — list my projects",
+        "CLI: kanboard me overdue — list my overdue tasks",
         "CLI: kanboard me create-project <name> [--description]",
         "All CLI commands display the auth error message clearly when invoked without User API auth",
         "Stub me group in main.py replaced with real import",
@@ -379,7 +382,7 @@
     },
     {
       "id": "US-013",
-      "title": "Application info \u2014 SDK + CLI",
+      "title": "Application info — SDK + CLI",
       "description": "Implement src/kanboard/resources/application.py with ApplicationResource covering all 7 application API methods, wire into KanboardClient as client.application, and implement src/kanboard_cli/commands/app_info.py with subcommands. Replace the stub app group in main.py.",
       "acceptanceCriteria": [
         "ApplicationResource class with __init__(self, client) pattern",
@@ -394,9 +397,9 @@
         "ApplicationResource exportable from kanboard package",
         "CLI: kanboard app version",
         "CLI: kanboard app timezone",
-        "CLI: kanboard app colors \u2014 show default task colors",
-        "CLI: kanboard app default-color \u2014 show default color",
-        "CLI: kanboard app roles \u2014 show application and project roles",
+        "CLI: kanboard app colors — show default task colors",
+        "CLI: kanboard app default-color — show default color",
+        "CLI: kanboard app roles — show application and project roles",
         "Stub app group in main.py replaced with real import",
         "All commands support --output table/json/csv/quiet",
         "All public methods have docstrings and full type hints",
@@ -420,7 +423,7 @@
         "main.py calls workflow.register_commands(cli) for each discovered workflow during startup",
         "Graceful handling when workflow directory does not exist (no error, empty list)",
         "Graceful handling when a workflow file fails to load (log warning, skip, continue)",
-        "CLI: kanboard workflow list \u2014 shows name and description of all discovered workflows",
+        "CLI: kanboard workflow list — shows name and description of all discovered workflows",
         "Stub workflow group in main.py replaced with real import/logic",
         "All public classes and methods have docstrings and full type hints",
         "Unit tests: loader discovers valid workflows, skips invalid files, handles missing directory",
@@ -435,9 +438,9 @@
     {
       "id": "US-015",
       "title": "Milestone 3 comprehensive test suite",
-      "description": "Ensure all Milestone 3 SDK resource modules and CLI command groups have thorough test coverage. Fill coverage gaps, add missing error-path tests, cross-format output tests, and network-failure tests for all new resource modules. Target \u226590% on src/kanboard/resources/.",
+      "description": "Ensure all Milestone 3 SDK resource modules and CLI command groups have thorough test coverage. Fill coverage gaps, add missing error-path tests, cross-format output tests, and network-failure tests for all new resource modules. Target ≥90% on src/kanboard/resources/.",
       "acceptanceCriteria": [
-        "pytest --cov=src/kanboard/resources reports \u226590% coverage across all resource modules",
+        "pytest --cov=src/kanboard/resources reports ≥90% coverage across all resource modules",
         "Error path tests for every new M3 resource: KanboardNotFoundError, KanboardAPIError, KanboardConnectionError",
         "CLI tests verify all 4 output formats (table, json, csv, quiet) for at least one command per new group",
         "CLI tests verify --yes confirmation required for all destructive commands in M3",
