@@ -20,6 +20,7 @@ from kanboard_cli.commands.board import board
 from kanboard_cli.commands.category import category
 from kanboard_cli.commands.column import column
 from kanboard_cli.commands.comment import comment
+from kanboard_cli.commands.external_link import external_link
 from kanboard_cli.commands.group import group
 from kanboard_cli.commands.link import link
 from kanboard_cli.commands.project import project
@@ -168,11 +169,6 @@ def timer() -> None:
 @click.group()
 def me() -> None:
     """Commands for the authenticated user."""
-
-
-@click.group(name="external-link")
-def external_link() -> None:
-    """Manage external links on tasks."""
 
 
 @click.group()

@@ -154,3 +154,22 @@ Corrective Plan: N/A
   - Single-item JSON output from `format_output` returns a plain dict, not a list wrapping one element - test assertions should use `data["key"]` not `data[0]["key"]`.
   - US-008 (Group members) depends on US-007 and will add sub-commands under `kanboard group member ...` - need to plan for nested command groups.
 ---
+
+## 2026-03-22 - US-008
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/group_members.py` with `GroupMembersResource` (5 methods: get_member_groups, get_group_members, add_group_member, remove_group_member, is_group_member).
+- Added `member` sub-group to `src/kanboard_cli/commands/group.py` with 5 subcommands (list, groups, add, remove, check).
+- Wired `GroupMembersResource` into `KanboardClient.group_members`.
+- Exported `GroupMembersResource` from `kanboard` package `__init__.py`.
+- Added 28 unit tests for SDK resource and 25 CLI tests (53 total); all pass.
+- Files changed: `src/kanboard/resources/group_members.py`, `src/kanboard_cli/commands/group.py`, `src/kanboard/__init__.py`, `src/kanboard/client.py`, `tests/unit/resources/test_group_members.py`, `tests/cli/test_group_member.py`.
+- **Learnings for future iterations:**
+  - Group members is a sub-group of the group CLI command - use `@group.group("member")` to nest a Click group under an existing group.
+  - `get_group_members` returns `list[User]` while `get_member_groups` returns `list[Group]` - need both model types imported.
+  - `remove_group_member` follows the non-raising `bool` return pattern (like `remove_group`), while `add_group_member` raises `KanboardAPIError` on False (consistent with mutation pattern).
+  - The `is_group_member` check returns a simple bool - format as a dict `{"group_id": ..., "user_id": ..., "is_member": ...}` for consistent output across all formats.
+---

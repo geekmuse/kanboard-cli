@@ -19,6 +19,7 @@ from kanboard.resources.board import BoardResource
 from kanboard.resources.categories import CategoriesResource
 from kanboard.resources.columns import ColumnsResource
 from kanboard.resources.comments import CommentsResource
+from kanboard.resources.external_task_links import ExternalTaskLinksResource
 from kanboard.resources.group_members import GroupMembersResource
 from kanboard.resources.groups import GroupsResource
 from kanboard.resources.links import LinksResource
@@ -53,6 +54,7 @@ class KanboardClient:
     - :attr:`categories` — :class:`~kanboard.resources.categories.CategoriesResource`
     - :attr:`columns` — :class:`~kanboard.resources.columns.ColumnsResource`
     - :attr:`comments` — :class:`~kanboard.resources.comments.CommentsResource`
+    - :attr:`external_task_links` — :class:`ExternalTaskLinksResource`
     - :attr:`group_members` — :class:`~kanboard.resources.group_members.GroupMembersResource`
     - :attr:`groups` — :class:`~kanboard.resources.groups.GroupsResource`
     - :attr:`links` — :class:`~kanboard.resources.links.LinksResource`
@@ -95,6 +97,7 @@ class KanboardClient:
         self.categories: CategoriesResource = CategoriesResource(self)
         self.columns: ColumnsResource = ColumnsResource(self)
         self.comments: CommentsResource = CommentsResource(self)
+        self.external_task_links: ExternalTaskLinksResource = ExternalTaskLinksResource(self)
         self.group_members: GroupMembersResource = GroupMembersResource(self)
         self.groups: GroupsResource = GroupsResource(self)
         self.links: LinksResource = LinksResource(self)

@@ -40,6 +40,7 @@ from kanboard.resources.board import BoardResource
 from kanboard.resources.categories import CategoriesResource
 from kanboard.resources.columns import ColumnsResource
 from kanboard.resources.comments import CommentsResource
+from kanboard.resources.external_task_links import ExternalTaskLinksResource
 from kanboard.resources.group_members import GroupMembersResource
 from kanboard.resources.groups import GroupsResource
 from kanboard.resources.links import LinksResource
@@ -69,6 +70,7 @@ __all__ = [
     "Comment",
     "CommentsResource",
     "ExternalTaskLink",
+    "ExternalTaskLinksResource",
     "Group",
     "GroupMembersResource",
     "GroupsResource",

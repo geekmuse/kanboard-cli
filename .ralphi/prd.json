@@ -247,14 +247,14 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 8,
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-007"
       ],
       "notes": "Group members is a sub-group of the group CLI command (kanboard group member ...).",
       "startedAt": "2026-03-22T06:51:24.468Z",
-      "updatedAt": "2026-03-22T06:51:24.468Z",
-      "completedAt": null
+      "updatedAt": "2026-03-22T06:57:01.102Z",
+      "completedAt": "2026-03-22T06:57:01.102Z"
     },
     {
       "id": "US-009",
@@ -285,9 +285,12 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 9,
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
-      "notes": ""
+      "notes": "",
+      "startedAt": "2026-03-22T06:57:01.593Z",
+      "updatedAt": "2026-03-22T06:57:01.593Z",
+      "completedAt": null
     },
     {
       "id": "US-010",
