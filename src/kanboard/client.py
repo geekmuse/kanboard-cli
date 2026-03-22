@@ -15,6 +15,7 @@ from kanboard.exceptions import (
     KanboardConnectionError,
     KanboardResponseError,
 )
+from kanboard.resources.actions import ActionsResource
 from kanboard.resources.board import BoardResource
 from kanboard.resources.categories import CategoriesResource
 from kanboard.resources.columns import ColumnsResource
@@ -50,6 +51,7 @@ class KanboardClient:
 
     Resource accessors are available as typed attributes:
 
+    - :attr:`actions` — :class:`~kanboard.resources.actions.ActionsResource`
     - :attr:`board` — :class:`~kanboard.resources.board.BoardResource`
     - :attr:`categories` — :class:`~kanboard.resources.categories.CategoriesResource`
     - :attr:`columns` — :class:`~kanboard.resources.columns.ColumnsResource`
@@ -93,6 +95,7 @@ class KanboardClient:
             auth=(_JSONRPC_USERNAME, token),
             timeout=timeout,
         )
+        self.actions: ActionsResource = ActionsResource(self)
         self.board: BoardResource = BoardResource(self)
         self.categories: CategoriesResource = CategoriesResource(self)
         self.columns: ColumnsResource = ColumnsResource(self)

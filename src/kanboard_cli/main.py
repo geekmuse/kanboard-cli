@@ -16,6 +16,7 @@ import click
 from kanboard.client import KanboardClient
 from kanboard.config import KanboardConfig
 from kanboard.exceptions import KanboardConfigError
+from kanboard_cli.commands.action import action
 from kanboard_cli.commands.board import board
 from kanboard_cli.commands.category import category
 from kanboard_cli.commands.column import column
@@ -169,11 +170,6 @@ def timer() -> None:
 @click.group()
 def me() -> None:
     """Commands for the authenticated user."""
-
-
-@click.group()
-def action() -> None:
-    """Manage automatic actions on projects."""
 
 
 @click.group()

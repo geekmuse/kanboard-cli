@@ -173,3 +173,23 @@ Corrective Plan: N/A
   - `remove_group_member` follows the non-raising `bool` return pattern (like `remove_group`), while `add_group_member` raises `KanboardAPIError` on False (consistent with mutation pattern).
   - The `is_group_member` check returns a simple bool - format as a dict `{"group_id": ..., "user_id": ..., "is_member": ...}` for consistent output across all formats.
 ---
+
+## 2026-03-22 - US-009
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/external_task_links.py` with `ExternalTaskLinksResource` (7 methods: get_external_task_link_types, get_external_task_link_provider_dependencies, create_external_task_link, update_external_task_link, get_external_task_link_by_id, get_all_external_task_links, remove_external_task_link).
+- Implemented `src/kanboard_cli/commands/external_link.py` with 7 subcommands (types, dependencies, list, get, create, update, remove).
+- Wired `ExternalTaskLinksResource` into `KanboardClient.external_task_links`.
+- Exported `ExternalTaskLinksResource` from `kanboard` package `__init__.py`.
+- Replaced stub `external_link` group in `main.py` with real import from commands module.
+- Added 34 unit tests for SDK resource and 33 CLI tests (67 total); all pass.
+- Files changed: `src/kanboard/resources/external_task_links.py`, `src/kanboard_cli/commands/external_link.py`, `src/kanboard/__init__.py`, `src/kanboard/client.py`, `src/kanboard_cli/main.py`, `tests/unit/resources/test_external_task_links.py`, `tests/cli/test_external_link.py`.
+- **Learnings for future iterations:**
+  - External task link APIs use `providerName` (camelCase) as the param name for `getExternalTaskLinkProviderDependencies` - not `provider_name` (the SDK translates this via kwargs).
+  - `get_external_task_link_types` and `get_external_task_link_provider_dependencies` return plain dicts (provider -> label, dependency -> label) - format as list of `{"key": k, "label": v}` dicts for table output.
+  - `KanboardNotFoundError.__str__` auto-formats as `"Not found: {resource} '{identifier}' does not exist"` - test assertions must match this format, not the message passed to the constructor.
+  - Network failure tests must use `httpx_mock.add_exception(httpx_lib.ConnectError("refused"))` pattern, NOT an unreachable URL - pytest-httpx asserts all requests are expected by default.
+---

@@ -285,12 +285,12 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 9,
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "notes": "",
       "startedAt": "2026-03-22T06:57:01.593Z",
-      "updatedAt": "2026-03-22T06:57:01.593Z",
-      "completedAt": null
+      "updatedAt": "2026-03-22T07:04:37.608Z",
+      "completedAt": "2026-03-22T07:04:37.608Z"
     },
     {
       "id": "US-010",
@@ -319,9 +319,12 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 10,
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
-      "notes": ""
+      "notes": "",
+      "startedAt": "2026-03-22T07:04:38.068Z",
+      "updatedAt": "2026-03-22T07:04:38.068Z",
+      "completedAt": null
     },
     {
       "id": "US-011",
