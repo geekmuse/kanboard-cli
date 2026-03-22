@@ -24,6 +24,7 @@ from kanboard.resources.projects import ProjectsResource
 from kanboard.resources.subtasks import SubtasksResource
 from kanboard.resources.swimlanes import SwimlanesResource
 from kanboard.resources.tags import TagsResource
+from kanboard.resources.task_links import TaskLinksResource
 from kanboard.resources.tasks import TasksResource
 from kanboard.resources.users import UsersResource
 
@@ -46,6 +47,7 @@ class KanboardClient:
     - :attr:`columns` — :class:`~kanboard.resources.columns.ColumnsResource`
     - :attr:`comments` — :class:`~kanboard.resources.comments.CommentsResource`
     - :attr:`links` — :class:`~kanboard.resources.links.LinksResource`
+    - :attr:`task_links` — :class:`~kanboard.resources.task_links.TaskLinksResource`
     - :attr:`projects` — :class:`~kanboard.resources.projects.ProjectsResource`
     - :attr:`subtasks` — :class:`~kanboard.resources.subtasks.SubtasksResource`
     - :attr:`swimlanes` — :class:`~kanboard.resources.swimlanes.SwimlanesResource`
@@ -80,6 +82,7 @@ class KanboardClient:
         self.columns: ColumnsResource = ColumnsResource(self)
         self.comments: CommentsResource = CommentsResource(self)
         self.links: LinksResource = LinksResource(self)
+        self.task_links: TaskLinksResource = TaskLinksResource(self)
         self.subtasks: SubtasksResource = SubtasksResource(self)
         self.swimlanes: SwimlanesResource = SwimlanesResource(self)
         self.tags: TagsResource = TagsResource(self)
