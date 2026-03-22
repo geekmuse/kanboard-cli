@@ -394,9 +394,7 @@ def test_task_lifecycle_remove(
     active_tasks = kanboard_client.tasks.get_all_tasks(integration_project.id, status_id=1)
     closed_tasks = kanboard_client.tasks.get_all_tasks(integration_project.id, status_id=0)
     all_task_ids = {t.id for t in active_tasks} | {t.id for t in closed_tasks}
-    assert task_id not in all_task_ids, (
-        f"Task {task_id} still visible in task list after removal"
-    )
+    assert task_id not in all_task_ids, f"Task {task_id} still visible in task list after removal"
 
 
 # ---------------------------------------------------------------------------
