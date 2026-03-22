@@ -17,6 +17,33 @@
 - **pytest-httpx response ordering for DependencyAnalyzer**: `getProjectById` is called *during inner-loop edge processing* (while iterating `getAllTaskLinks` results), not after the outer task loop finishes. Correct mock order is: `getAllLinks` → `getAllTaskLinks(A)` → `getProjectById(proj)` → `getAllTaskLinks(B)` → ... — NOT `getAllTaskLinks` for all tasks first, then project calls.
 - **DependencyEdge deduplication key**: canonical form is `(blocker_id, blocked_id)` — blocks direction always. An "A blocks B" entry from A's links AND "B is blocked by A" from B's links both normalize to key `(A.id, B.id)` and are deduplicated.
 - **get_critical_path calls get_dependency_edges(tasks) with ALL tasks** (including inactive ones) — this is intentional so resolved edges are still discoverable. The open-task filter only applies when building the active_edges list for Kahn's algorithm.
+- **`render_dependency_graph` project name fallback**: `Task` has `project_id` but NOT `project_name`. Project names are inferred from `DependencyEdge` fields. For nodes with no edges, fall back to `"Project #N"`.
+- **Rich Console to StringIO**: use `Console(file=buf, force_terminal=use_color, no_color=not use_color, highlight=False)` — `force_terminal=True` emits ANSI codes even into a StringIO, `no_color=True` strips markup tags entirely.
+- **Bottleneck detection in critical path**: count unresolved outbound edges per task within the path (`edge.task_id in task_ids AND edge.opposite_task_id in task_ids AND not edge.is_resolved`); task with max count is marked `← BOTTLENECK`. Returns `None` when all edges are resolved or no edges exist.
+- **Progress bar rounding**: `round(percent / 5)` — Python's banker's rounding means 52% → `round(10.4)` = 10 blocks; 55% → `round(11.0)` = 11 blocks. Clamp to `[0, 20]` to prevent overflow.
+- **`cross_project_only` in dependency graph**: filter both edges AND nodes (keep only tasks whose IDs appear in cross-project edge endpoints); otherwise isolated same-project tasks appear under cross-project project headers.
+---
+
+## 2026-03-22 - US-006
+Session: iter-bc2be917
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/renderers.py` with 4 public render functions
+- `render_dependency_graph`: groups Task nodes by project (names from DependencyEdge), shows `→ blocks`/`← blocked by` arrows with color coding (green=resolved, red=blocked, yellow=open); `cross_project_only` filters both edges and nodes
+- `render_critical_path`: numbered list with `✓`/`●` status icons; marks bottleneck task with `← BOTTLENECK` (most unresolved outbound edges to other path tasks)
+- `render_milestone_progress`: 20-char Unicode progress bar (█/░); fill = `round(percent/5)` clamped to [0,20]; `⚠` at-risk prefix; `🔴` overdue suffix; target date shown; color via Rich Console
+- `render_portfolio_summary`: portfolio name, description, metrics line (Projects | Milestones | Tasks | Blocked); at-risk/overdue line shown only when non-zero
+- All renderers accept `use_color: bool = True`; `use_color=False` uses `Console(no_color=True)` for plain text (no ANSI codes)
+- 46 unit tests in `tests/unit/test_renderers.py`: content/marker assertions only (not character-by-character); run with `use_color=False` for clean substring matching
+- `ruff check` + `ruff format` + `pytest` (2272 tests) all green
+- Files changed: `src/kanboard_cli/renderers.py` (new), `tests/unit/test_renderers.py` (new)
+- **Learnings for future iterations:**
+  - `Task.project_id` is available but `Task` has no `project_name` — derive names from `DependencyEdge`; fallback to `"Project #N"` for isolated nodes
+  - Rich Console with `force_terminal=True` emits ANSI codes even into StringIO — enables color capture for string-returning renderers
+  - `_strip_ansi()` helper included in renderers.py for test use if needed (not used by tests — tests just use `use_color=False`)
+  - Progress bar rounding: banker's rounding at x.5 boundaries — test exact counts with known percent values to avoid off-by-one surprises
 ---
 
 ## PRD Run Context
