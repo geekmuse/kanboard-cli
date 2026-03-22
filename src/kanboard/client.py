@@ -16,6 +16,7 @@ from kanboard.exceptions import (
     KanboardResponseError,
 )
 from kanboard.resources.board import BoardResource
+from kanboard.resources.categories import CategoriesResource
 from kanboard.resources.columns import ColumnsResource
 from kanboard.resources.comments import CommentsResource
 from kanboard.resources.projects import ProjectsResource
@@ -37,6 +38,7 @@ class KanboardClient:
     Resource accessors are available as typed attributes:
 
     - :attr:`board` — :class:`~kanboard.resources.board.BoardResource`
+    - :attr:`categories` — :class:`~kanboard.resources.categories.CategoriesResource`
     - :attr:`columns` — :class:`~kanboard.resources.columns.ColumnsResource`
     - :attr:`comments` — :class:`~kanboard.resources.comments.CommentsResource`
     - :attr:`projects` — :class:`~kanboard.resources.projects.ProjectsResource`
@@ -66,6 +68,7 @@ class KanboardClient:
             timeout=timeout,
         )
         self.board: BoardResource = BoardResource(self)
+        self.categories: CategoriesResource = CategoriesResource(self)
         self.columns: ColumnsResource = ColumnsResource(self)
         self.comments: CommentsResource = CommentsResource(self)
         self.swimlanes: SwimlanesResource = SwimlanesResource(self)
