@@ -231,6 +231,122 @@ def test_me_create_project_help(runner: CliRunner) -> None:
 
 
 # ===========================================================================
+# Output format tests — verify auth error surfaces with all formats
+# ===========================================================================
+
+
+def test_me_default_json_format(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``kanboard --output json me`` still displays auth error."""
+    mock_config = KanboardConfig(
+        url="http://kanboard.test/jsonrpc.php",
+        token="test-token",
+        profile="default",
+        output_format="json",
+    )
+    result = _invoke(runner, mock_config, mock_client, ["--output", "json", "me"])
+    assert result.exit_code != 0
+    assert "User API authentication" in result.output
+
+
+def test_me_default_csv_format(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``kanboard --output csv me`` still displays auth error."""
+    mock_config = KanboardConfig(
+        url="http://kanboard.test/jsonrpc.php",
+        token="test-token",
+        profile="default",
+        output_format="csv",
+    )
+    result = _invoke(runner, mock_config, mock_client, ["--output", "csv", "me"])
+    assert result.exit_code != 0
+    assert "User API authentication" in result.output
+
+
+def test_me_default_quiet_format(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``kanboard --output quiet me`` still displays auth error."""
+    mock_config = KanboardConfig(
+        url="http://kanboard.test/jsonrpc.php",
+        token="test-token",
+        profile="default",
+        output_format="quiet",
+    )
+    result = _invoke(runner, mock_config, mock_client, ["--output", "quiet", "me"])
+    assert result.exit_code != 0
+    assert "User API authentication" in result.output
+
+
+def test_me_dashboard_json_format(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``kanboard --output json me dashboard`` still displays auth error."""
+    result = _invoke(runner, mock_config, mock_client, ["--output", "json", "me", "dashboard"])
+    assert result.exit_code != 0
+    assert "User API authentication" in result.output
+
+
+def test_me_projects_csv_format(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``kanboard --output csv me projects`` still displays auth error."""
+    result = _invoke(runner, mock_config, mock_client, ["--output", "csv", "me", "projects"])
+    assert result.exit_code != 0
+    assert "User API authentication" in result.output
+
+
+def test_me_overdue_quiet_format(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``kanboard --output quiet me overdue`` still displays auth error."""
+    result = _invoke(runner, mock_config, mock_client, ["--output", "quiet", "me", "overdue"])
+    assert result.exit_code != 0
+    assert "User API authentication" in result.output
+
+
+def test_me_activity_json_format(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``kanboard --output json me activity`` still displays auth error."""
+    result = _invoke(runner, mock_config, mock_client, ["--output", "json", "me", "activity"])
+    assert result.exit_code != 0
+    assert "User API authentication" in result.output
+
+
+def test_me_create_project_json_format(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``kanboard --output json me create-project`` still displays auth error."""
+    result = _invoke(
+        runner,
+        mock_config,
+        mock_client,
+        ["--output", "json", "me", "create-project", "Test"],
+    )
+    assert result.exit_code != 0
+    assert "User API authentication" in result.output
+
+
+# ===========================================================================
 # Error message quality
 # ===========================================================================
 

@@ -132,6 +132,39 @@ def test_timer_status_with_user_id(
     mock_client.subtask_time_tracking.has_subtask_timer.assert_called_once_with(7, user_id=1)
 
 
+def test_timer_status_not_running_json(
+    runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
+) -> None:
+    """``timer status`` shows running=False in JSON format."""
+    mock_client.subtask_time_tracking.has_subtask_timer.return_value = False
+    result = _invoke(runner, mock_config, mock_client, ["--output", "json", "timer", "status", "7"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert isinstance(data, list)
+    assert data[0]["running"] == "False"
+
+
+def test_timer_status_not_running_csv(
+    runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
+) -> None:
+    """``timer status`` shows running=False in CSV format."""
+    mock_client.subtask_time_tracking.has_subtask_timer.return_value = False
+    result = _invoke(runner, mock_config, mock_client, ["--output", "csv", "timer", "status", "7"])
+    assert result.exit_code == 0
+    assert "False" in result.output
+
+
+def test_timer_status_not_running_quiet(
+    runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
+) -> None:
+    """``timer status`` renders cleanly in quiet mode when not running."""
+    mock_client.subtask_time_tracking.has_subtask_timer.return_value = False
+    result = _invoke(
+        runner, mock_config, mock_client, ["--output", "quiet", "timer", "status", "7"]
+    )
+    assert result.exit_code == 0
+
+
 def test_timer_status_api_error(
     runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
 ) -> None:
@@ -264,6 +297,36 @@ def test_timer_spent_zero(
     result = _invoke(runner, mock_config, mock_client, ["timer", "spent", "7"])
     assert result.exit_code == 0
     assert "0.0" in result.output
+
+
+def test_timer_spent_zero_json(
+    runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
+) -> None:
+    """``timer spent`` shows 0.0 in JSON format when no time tracked."""
+    mock_client.subtask_time_tracking.get_subtask_time_spent.return_value = 0.0
+    result = _invoke(runner, mock_config, mock_client, ["--output", "json", "timer", "spent", "7"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data[0]["hours_spent"] == "0.0"
+
+
+def test_timer_spent_zero_csv(
+    runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
+) -> None:
+    """``timer spent`` shows 0.0 in CSV format when no time tracked."""
+    mock_client.subtask_time_tracking.get_subtask_time_spent.return_value = 0.0
+    result = _invoke(runner, mock_config, mock_client, ["--output", "csv", "timer", "spent", "7"])
+    assert result.exit_code == 0
+    assert "0.0" in result.output
+
+
+def test_timer_spent_zero_quiet(
+    runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
+) -> None:
+    """``timer spent`` renders cleanly in quiet mode when zero time tracked."""
+    mock_client.subtask_time_tracking.get_subtask_time_spent.return_value = 0.0
+    result = _invoke(runner, mock_config, mock_client, ["--output", "quiet", "timer", "spent", "7"])
+    assert result.exit_code == 0
 
 
 def test_timer_spent_json(

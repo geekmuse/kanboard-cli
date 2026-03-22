@@ -168,6 +168,41 @@ def test_project_file_list_empty(
     assert result.exit_code == 0
 
 
+def test_project_file_list_empty_json(
+    runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
+) -> None:
+    """``project-file list`` with no files renders clean JSON (empty array)."""
+    mock_client.project_files.get_all_project_files.return_value = []
+    result = _invoke(
+        runner, mock_config, mock_client, ["--output", "json", "project-file", "list", "1"]
+    )
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data == []
+
+
+def test_project_file_list_empty_csv(
+    runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
+) -> None:
+    """``project-file list`` with no files renders cleanly in CSV format."""
+    mock_client.project_files.get_all_project_files.return_value = []
+    result = _invoke(
+        runner, mock_config, mock_client, ["--output", "csv", "project-file", "list", "1"]
+    )
+    assert result.exit_code == 0
+
+
+def test_project_file_list_empty_quiet(
+    runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
+) -> None:
+    """``project-file list`` with no files renders cleanly in quiet mode."""
+    mock_client.project_files.get_all_project_files.return_value = []
+    result = _invoke(
+        runner, mock_config, mock_client, ["--output", "quiet", "project-file", "list", "1"]
+    )
+    assert result.exit_code == 0
+
+
 def test_project_file_list_api_error(
     runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
 ) -> None:

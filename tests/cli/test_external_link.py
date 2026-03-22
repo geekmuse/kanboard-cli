@@ -297,6 +297,36 @@ def test_external_link_list_empty(
     assert result.exit_code == 0
 
 
+def test_external_link_list_empty_json(
+    runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
+) -> None:
+    """``external-link list`` with no links renders clean JSON (empty array)."""
+    mock_client.external_task_links.get_all_external_task_links.return_value = []
+    result = _invoke(
+        runner,
+        mock_config,
+        mock_client,
+        ["--output", "json", "external-link", "list", "42"],
+    )
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data == []
+
+
+def test_external_link_list_empty_quiet(
+    runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
+) -> None:
+    """``external-link list`` with no links renders cleanly in quiet mode."""
+    mock_client.external_task_links.get_all_external_task_links.return_value = []
+    result = _invoke(
+        runner,
+        mock_config,
+        mock_client,
+        ["--output", "quiet", "external-link", "list", "42"],
+    )
+    assert result.exit_code == 0
+
+
 def test_external_link_list_api_error(
     runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
 ) -> None:

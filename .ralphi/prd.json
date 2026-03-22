@@ -468,7 +468,7 @@
         "ruff check passes, pytest passes with all tests green"
       ],
       "priority": 15,
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-001",
         "US-002",
@@ -485,7 +485,10 @@
         "US-013",
         "US-014"
       ],
-      "notes": "Closes the milestone. Run coverage before marking done."
+      "notes": "Closes the milestone. Run coverage before marking done.",
+      "startedAt": "2026-03-22T07:36:02.727Z",
+      "updatedAt": "2026-03-22T07:48:00.000Z",
+      "completedAt": "2026-03-22T07:48:00.000Z"
     }
   ]
 }

@@ -142,6 +142,35 @@ def test_group_list_empty(
     assert result.exit_code == 0
 
 
+def test_group_list_empty_json(
+    runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
+) -> None:
+    """``group list`` with no groups renders clean JSON (empty array)."""
+    mock_client.groups.get_all_groups.return_value = []
+    result = _invoke(runner, mock_config, mock_client, ["--output", "json", "group", "list"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data == []
+
+
+def test_group_list_empty_csv(
+    runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
+) -> None:
+    """``group list`` with no groups renders cleanly in CSV format."""
+    mock_client.groups.get_all_groups.return_value = []
+    result = _invoke(runner, mock_config, mock_client, ["--output", "csv", "group", "list"])
+    assert result.exit_code == 0
+
+
+def test_group_list_empty_quiet(
+    runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
+) -> None:
+    """``group list`` with no groups renders cleanly in quiet mode."""
+    mock_client.groups.get_all_groups.return_value = []
+    result = _invoke(runner, mock_config, mock_client, ["--output", "quiet", "group", "list"])
+    assert result.exit_code == 0
+
+
 def test_group_list_multiple(
     runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
 ) -> None:

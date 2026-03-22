@@ -148,6 +148,35 @@ def test_action_list_empty(
     assert result.exit_code == 0
 
 
+def test_action_list_empty_json(
+    runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
+) -> None:
+    """``action list`` with no actions renders clean JSON (empty array)."""
+    mock_client.actions.get_actions.return_value = []
+    result = _invoke(runner, mock_config, mock_client, ["--output", "json", "action", "list", "2"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data == []
+
+
+def test_action_list_empty_csv(
+    runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
+) -> None:
+    """``action list`` with no actions renders cleanly in CSV format."""
+    mock_client.actions.get_actions.return_value = []
+    result = _invoke(runner, mock_config, mock_client, ["--output", "csv", "action", "list", "2"])
+    assert result.exit_code == 0
+
+
+def test_action_list_empty_quiet(
+    runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
+) -> None:
+    """``action list`` with no actions renders cleanly in quiet mode."""
+    mock_client.actions.get_actions.return_value = []
+    result = _invoke(runner, mock_config, mock_client, ["--output", "quiet", "action", "list", "2"])
+    assert result.exit_code == 0
+
+
 def test_action_list_api_error(
     runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
 ) -> None:
