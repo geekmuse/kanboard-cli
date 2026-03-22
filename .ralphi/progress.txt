@@ -135,6 +135,44 @@ Corrective Plan: N/A
   - `format_success` message phrasing: "enabled", "disabled", "moved to position N", "removed", "updated", "added" — use past-tense verbs consistent with column/board patterns
 ---
 
+## 2026-03-22T10:00:00Z - US-013
+Session: iter-ed13cae1
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/comment.py` — `comment` group with all 5 subcommands: `list`, `get`, `add`, `update`, `remove`
+- Replaced stub `comment` `@click.group()` definition in `main.py` with real import from `kanboard_cli.commands.comment`
+- Added 22 tests in `tests/cli/test_comment.py` covering: all 5 subcommands, all 4 output formats (table/json/csv/quiet), not-found errors, API errors, missing --user-id required option, --yes confirmation flow (with_yes, without_yes aborts, interactive confirm), --help for all subcommands
+- All 857 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `comment add` uses `--user-id` as a required option (not a positional arg) — tests must pass `["--user-id", "1"]` as flags not positional
+  - Table output wraps long comment text across multiple lines — test assertions for table output should check short fields like `username` or `id`, not the full comment body
+  - `comment get` calls `format_output(c, app.output)` with no `columns=` kwarg so all model fields render in table (including date fields); use a stable short field like `jdoe` for table assertion
+  - `comment update` maps to `update_comment(comment_id, content)` — the SDK uses positional `id` param (not `comment_id`), called as `update_comment(comment_id, content)` with the int ID
+---
+
+## 2026-03-22T11:00:00Z - US-014
+Session: iter-49554ba4
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/category.py` — `category` group with all 5 subcommands: `list`, `get`, `create`, `update`, `remove`
+- Implemented `src/kanboard_cli/commands/tag.py` — `tag` group with all 6 subcommands: `list` (with `--project-id` filter), `get`, `create`, `update`, `remove`, `set`
+- Replaced stub `category` and `tag` `@click.group()` definitions in `main.py` with real imports from the new command modules
+- Added 23 tests in `tests/cli/test_category.py` covering: all 5 subcommands, all 4 output formats (table/json/csv/quiet), not-found error, API error, --color-id option, --yes confirmation flow (with_yes, without_yes aborts, interactive confirm), --help for all subcommands
+- Added 28 tests in `tests/cli/test_tag.py` covering: all 6 subcommands, all 4 output formats, --project-id flag switching (get_all_tags vs get_tags_by_project), tag get returns dict, variadic tag args for set, --yes confirmation flow, required tags arg, --help for all subcommands
+- All 908 tests green, ruff clean, pre-commit hook passed (ruff format reformatted 2 files)
+- **Learnings for future iterations:**
+  - `tag list` uses `--project-id` as an optional option (not a flag) — when provided calls `get_tags_by_project(project_id)`, otherwise calls `get_all_tags()` — test both branches
+  - `tag get <task_id>` returns a `dict` (tag_id → tag_name) not a list of Tag models — `format_output` handles dict via `_normalize` by wrapping it as a single dict row; JSON output renders it as a plain object (not an array)
+  - `tag set` uses `nargs=-1, required=True` for variadic `<tags>...` argument — Click enforces at least one value; pass `list(tags)` to SDK since it expects `list[str]`
+  - `tag create` argument is named `tag_name` in Click (not `tag`) to avoid shadowing the Click group name; SDK call uses `create_tag(project_id, tag_name)` positionally
+  - `category update` SDK signature is `update_category(id, name, **kwargs)` with `id` as first param — CLI passes `category_id` (int) as the first positional; must NOT use keyword `id=` to avoid Python builtin shadowing
+  - Stub group removal in `main.py` must delete the entire `@click.group() def name():` block (3 lines) plus the trailing blank line — use exact text match including the empty line
+---
+
 ## Codebase Patterns
 - **KanboardNotFoundError signature**: uses `resource=` and `identifier=` kwargs (NOT `resource_type`/`resource_id`); `__str__` formats as `"Not found: {resource} '{identifier}' does not exist"` — match patterns in tests must reflect this.
 

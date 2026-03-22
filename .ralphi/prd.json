@@ -324,8 +324,8 @@
       ],
       "notes": "",
       "startedAt": "2026-03-22T05:14:11.738Z",
-      "updatedAt": "2026-03-22T09:00:00.000Z",
-      "completedAt": "2026-03-22T09:00:00.000Z"
+      "updatedAt": "2026-03-22T05:19:27.617Z",
+      "completedAt": "2026-03-22T05:19:27.617Z"
     },
     {
       "id": "US-013",
@@ -344,11 +344,14 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 13,
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-004"
       ],
-      "notes": ""
+      "notes": "",
+      "startedAt": "2026-03-22T05:19:27.817Z",
+      "updatedAt": "2026-03-22T05:23:03.156Z",
+      "completedAt": "2026-03-22T05:23:03.156Z"
     },
     {
       "id": "US-014",
@@ -373,12 +376,15 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 14,
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-005",
         "US-006"
       ],
-      "notes": ""
+      "notes": "",
+      "startedAt": "2026-03-22T05:23:03.325Z",
+      "updatedAt": "2026-03-22T11:00:00.000Z",
+      "completedAt": "2026-03-22T11:00:00.000Z"
     },
     {
       "id": "US-015",
