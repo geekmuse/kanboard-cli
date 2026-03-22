@@ -22,6 +22,7 @@ from kanboard_cli.commands.board import board
 from kanboard_cli.commands.category import category
 from kanboard_cli.commands.column import column
 from kanboard_cli.commands.comment import comment
+from kanboard_cli.commands.config_cmd import config_cmd
 from kanboard_cli.commands.external_link import external_link
 from kanboard_cli.commands.group import group
 from kanboard_cli.commands.link import link
@@ -160,17 +161,6 @@ def cli(
     ctx.obj = app_ctx
 
 
-# ---------------------------------------------------------------------------
-# Stub command groups
-# (Populated with real sub-commands in later user stories)
-# ---------------------------------------------------------------------------
-
-
-@click.group(name="config")
-def config_group() -> None:
-    """Manage the Kanboard CLI configuration file."""
-
-
 @click.group(name="workflow")
 def workflow() -> None:
     """Run and manage workflow plugins."""
@@ -189,7 +179,7 @@ def workflow_list(ctx: click.Context) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Register all stub groups with the root CLI
+# Register all command groups with the root CLI
 # ---------------------------------------------------------------------------
 
 cli.add_command(task)
@@ -215,7 +205,7 @@ cli.add_command(project_meta)
 cli.add_command(task_meta)
 cli.add_command(project_access)
 cli.add_command(app)
-cli.add_command(config_group)
+cli.add_command(config_cmd)
 cli.add_command(workflow)
 
 # ---------------------------------------------------------------------------
