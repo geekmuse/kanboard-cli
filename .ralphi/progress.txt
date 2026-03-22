@@ -1,3 +1,25 @@
+## 2026-03-22 - US-010
+Session: iter-629c311d
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `tests/unit/orchestration/conftest.py` with 5 shared pytest fixtures:
+  - `mock_link_types`: standard Kanboard link types (getAllLinks response shape)
+  - `mock_task_links`: cross-project blocking chain task 1→4→7 (getAllTaskLinks shape)
+  - `mock_tasks`: 10 Task model instances across 3 projects (project 1: tasks 1,2,3,10[closed]; project 2: tasks 4,5,6; project 3: tasks 7,8,9)
+  - `sample_portfolio`: Portfolio "MyPortfolio" with project_ids=[1,2,3] and 2 milestones (Sprint 1: tasks 1,4,7 critical=[1]; Sprint 2: tasks 2,5,8)
+  - `seeded_store`: LocalPortfolioStore backed by tmp_path pre-seeded with sample_portfolio
+- Existing test files (test_store.py 75 tests, test_portfolio.py 38 tests, test_dependencies.py 33 tests) were complete from prior stories — no changes needed
+- Coverage results: store.py 97% (≥95% ✓), portfolio.py 96% (≥90% ✓), dependencies.py 97% (≥90% ✓), TOTAL 97%
+- 146 orchestration unit tests pass; full suite (2358 tests) green; ruff clean
+- Files changed: `tests/unit/orchestration/conftest.py` (new)
+- **Learnings for future iterations:**
+  - conftest.py fixtures are available to all test files in the same directory tree — tests don't need to import them explicitly
+  - `seeded_store` fixture composes `tmp_path` (built-in) + `sample_portfolio` (custom) — pytest resolves fixture dependencies automatically
+  - Fixture docstrings with `::` code blocks render nicely in pytest --fixtures output
+  - All 4 required fixture names exactly match the US-010 AC: mock_link_types, mock_task_links, mock_tasks, sample_portfolio
+
 ## Codebase Patterns
 - **`_has_open_blocker` early-return optimization**: When `blocked_by_link_ids` is empty (getAllLinks returned no link types), `_has_open_blocker` returns `False` immediately — NO `getAllTaskLinks` HTTP call is made. Tests must account for this: mock responses should NOT include `getAllTaskLinks` responses when the `getAllLinks` mock returns empty.
 - **`list or default` vs `is not None`**: In test helpers with list defaults, use `param if param is not None else default` instead of `param or default` — the latter treats `[]` as falsy and substitutes the default.

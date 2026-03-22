@@ -259,8 +259,8 @@
       ],
       "notes": "dependencies fetches all portfolio tasks via PortfolioManager.get_portfolio_tasks() then passes to DependencyAnalyzer. bottleneck = task with highest count of transitively unblocked downstream tasks.",
       "startedAt": "2026-03-22T20:57:16.701Z",
-      "updatedAt": "2026-03-22T21:13:00.000Z",
-      "completedAt": "2026-03-22T21:13:00.000Z"
+      "updatedAt": "2026-03-22T21:15:10.912Z",
+      "completedAt": "2026-03-22T21:15:10.912Z"
     },
     {
       "id": "US-010",
@@ -277,13 +277,16 @@
         "pytest passes"
       ],
       "priority": 10,
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-003",
         "US-004",
         "US-005"
       ],
-      "notes": "Mock KanboardClient at the httpx level using pytest-httpx (consistent with existing test patterns). Use tmp_path for all store tests — never touch real ~/.config/kanboard/."
+      "notes": "Mock KanboardClient at the httpx level using pytest-httpx (consistent with existing test patterns). Use tmp_path for all store tests — never touch real ~/.config/kanboard/.",
+      "startedAt": "2026-03-22T21:15:11.630Z",
+      "updatedAt": "2026-03-22T21:25:00.000Z",
+      "completedAt": "2026-03-22T21:25:00.000Z"
     },
     {
       "id": "US-011",
