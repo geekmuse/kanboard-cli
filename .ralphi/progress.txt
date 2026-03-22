@@ -77,3 +77,21 @@ Corrective Plan: N/A
   - pytest-httpx `httpx_mock.get_request()` returns the last captured request — useful for verifying the JSON-RPC method name sent
   - The pre-commit hook runs all 4 commands (lint, test, build, format) — ruff format must also pass, not just ruff check
 ---
+
+## 2026-03-22 - US-004
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Finalized PyPI metadata in `pyproject.toml`: added `authors = [{name = "Brad Aton"}]` and `[project.urls]` section with Homepage, Repository, Changelog, Documentation links (README already handled long_description)
+- Added `kanboard --version` to CLI via `@click.version_option(version=_VERSION, prog_name="kanboard")` where `_VERSION` reads from `importlib.metadata.version("kanboard-cli")` at import time with `PackageNotFoundError` fallback to `"0.0.0+dev"`
+- Created `.github/workflows/ci.yml`: triggers on push/PR to main; matrix over Python 3.11 + 3.12; steps: install deps + hatch, ruff check, pytest, hatch build
+- Created `.github/workflows/publish.yml`: triggers on `v*` tag push; OIDC trusted publisher (`id-token: write`); builds via `hatch build`; publishes via `pypa/gh-action-pypi-publish@release/v1`
+- Verified: `kanboard --version` → `kanboard, version 0.8.0`; `hatch build` → `.tar.gz` + `.whl`; 1833 tests pass, ruff clean
+- Files changed: `pyproject.toml`, `src/kanboard_cli/main.py`, `.github/workflows/ci.yml` (new), `.github/workflows/publish.yml` (new)
+- **Learnings for future iterations:**
+  - `click.version_option()` must be applied as the innermost decorator (closest to the function) among all click decorators — ordering matters
+  - `importlib.metadata.version("kanboard-cli")` uses the installed package name (matching `[project].name` in pyproject.toml, not the import name); wrap in try/except `PackageNotFoundError` for editable installs in CI before package is distributed
+  - ruff I001 (unsorted imports) fires when stdlib imports (importlib.metadata) are interleaved with third-party imports (click) without proper isort grouping; `ruff check --fix` auto-resolves this
+---
