@@ -45,8 +45,8 @@ pip install kanboard-cli
 ### From source (development)
 
 ```bash
-git clone https://github.com/geekmuse/kanboard-cli-denuo.git
-cd kanboard-cli-denuo
+git clone https://github.com/geekmuse/kanboard-cli.git
+cd kanboard-cli
 pip install -e ".[dev]"
 ```
 
@@ -303,8 +303,8 @@ kanboard-cli/
 ### Setup
 
 ```bash
-git clone https://github.com/geekmuse/kanboard-cli-denuo.git
-cd kanboard-cli-denuo
+git clone https://github.com/geekmuse/kanboard-cli.git
+cd kanboard-cli
 pip install -e ".[dev]"
 ```
 

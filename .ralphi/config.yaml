@@ -1,0 +1,32 @@
+# ralphi configuration
+# Auto-generated — edit as needed
+
+project:
+  name: "kanboard-cli"
+  language: "Python"
+
+commands:
+  test: "pytest"
+  lint: "ruff check ."
+  format: "ruff format ."
+  build: "pip install -e '.[dev]'"
+
+rules:
+  - "use src/ layout — SDK is src/kanboard/, CLI is src/kanboard_cli/"
+  - "use pytest with pytest-httpx for unit tests; Click CliRunner for CLI tests"
+  - "target Python 3.11+ — use tomllib, Self, StrEnum, | union types"
+  - "SDK methods use snake_case mapped from Kanboard camelCase API"
+  - "all public SDK methods must be fully type-hinted and return typed dataclass models"
+  - "every CLI destructive command requires --yes confirmation"
+  - "one resource module per API category in src/kanboard/resources/"
+  - "use strict ruff rules"
+  - "docstrings on all public methods"
+  - "target >=90% test coverage on src/kanboard/resources/"
+
+boundaries:
+  never_touch:
+    - "*.lock"
+    - ".env*"
+
+engine: "pi"
+max_retries: 3
