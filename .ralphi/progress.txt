@@ -1,3 +1,19 @@
+## 2026-03-22 - US-010
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `docs/cli-reference.md` — ~650 lines, covers all 26 CLI command groups with usage, arguments, options, and copy-pasteable examples; global options table with env vars and defaults; output format section with example outputs for all 4 modes (table, json, csv, quiet); section anchors for every command group
+- Created `docs/sdk-guide.md` — ~650 lines; covers installation, quick start, client initialization (both auth modes), context manager vs manual close, full resource category table, code examples for all 24 resource categories, exception hierarchy and handling patterns with per-attribute tables, batch API example with error handling note, low-level `call()` usage, response model overview
+- Updated `README.md`: added Documentation badge line at top with links to both new docs; added inline link after CLI reference table; added inline link after SDK quick start example
+- No code changes — ruff and pytest unchanged (2059 tests pass)
+- Files changed: `docs/cli-reference.md` (new), `docs/sdk-guide.md` (new), `README.md` (3 additions)
+- **Learnings for future iterations:**
+  - Doc-only stories: stage ONLY the doc files; avoid `git add -A` which could pick up unrelated untracked files
+  - README already has a complete CLI table and SDK example — doc links are the minimal correct intervention; avoid duplicating content already in README
+---
+
 ## Codebase Patterns
 - Integration tests for file resources: use `base64.b64encode(b"content").decode()` as the blob; `ProjectFile.name` / `TaskFile.name` maps to the `filename` argument passed on upload.
 - Action create test: use `get_available_actions()` to discover action names, search for `AssignCurrentUser` or `CloseColumn` (both need only `column_id` param); pass `{"column_id": str(col_id)}` (value must be a string); event is `task.move.column`.
@@ -235,4 +251,22 @@ Corrective Plan: N/A
   - `get_project_users()` returns `dict[str, str]` with user_id as STRING key — must assert `str(user_id) in users`
   - Subtask time tracking: `user_id` kwarg must be passed explicitly (admin=1) to all timer methods when using user auth mode
   - `get_subtask_time_spent` after an immediate start→stop returns `0.0` (valid); assert `>= 0.0` not `> 0.0`
+---
+
+## 2026-03-22 - US-011
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `docs/configuration.md` — ~340 lines; covers config file format with all 8 profile fields (url, token, output_format, auth_mode, username, password, settings section, workflows section); env var reference table (7 vars); CLI flag reference table (6 flags); resolution order explanation with illustrated example table; named profiles setup and switching (CLI flag, env var, settings.default_profile); auth modes (app vs user) with examples; minimal configurations section
+- Created `docs/workflows.md` — ~430 lines; `BaseWorkflow` ABC reference with all abstract properties (name, description), abstract methods (register_commands), concrete methods (get_config); step-by-step plugin creation guide (5 steps: file, subclass, register_commands, config, verify); workflow config section in config.toml explained with get_config() usage; discovery mechanism (scan dir, algorithm, importlib.util loading, class inspection); full sprint-close workflow example; multi-command workflow groups example; error handling and logging; workflow testing guide with CliRunner + mock
+- Created `CONTRIBUTING.md` — ~370 lines; development setup (prerequisites, fork/clone, editable install, pre-commit hook); project structure tree; code style (ruff, type hints, docstrings in Google style, naming conventions table); testing guide (unit tests with pytest-httpx pattern, CLI tests with CliRunner pattern, integration tests with fixtures table, running tests, coverage requirements); adding new SDK resource and CLI command checklists; conventional commits reference with types and scope examples; PR process (branch naming, focus, checks, description, merge policy); issue reporting template
+- Updated `README.md`: added Configuration, Workflows, and Contributing links to the Documentation section
+- No code changes — ruff and pytest unchanged (2059 tests pass)
+- Files changed: `docs/configuration.md` (new), `docs/workflows.md` (new), `CONTRIBUTING.md` (new), `README.md` (2 additions)
+- **Learnings for future iterations:**
+  - Doc-only stories: stage ONLY the doc files + README; use `git add <explicit files>` to avoid picking up unrelated untracked files
+  - `docs/configuration.md` is a superset of the "Configuration" section in README — README summary stays; the doc provides the full reference; avoid duplicating large tables
+  - Workflow doc derived entirely from `src/kanboard_cli/workflows/base.py` and `src/kanboard_cli/workflow_loader.py` — both are well-documented; the doc adds step-by-step narrative and examples that the code-level docstrings do not provide
 ---
