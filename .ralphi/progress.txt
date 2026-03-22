@@ -173,6 +173,24 @@ Corrective Plan: N/A
   - Stub group removal in `main.py` must delete the entire `@click.group() def name():` block (3 lines) plus the trailing blank line — use exact text match including the empty line
 ---
 
+## 2026-03-22T12:00:00Z - US-015
+Session: iter-d908e306
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/subtask.py` — `subtask` group with all 5 subcommands: `list`, `get`, `create`, `update`, `remove`
+- Replaced stub `subtask` `@click.group()` definition in `main.py` with real import from `kanboard_cli.commands.subtask`
+- Added import in `main.py`: `from kanboard_cli.commands.subtask import subtask`
+- Added 26 tests in `tests/cli/test_subtask.py` covering: all 5 subcommands, all 4 output formats (table/json/csv/quiet), not-found error, API error, --user-id/--time-estimated/--status/--time-spent optional flags, --yes confirmation flow (with_yes, without_yes aborts, interactive confirm), --help for all subcommands
+- All 934 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `subtask update` SDK signature is `update_subtask(id, task_id, **kwargs)` — CLI exposes both `subtask_id` and `task_id` as required positional arguments; all other fields (title, user_id, time_estimated, time_spent, status) are optional `--option` flags
+  - Table output wraps long titles (e.g. "Write unit tests" → "Write unit\ntests") — test assertions for table output should use stable short fields like `id` or `username`, not the full title
+  - `subtask create` optional flags: `--user-id`, `--time-estimated`, `--status`; `subtask update` optional flags: `--title`, `--user-id`, `--time-estimated`, `--time-spent`, `--status`
+  - Import sort order matters: ruff I001 flagged unsorted imports in `main.py` — fix with `ruff check --fix` before committing; imports must be alphabetically sorted within each isort section
+---
+
 ## Codebase Patterns
 - **KanboardNotFoundError signature**: uses `resource=` and `identifier=` kwargs (NOT `resource_type`/`resource_id`); `__str__` formats as `"Not found: {resource} '{identifier}' does not exist"` — match patterns in tests must reflect this.
 
