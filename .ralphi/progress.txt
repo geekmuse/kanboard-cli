@@ -106,3 +106,26 @@ Corrective Plan: N/A
   - ruff per-file-ignores for tests/** should suppress ANN and D rules
   - pydocstyle Google convention: ignore D203+D213 which conflict with D211+D212
 ---
+
+## 2026-03-22 - US-005
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `src/kanboard/models.py` with private helpers `_parse_date`, `_int`, `_float` and 8 core dataclass models: Task, Project, Column, Swimlane, Comment, Subtask, User, Category
+- `_parse_date()` handles: None, "", "0", 0, numeric strings ("00"/"000" → int 0 → None), Unix timestamps (int/str), "YYYY-MM-DD HH:MM", "YYYY-MM-DD HH:MM:SS", "YYYY-MM-DD", datetime pass-through
+- `_int()` coerces string/int/None → int, returns 0 for invalid; `_float()` same for floats
+- All `from_api()` classmethods use `.get()` with sensible defaults (empty-dict tests verify defaults)
+- `Project.from_api()` handles `url` as both string and nested dict (extracts `"board"` key)
+- `User.from_api()` stores `avatar_path`, `timezone`, `language` as `str | None`
+- `Subtask.from_api()` uses `_float` for `time_estimated`/`time_spent`
+- Updated `src/kanboard/__init__.py` to re-export all 8 model classes in sorted `__all__`
+- Created `tests/unit/test_models.py`: 75 tests, **100% coverage** on models.py
+- **Learnings for future iterations:**
+  - `_parse_date("00")` hits the `if ts == 0: return None` branch (not `"0"` branch) — need explicit test to cover it
+  - `Project.url` can be a dict with "board"/"calendar"/"list" keys — always normalise to string
+  - `Subtask` time fields are floats (not ints) — need separate `_float` helper
+  - `User` nullable fields (`avatar_path`, `timezone`, `language`) must be `str | None`, not `str` — check for `None` before `str()` cast
+  - For `tags` field: use `list(data.get("tags") or [])` — handles both `None` and missing key cleanly
+---
