@@ -25,6 +25,7 @@ from kanboard_cli.commands.subtask import subtask
 from kanboard_cli.commands.swimlane import swimlane
 from kanboard_cli.commands.tag import tag
 from kanboard_cli.commands.task import task
+from kanboard_cli.commands.user import user
 
 logger = logging.getLogger(__name__)
 
@@ -154,11 +155,6 @@ def cli(
 @click.group()
 def timer() -> None:
     """Start and stop subtask timers."""
-
-
-@click.group()
-def user() -> None:
-    """Manage Kanboard users."""
 
 
 @click.group()
