@@ -18,11 +18,24 @@ from kanboard.exceptions import (
     KanboardResponseError,
     KanboardValidationError,
 )
+from kanboard.models import (
+    Category,
+    Column,
+    Comment,
+    Project,
+    Subtask,
+    Swimlane,
+    Task,
+    User,
+)
 
 __all__ = [
     "CONFIG_DIR",
     "CONFIG_FILE",
     "WORKFLOW_DIR",
+    "Category",
+    "Column",
+    "Comment",
     "KanboardAPIError",
     "KanboardAuthError",
     "KanboardClient",
@@ -33,5 +46,10 @@ __all__ = [
     "KanboardNotFoundError",
     "KanboardResponseError",
     "KanboardValidationError",
+    "Project",
+    "Subtask",
+    "Swimlane",
+    "Task",
+    "User",
     "get_workflow_config",
 ]
