@@ -10,8 +10,15 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
 
 import click
+
+try:
+    _VERSION = _pkg_version("kanboard-cli")
+except PackageNotFoundError:
+    _VERSION = "0.0.0+dev"
 
 from kanboard.client import KanboardClient
 from kanboard.config import KanboardConfig
@@ -80,6 +87,7 @@ class AppContext:
 @click.group(
     context_settings={"help_option_names": ["-h", "--help"], "max_content_width": 120},
 )
+@click.version_option(version=_VERSION, prog_name="kanboard")
 @click.option(
     "--url",
     envvar="KANBOARD_URL",

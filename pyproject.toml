@@ -9,6 +9,7 @@ requires-python = ">=3.11"
 description = "Python SDK and CLI for the Kanboard JSON-RPC API"
 readme = "README.md"
 license = { file = "LICENSE" }
+authors = [{ name = "Brad Aton" }]
 keywords = ["kanboard", "cli", "sdk", "project-management"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -26,6 +27,12 @@ dependencies = [
     "rich>=13.0",
     "tomli-w>=1.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/geekmuse/kanboard-cli"
+Repository = "https://github.com/geekmuse/kanboard-cli"
+Changelog = "https://github.com/geekmuse/kanboard-cli/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/geekmuse/kanboard-cli#readme"
 
 [project.optional-dependencies]
 dev = [
