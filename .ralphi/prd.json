@@ -22,8 +22,8 @@
       "dependsOn": [],
       "notes": "Milestones 1-4 are complete on main. This begins Phase 0. Do NOT add orchestration to KanboardClient — it is opt-in, instantiated separately by callers.",
       "startedAt": "2026-03-22T18:00:33.795Z",
-      "updatedAt": "2026-03-22T18:05:00.000Z",
-      "completedAt": "2026-03-22T18:05:00.000Z"
+      "updatedAt": "2026-03-22T18:16:58.532Z",
+      "completedAt": "2026-03-22T18:16:58.532Z"
     },
     {
       "id": "US-002",
@@ -41,11 +41,14 @@
         "pytest passes"
       ],
       "priority": 2,
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-001"
       ],
-      "notes": "Portfolio/Milestone are mutable (edited locally before syncing). MilestoneProgress and DependencyEdge are computed/read-only but kept mutable for simplicity."
+      "notes": "Portfolio/Milestone are mutable (edited locally before syncing). MilestoneProgress and DependencyEdge are computed/read-only but kept mutable for simplicity.",
+      "startedAt": "2026-03-22T18:16:59.228Z",
+      "updatedAt": "2026-03-22T18:16:59.228Z",
+      "completedAt": null
     },
     {
       "id": "US-003",

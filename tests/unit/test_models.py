@@ -9,9 +9,13 @@ from kanboard.models import (
     Category,
     Column,
     Comment,
+    DependencyEdge,
     ExternalTaskLink,
     Group,
     Link,
+    Milestone,
+    MilestoneProgress,
+    Portfolio,
     Project,
     ProjectFile,
     Subtask,
@@ -894,6 +898,220 @@ class TestAction:
 
 
 # ---------------------------------------------------------------------------
+# Orchestration model tests (US-002)
+# ---------------------------------------------------------------------------
+
+
+class TestMilestone:
+    def test_minimal_construction(self):
+        m = Milestone(name="v1.0", portfolio_name="alpha", target_date=None)
+        assert m.name == "v1.0"
+        assert m.portfolio_name == "alpha"
+        assert m.target_date is None
+        assert m.task_ids == []
+        assert m.critical_task_ids == []
+
+    def test_with_all_fields(self):
+        dt = datetime(2025, 12, 31)
+        m = Milestone(
+            name="Q4 Release",
+            portfolio_name="my-portfolio",
+            target_date=dt,
+            task_ids=[1, 2, 3],
+            critical_task_ids=[2],
+        )
+        assert m.target_date == dt
+        assert m.task_ids == [1, 2, 3]
+        assert m.critical_task_ids == [2]
+
+    def test_task_ids_are_independent_per_instance(self):
+        m1 = Milestone(name="A", portfolio_name="p", target_date=None)
+        m2 = Milestone(name="B", portfolio_name="p", target_date=None)
+        m1.task_ids.append(99)
+        assert m2.task_ids == [], "default list must not be shared between instances"
+
+    def test_is_mutable(self):
+        m = Milestone(name="M", portfolio_name="p", target_date=None)
+        m.name = "Updated"
+        assert m.name == "Updated"
+
+    def test_no_from_api_classmethod(self):
+        assert not hasattr(Milestone, "from_api")
+
+
+class TestPortfolio:
+    def test_minimal_construction(self):
+        p = Portfolio(name="my-portfolio", description="A test portfolio")
+        assert p.name == "my-portfolio"
+        assert p.description == "A test portfolio"
+        assert p.project_ids == []
+        assert p.milestones == []
+        assert p.created_at is None
+        assert p.updated_at is None
+
+    def test_with_all_fields(self):
+        dt = datetime(2025, 1, 1)
+        m = Milestone(name="M1", portfolio_name="my-portfolio", target_date=None)
+        p = Portfolio(
+            name="my-portfolio",
+            description="Full portfolio",
+            project_ids=[10, 20],
+            milestones=[m],
+            created_at=dt,
+            updated_at=dt,
+        )
+        assert p.project_ids == [10, 20]
+        assert len(p.milestones) == 1
+        assert p.milestones[0].name == "M1"
+        assert p.created_at == dt
+
+    def test_lists_are_independent_per_instance(self):
+        p1 = Portfolio(name="A", description="")
+        p2 = Portfolio(name="B", description="")
+        p1.project_ids.append(1)
+        assert p2.project_ids == [], "default list must not be shared between instances"
+
+    def test_is_mutable(self):
+        p = Portfolio(name="P", description="old")
+        p.description = "new"
+        assert p.description == "new"
+
+    def test_no_from_api_classmethod(self):
+        assert not hasattr(Portfolio, "from_api")
+
+
+class TestMilestoneProgress:
+    def test_construction(self):
+        mp = MilestoneProgress(
+            milestone_name="v1.0",
+            portfolio_name="alpha",
+            target_date=None,
+            total=10,
+            completed=5,
+            percent=50.0,
+            is_at_risk=False,
+            is_overdue=False,
+        )
+        assert mp.milestone_name == "v1.0"
+        assert mp.portfolio_name == "alpha"
+        assert mp.total == 10
+        assert mp.completed == 5
+        assert mp.percent == pytest.approx(50.0)
+        assert mp.is_at_risk is False
+        assert mp.is_overdue is False
+        assert mp.blocked_task_ids == []
+
+    def test_at_risk_and_overdue_flags(self):
+        mp = MilestoneProgress(
+            milestone_name="M",
+            portfolio_name="P",
+            target_date=datetime(2024, 1, 1),
+            total=10,
+            completed=5,
+            percent=50.0,
+            is_at_risk=True,
+            is_overdue=True,
+            blocked_task_ids=[3, 7],
+        )
+        assert mp.is_at_risk is True
+        assert mp.is_overdue is True
+        assert mp.blocked_task_ids == [3, 7]
+
+    def test_blocked_task_ids_independent_per_instance(self):
+        mp1 = MilestoneProgress(
+            milestone_name="M1",
+            portfolio_name="P",
+            target_date=None,
+            total=0,
+            completed=0,
+            percent=0.0,
+            is_at_risk=False,
+            is_overdue=False,
+        )
+        mp2 = MilestoneProgress(
+            milestone_name="M2",
+            portfolio_name="P",
+            target_date=None,
+            total=0,
+            completed=0,
+            percent=0.0,
+            is_at_risk=False,
+            is_overdue=False,
+        )
+        mp1.blocked_task_ids.append(42)
+        assert mp2.blocked_task_ids == []
+
+    def test_no_from_api_classmethod(self):
+        assert not hasattr(MilestoneProgress, "from_api")
+
+
+class TestDependencyEdge:
+    def test_construction(self):
+        edge = DependencyEdge(
+            task_id=1,
+            task_title="Fix auth",
+            task_project_id=10,
+            task_project_name="Backend",
+            opposite_task_id=2,
+            opposite_task_title="Deploy service",
+            opposite_task_project_id=20,
+            opposite_task_project_name="Infra",
+            link_label="blocks",
+            is_cross_project=True,
+            is_resolved=False,
+        )
+        assert edge.task_id == 1
+        assert edge.task_title == "Fix auth"
+        assert edge.task_project_id == 10
+        assert edge.task_project_name == "Backend"
+        assert edge.opposite_task_id == 2
+        assert edge.opposite_task_title == "Deploy service"
+        assert edge.opposite_task_project_id == 20
+        assert edge.opposite_task_project_name == "Infra"
+        assert edge.link_label == "blocks"
+        assert edge.is_cross_project is True
+        assert edge.is_resolved is False
+
+    def test_same_project_edge(self):
+        edge = DependencyEdge(
+            task_id=5,
+            task_title="Write tests",
+            task_project_id=1,
+            task_project_name="Main",
+            opposite_task_id=6,
+            opposite_task_title="Implement feature",
+            opposite_task_project_id=1,
+            opposite_task_project_name="Main",
+            link_label="is blocked by",
+            is_cross_project=False,
+            is_resolved=True,
+        )
+        assert edge.is_cross_project is False
+        assert edge.is_resolved is True
+        assert edge.link_label == "is blocked by"
+
+    def test_is_mutable(self):
+        edge = DependencyEdge(
+            task_id=1,
+            task_title="T",
+            task_project_id=1,
+            task_project_name="P",
+            opposite_task_id=2,
+            opposite_task_title="T2",
+            opposite_task_project_id=1,
+            opposite_task_project_name="P",
+            link_label="blocks",
+            is_cross_project=False,
+            is_resolved=False,
+        )
+        edge.is_resolved = True
+        assert edge.is_resolved is True
+
+    def test_no_from_api_classmethod(self):
+        assert not hasattr(DependencyEdge, "from_api")
+
+
+# ---------------------------------------------------------------------------
 # Re-export from kanboard package
 # ---------------------------------------------------------------------------
 
@@ -919,6 +1137,17 @@ class TestReExports:
             "ProjectFile",
             "TaskFile",
             "Action",
+            # Orchestration models (US-002)
+            "DependencyEdge",
+            "Milestone",
+            "MilestoneProgress",
+            "Portfolio",
         )
         for name in names:
             assert hasattr(kanboard, name), f"{name} not exported from kanboard"
+
+    def test_orchestration_models_in_all(self):
+        import kanboard
+
+        for name in ("DependencyEdge", "Milestone", "MilestoneProgress", "Portfolio"):
+            assert name in kanboard.__all__, f"{name} missing from kanboard.__all__"

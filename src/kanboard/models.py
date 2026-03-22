@@ -665,6 +665,134 @@ class TaskFile:
         )
 
 
+# ---------------------------------------------------------------------------
+# Orchestration models (Phase 0 — cross-project portfolio management)
+#
+# These models are composed client-side from multiple API responses.
+# They do NOT have from_api() classmethods — they are never deserialized
+# from a single Kanboard JSON-RPC response.
+# ---------------------------------------------------------------------------
+
+
+@dataclasses.dataclass
+class Milestone:
+    """A cross-project milestone grouping tasks within a portfolio.
+
+    Persisted locally via
+    :class:`~kanboard.orchestration.store.LocalPortfolioStore`.  Composed
+    client-side — no ``from_api()`` classmethod.
+
+    Attributes:
+        name: Human-readable milestone name (unique within its portfolio).
+        portfolio_name: Name of the parent :class:`Portfolio`.
+        target_date: Optional due date for the milestone.
+        task_ids: All task IDs tracked against this milestone.
+        critical_task_ids: Subset of ``task_ids`` on the critical path.
+    """
+
+    name: str
+    portfolio_name: str
+    target_date: datetime | None
+    task_ids: list[int] = dataclasses.field(default_factory=list)
+    critical_task_ids: list[int] = dataclasses.field(default_factory=list)
+
+
+@dataclasses.dataclass
+class Portfolio:
+    """A named portfolio grouping multiple Kanboard projects.
+
+    Persisted locally via
+    :class:`~kanboard.orchestration.store.LocalPortfolioStore`.  Composed
+    client-side — no ``from_api()`` classmethod.
+
+    Attributes:
+        name: Unique portfolio name (case-sensitive).
+        description: Human-readable description.
+        project_ids: Kanboard project IDs belonging to this portfolio.
+        milestones: Cross-project milestones within this portfolio.
+        created_at: Timestamp when the portfolio was first created.
+        updated_at: Timestamp of the last modification.
+    """
+
+    name: str
+    description: str
+    project_ids: list[int] = dataclasses.field(default_factory=list)
+    milestones: list[Milestone] = dataclasses.field(default_factory=list)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+@dataclasses.dataclass
+class MilestoneProgress:
+    """Progress snapshot for a single milestone, computed by the portfolio manager.
+
+    Produced by
+    :meth:`~kanboard.orchestration.portfolio.PortfolioManager.get_milestone_progress`.
+    Composed client-side — no ``from_api()`` classmethod.
+
+    Attributes:
+        milestone_name: Name of the milestone.
+        portfolio_name: Name of the parent portfolio.
+        target_date: Optional due date for the milestone.
+        total: Total number of tasks tracked by the milestone.
+        completed: Number of closed/completed tasks.
+        percent: Completion percentage (0.0-100.0).
+        is_at_risk: ``True`` when ``target_date`` is within 7 days and
+            ``percent < 80``.
+        is_overdue: ``True`` when ``target_date`` is in the past and
+            ``percent < 100``.
+        blocked_task_ids: Task IDs with at least one unresolved blocker.
+    """
+
+    milestone_name: str
+    portfolio_name: str
+    target_date: datetime | None
+    total: int
+    completed: int
+    percent: float
+    is_at_risk: bool
+    is_overdue: bool
+    blocked_task_ids: list[int] = dataclasses.field(default_factory=list)
+
+
+@dataclasses.dataclass
+class DependencyEdge:
+    """A directed dependency relationship between two tasks (blocks / is-blocked-by).
+
+    Built by
+    :class:`~kanboard.orchestration.dependencies.DependencyAnalyzer` from
+    Kanboard task-link data.  Cross-project awareness is derived by comparing
+    ``task_project_id`` with ``opposite_task_project_id``.  No
+    ``from_api()`` classmethod — composed from multiple API responses.
+
+    Attributes:
+        task_id: ID of the source task.
+        task_title: Title of the source task.
+        task_project_id: Project ID of the source task.
+        task_project_name: Project name of the source task.
+        opposite_task_id: ID of the related task on the other end.
+        opposite_task_title: Title of the related task.
+        opposite_task_project_id: Project ID of the related task.
+        opposite_task_project_name: Project name of the related task.
+        link_label: Relationship label (e.g. ``"blocks"``).
+        is_cross_project: ``True`` when the two tasks belong to different
+            projects.
+        is_resolved: ``True`` when the blocking task is closed/completed.
+    """
+
+    task_id: int
+    task_title: str
+    task_project_id: int
+    task_project_name: str
+    opposite_task_id: int
+    opposite_task_title: str
+    opposite_task_project_id: int
+    opposite_task_project_name: str
+    link_label: str
+    is_cross_project: bool
+    is_resolved: bool
+
+
 @dataclasses.dataclass
 class Action:
     """Represents a Kanboard automatic action returned by ``getActions`` and related endpoints.
