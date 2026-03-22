@@ -231,6 +231,24 @@ Corrective Plan: N/A
   - Both `remove_link` and `remove_task_link` return `bool` without raising on False — consistent with all other `remove_*` methods across the codebase
 ---
 
+## 2026-03-22T15:00:00Z - US-018
+Session: iter-2cba6f8e
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Audited all Milestone 2 resource test files for missing acceptance criteria coverage
+- All 10 M2 resource test files (board, columns, swimlanes, comments, categories, tags, subtasks, users, links, task_links) already had: KanboardNotFoundError on null, KanboardAPIError on False, empty-list returns, 100% line coverage
+- Created `tests/unit/resources/test_network_failures.py` — 21 tests adding explicit KanboardConnectionError (network failure) tests for all 10 M2 resources (using httpx.ConnectError, httpx.ReadTimeout, httpx.ConnectTimeout variants)
+- All CLI groups (board, column, swimlane, comment, category, tag, subtask, user, link, task-link) confirmed to have: all 4 output formats, --yes destructive confirmation, and empty-list rendering tests
+- Final coverage: 100% on src/kanboard/resources/ (474 stmts, 0 miss); 1037 tests total, all green
+- All commits passed ruff + pytest pre-commit hook
+- **Learnings for future iterations:**
+  - `KanboardConnectionError` propagates from `client.call()` through any resource method — transport-level tests via `httpx_mock.add_exception(httpx.ConnectError(...))` are lightweight and need no JSON response mocking
+  - One consolidated `test_network_failures.py` file is a clean pattern for cross-cutting transport error coverage across all resources
+  - Coverage goal: 100% was already achieved before US-018; the remaining work was purely about explicit error-path documentation per acceptance criteria
+---
+
 ## Codebase Patterns
 - **KanboardNotFoundError signature**: uses `resource=` and `identifier=` kwargs (NOT `resource_type`/`resource_id`); `__str__` formats as `"Not found: {resource} '{identifier}' does not exist"` — match patterns in tests must reflect this.
 
