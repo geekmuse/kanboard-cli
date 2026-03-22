@@ -11,6 +11,24 @@
 - **Kanboard list endpoint naming**: "All" prefix = full list (e.g. `getAllSwimlanes`, `getActiveSwimlanes` = filtered list); check Kanboard API docs carefully when naming resource methods.
 ---
 
+## 2026-03-22T05:55:00Z - US-004
+Session: iter-9bda9d20
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/comments.py` — `CommentsResource` with all 5 methods: `create_comment`, `get_comment`, `get_all_comments`, `update_comment`, `remove_comment`
+- Wired `self.comments = CommentsResource(self)` into `KanboardClient.__init__`
+- Exported `CommentsResource` from `src/kanboard/__init__.py`
+- Added 24 unit tests in `tests/unit/resources/test_comments.py` covering: all 5 methods, success + error + empty paths, not-found error attributes, importability, client accessor
+- All 574 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `update_comment` raises `KanboardAPIError` on False (like `update_column`), consistent with "update = must succeed" pattern
+  - `remove_comment` returns `bool(result)` without raising on False — same pattern as `remove_swimlane`, `remove_column`
+  - `get_all_comments` guards with `if not result` (handles both False and None from API) to return []
+  - Comment model has `comment` field (same name as class) holding the text body — use `c.comment` to access it in tests
+---
+
 ## PRD Run Context
 PRD Branch: ralph/milestone-2-core
 Started: 2026-03-22T04:28:03.409Z
