@@ -42,6 +42,7 @@ from kanboard.resources.columns import ColumnsResource
 from kanboard.resources.comments import CommentsResource
 from kanboard.resources.projects import ProjectsResource
 from kanboard.resources.swimlanes import SwimlanesResource
+from kanboard.resources.tags import TagsResource
 from kanboard.resources.tasks import TasksResource
 
 __all__ = [
@@ -76,6 +77,7 @@ __all__ = [
     "Swimlane",
     "SwimlanesResource",
     "Tag",
+    "TagsResource",
     "Task",
     "TaskFile",
     "TaskLink",
