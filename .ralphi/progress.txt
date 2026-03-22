@@ -118,3 +118,34 @@ Corrective Plan: N/A
   - Swimlane list uses `get_active_swimlanes` by default; `--all` flag triggers `get_all_swimlanes` — always check command source before setting mock `return_value`
   - For CSV edge case tests, re-parse with `csv.DictReader(io.StringIO(...))` to verify structural validity, not just string presence
 ---
+
+## 2026-03-22 - US-006
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `docker-compose.test.yml` with `kanboard/kanboard:latest` on port 4000, healthcheck polling `/`
+- Created `tests/integration/conftest.py` with:
+  - `_is_docker_available()` — checks Docker daemon via `docker info`
+  - `_wait_for_kanboard()` — polls JSON-RPC `getVersion` until 200+result or timeout
+  - `docker_kanboard` — session-scoped autouse fixture; skips all integration tests if Docker not available; runs `docker compose up -d --wait`; tears down with `docker compose down -v` after session (skippable via `KANBOARD_NO_DOCKER_TEARDOWN` env var)
+  - `kanboard_url` — session fixture returning the endpoint URL
+  - `kanboard_client` — session fixture: `KanboardClient` with `auth_mode='user'`, `admin:admin`
+  - Cleanup fixtures (function-scoped): `cleanup_project_ids`, `cleanup_task_ids`, `cleanup_user_ids`, `cleanup_group_ids` — track IDs, remove in teardown
+- Created `tests/integration/test_smoke.py` with 6 smoke tests (`@pytest.mark.integration`):
+  - `getVersion` returns non-empty string and semver-like value
+  - `getTimezone`, `getColorList`, `getApplicationRoles` all return valid types
+  - `kanboard_url` fixture returns a valid URL
+- Registered `integration` marker in `pyproject.toml` `[tool.pytest.ini_options]`
+- `make test-integration` runs `pytest tests/integration/ -v` (already wired, confirmed working)
+- All 1957 tests pass (1951 existing + 6 new smoke tests); ruff clean
+- Files changed: `docker-compose.test.yml` (new), `tests/integration/conftest.py` (new), `tests/integration/test_smoke.py` (new), `pyproject.toml` (markers section)
+- **Learnings for future iterations:**
+  - Integration tests use `auth_mode='user'` with `admin:admin` — no need to configure API tokens; works for all JSON-RPC methods against the Docker instance
+  - `docker compose up -d --wait` uses the healthcheck in docker-compose.yml to wait for readiness — pair with a fallback API poll for extra confidence
+  - `autouse=True` session-scoped fixture with `pytest.skip()` causes all tests in the conftest scope to skip — ideal for Docker availability guard
+  - `# noqa: BLE001` is unnecessary in test files because `BLE` (flake8-blind-exception) is not in the ruff `select` list — use bare `except Exception: pass`
+  - Cleanup fixtures should be function-scoped (default) not session-scoped for per-test isolation
+  - `KANBOARD_NO_DOCKER_TEARDOWN=1` env var allows inspecting the database after test runs
+---
