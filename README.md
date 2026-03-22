@@ -8,7 +8,10 @@
 
 **Documentation:**
 [CLI Reference](docs/cli-reference.md) •
-[SDK Guide](docs/sdk-guide.md)
+[SDK Guide](docs/sdk-guide.md) •
+[Configuration](docs/configuration.md) •
+[Workflows](docs/workflows.md) •
+[Contributing](CONTRIBUTING.md)
 
 ---
 
