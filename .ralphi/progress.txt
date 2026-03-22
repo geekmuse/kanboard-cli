@@ -1,4 +1,14 @@
 ## Codebase Patterns
+- **CLI command modules use `TYPE_CHECKING` guard for `AppContext` import**: `commands/task.py` imports `AppContext` from `kanboard_cli.main` only under `if TYPE_CHECKING:` to avoid circular imports. At runtime the import is skipped; type checkers still resolve it. Required because `main.py` imports from `commands/`.
+- **CLI `task` group replaces stub in `main.py`**: The stub `@click.group() def task()` is removed from `main.py`; the real group is imported with `from kanboard_cli.commands.task import task`. Same pattern applies to all future command modules.
+- **CliRunner + Rich table assertions**: Rich tables in CliRunner tests have an unpredictable effective terminal width (often very narrow), causing cell data to be truncated to `…`. Use `--output json` or `--output csv` for data-value assertions; table tests should only check `exit_code == 0` and mock call assertions.
+- **`--tag` is `multiple=True` → tuple**: Click's `multiple=True` returns a tuple. Convert to `list(tags)` before passing to SDK. Only add to kwargs `if tags:` (empty tuple is falsy).
+- **Only pass non-None options to SDK kwargs**: Build a `kwargs: dict[str, Any] = {}` and add each option `if value is not None`. This ensures omitted CLI options don't overwrite API defaults.
+- **`click.UsageError` for invalid usage in commands**: Raise `click.UsageError(message)` (not `click.ClickException`) for user-input problems like no options provided to `update`. `click.ClickException` is for runtime/API errors.
+- **`click.confirm(..., abort=True)` for destructive commands**: `abort=True` causes CliRunner to exit non-zero when input is not `y`. With `--yes` flag: skip the prompt entirely.
+- **`@task.command("name")` for explicit CLI names**: Use `@task.command("move-to-project")` with hyphenated names; function name uses underscores (`task_move_to_project`). This avoids Click's automatic underscore→hyphen conversion.
+
+
 - **`format_output(data, format, columns)` is the single formatter entry point**: normalises via `_normalize` → dispatches to `_format_table`, `_format_json`, `_format_csv`, or `_format_quiet`. `format_success(message, format)` is the success/confirmation companion.
 - **`_normalize` handles all SDK return types**: `None` → `[]`; single dataclass → `[asdict(dc)]`; list → list of dicts; plain dict → `[dict]`. Always call `_normalize` before rendering.
 - **JSON list vs object detection**: `_format_json` checks `isinstance(data, list)` on the ORIGINAL input (before normalisation) to decide array vs single-object output. Pass the raw SDK value to `format_output`, not pre-normalised rows.
@@ -36,6 +46,36 @@
 - **src/ layout + hatchling**: Wheel packages must be explicitly listed in `[tool.hatch.build.targets.wheel]` as `packages = ["src/kanboard", "src/kanboard_cli"]`.
 - **strict ruff convention=google**: pydocstyle convention is Google-style (D2xx). Ignore D203+D213 (conflict with D211+D212).
 - **per-file-ignores F401**: Add `"src/**/__init__.py" = ["F401"]` to allow re-export patterns in `__init__.py`.
+---
+
+## 2026-03-22 - US-011
+Session: iter-66369225
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `src/kanboard_cli/commands/task.py` with 12 task subcommands: list, get, create, update, close, open, remove, search, move, move-to-project, duplicate, overdue
+- Replaced stub `task` group in `main.py` with import from `commands/task.py`
+- `TYPE_CHECKING` guard in `commands/task.py` imports `AppContext` from `main.py` — avoids circular import at runtime
+- `task list` → `get_all_tasks(project_id, status_id=)` (1=active, 0=inactive via `--status` Choice)
+- `task get` → `get_task(task_id)` with `KanboardNotFoundError` → ClickException
+- `task create` → `create_task(title, project_id, **kwargs)` — maps `--color` to `color_id`, `--due` to `date_due`, `--tag` (multiple) to `tags` list
+- `task update` → `update_task(task_id, **kwargs)` — raises `UsageError` if no options provided
+- `task close/open` → `close_task`/`open_task` with format_success
+- `task remove` → `click.confirm(abort=True)` unless `--yes`; maps to `remove_task`
+- `task search` → `search_tasks(project_id, query)`
+- `task move` → `move_task_position(project_id, task_id, column_id, position, swimlane_id)` with 4 required options
+- `task move-to-project` → `move_task_to_project(task_id, project_id, **kwargs)`
+- `task duplicate` → `duplicate_task_to_project(task_id, project_id, **kwargs)` — prints new task ID
+- `task overdue` → `get_overdue_tasks()` or `get_overdue_tasks_by_project(project_id)` based on `--project-id`
+- `_LIST_COLUMNS` constant defines the 7-column subset shown in list/search/overdue table output
+- Created `tests/cli/test_task.py`: 52 tests; all 429 suite tests pass
+- **Learnings for future iterations:**
+  - `CliRunner` + Rich: terminal width is unpredictable (often narrow), cell data gets truncated to `…`. Assert on `exit_code` + JSON/CSV output for data values; only column headers may be reliable for table tests with short column names.
+  - `TYPE_CHECKING` guard is the correct pattern for `commands/*.py` importing from `main.py` — prevents circular import while still allowing type checking.
+  - `multiple=True` Click options return tuples; use `if tags: kwargs["tags"] = list(tags)` pattern.
+  - `click.UsageError` vs `click.ClickException`: UsageError for bad user input (shows "Usage:"), ClickException for runtime errors (shows "Error:").
+  - All future command modules should follow the same `task.py` pattern: group defined in module, imported and registered in `main.py`, stub in `main.py` removed.
 ---
 
 ## 2026-03-22 - US-010
