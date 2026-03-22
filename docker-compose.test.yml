@@ -1,0 +1,18 @@
+# Integration test environment — Kanboard instance for pytest integration tests.
+#
+# Usage:
+#   docker compose -f docker-compose.test.yml up -d --wait   # start and wait for health
+#   pytest tests/integration/ -v                              # run integration tests
+#   docker compose -f docker-compose.test.yml down -v         # stop and remove volumes
+
+services:
+  kanboard:
+    image: kanboard/kanboard:latest
+    ports:
+      - "4000:80"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
