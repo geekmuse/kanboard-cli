@@ -98,7 +98,7 @@ def main(argv: list[str] | None = None) -> None:  # noqa: D103
         _die("could not locate version = \"...\" line in pyproject.toml")
 
     PYPROJECT.write_text(patched, encoding="utf-8")
-    print(f"  updated pyproject.toml")
+    print("  updated pyproject.toml")
 
     msg = f"chore(release): bump version {current} → {new}"
     subprocess.run(

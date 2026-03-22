@@ -22,6 +22,7 @@ from kanboard_cli.commands.column import column
 from kanboard_cli.commands.comment import comment
 from kanboard_cli.commands.link import link
 from kanboard_cli.commands.project import project
+from kanboard_cli.commands.project_file import project_file
 from kanboard_cli.commands.subtask import subtask
 from kanboard_cli.commands.swimlane import swimlane
 from kanboard_cli.commands.tag import tag
@@ -177,11 +178,6 @@ def group() -> None:
 @click.group()
 def action() -> None:
     """Manage automatic actions on projects."""
-
-
-@click.group(name="project-file")
-def project_file() -> None:
-    """Manage files attached to projects."""
 
 
 @click.group(name="task-file")
