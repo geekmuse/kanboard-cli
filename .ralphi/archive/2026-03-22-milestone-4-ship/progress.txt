@@ -1,0 +1,272 @@
+## 2026-03-22 - US-010
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `docs/cli-reference.md` — ~650 lines, covers all 26 CLI command groups with usage, arguments, options, and copy-pasteable examples; global options table with env vars and defaults; output format section with example outputs for all 4 modes (table, json, csv, quiet); section anchors for every command group
+- Created `docs/sdk-guide.md` — ~650 lines; covers installation, quick start, client initialization (both auth modes), context manager vs manual close, full resource category table, code examples for all 24 resource categories, exception hierarchy and handling patterns with per-attribute tables, batch API example with error handling note, low-level `call()` usage, response model overview
+- Updated `README.md`: added Documentation badge line at top with links to both new docs; added inline link after CLI reference table; added inline link after SDK quick start example
+- No code changes — ruff and pytest unchanged (2059 tests pass)
+- Files changed: `docs/cli-reference.md` (new), `docs/sdk-guide.md` (new), `README.md` (3 additions)
+- **Learnings for future iterations:**
+  - Doc-only stories: stage ONLY the doc files; avoid `git add -A` which could pick up unrelated untracked files
+  - README already has a complete CLI table and SDK example — doc links are the minimal correct intervention; avoid duplicating content already in README
+---
+
+## Codebase Patterns
+- Integration tests for file resources: use `base64.b64encode(b"content").decode()` as the blob; `ProjectFile.name` / `TaskFile.name` maps to the `filename` argument passed on upload.
+- Action create test: use `get_available_actions()` to discover action names, search for `AssignCurrentUser` or `CloseColumn` (both need only `column_id` param); pass `{"column_id": str(col_id)}` (value must be a string); event is `task.move.column`.
+- Subtask time tracking: `set_subtask_start_time` / `set_subtask_end_time` both accept `user_id` kwarg — pass `user_id=_ADMIN_USER_ID` (1) explicitly; `get_subtask_time_spent` returns float (0.0 is valid for short timings).
+- External task links: `create_external_task_link` requires `type="weblink"` kwarg for URL links; `dependency="related"` is always valid; `url` field in `ExternalTaskLink` model holds the URL.
+- Group membership: after `remove_group_member`, the group list returned by `get_group_members` immediately reflects the removal without needing a separate fetch — use `assert not any(m.id == X for m in members)` pattern.
+- Project permissions: `get_project_users` returns a dict keyed by user_id as STRING (not int) — assert `str(user_id) in users`, not `user_id in users`.
+- CLI commands: use `@click.pass_context` + `ctx.obj` (typed as `AppContext`) to access config, client, and output format. All output via `format_output()` / `format_success()` in `kanboard_cli/formatters.py`.
+- Patching for tests: use `patch("kanboard_cli.main.KanboardConfig.resolve", return_value=...)` and `patch("kanboard_cli.main.KanboardClient", return_value=...)` to inject config/client. For module-level Path constants in commands (CONFIG_FILE, CONFIG_DIR), patch at `kanboard_cli.commands.<module>.CONFIG_FILE`.
+- Config-less commands (e.g., `config init`): the root `cli` callback absorbs `KanboardConfigError`, so `ctx.obj.config` / `.client` are `None` but `ctx.obj.output` always has a value from the global `--output` flag.
+- Token masking: `****{token[-4:]}` for tokens > 4 chars, `****` for shorter.
+- Shell completion: use `click.shell_completion.{Bash,Zsh,Fish}Complete(cli, {}, "kanboard", "_KANBOARD_COMPLETE").source()` to generate scripts. Import `cli` lazily inside the function to avoid the circular import (main.py imports completion.py, completion.py must not import main.py at module level).
+- Auth modes: `KanboardClient` accepts `auth_mode='app'` (default, `jsonrpc:token`) or `auth_mode='user'` (`username:password`). Expose via `client.auth_mode` property. Resources that require user auth call `self._require_user_auth()` which raises `KanboardAuthError` if mode is not 'user'. Config adds `auth_mode`, `username`, `password` optional fields (default after all required fields so backward compat is maintained).
+- Adding optional fields to frozen dataclasses: put new optional fields with defaults AFTER all existing required fields — existing keyword-arg constructors continue to work unchanged.
+- MeResource: when adding `user`-only resources, use `_require_user_auth()` guard; convert list/None API responses with `result if isinstance(result, list) else []`.
+---
+
+## PRD Run Context
+PRD Branch: ralph/milestone-4-ship
+Started: 2026-03-22T14:00:54.447Z
+---
+
+## 2026-03-22 - US-001
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/config_cmd.py` with 5 subcommands: `init`, `show`, `path`, `profiles`, `test`
+- `config init`: prompts for URL and token via `click.prompt`, writes TOML with `tomli_w`, creates directory if missing, refuses to overwrite without `--force`
+- `config show`: displays resolved config with token masked as `****<last4>`; errors clearly when no config
+- `config path`: prints `CONFIG_FILE` path
+- `config profiles`: reads TOML directly, lists all profile names; handles missing file gracefully
+- `config test`: calls `client.application.get_version()`, reports clear error for connection/auth/API failures
+- Replaced stub `config_group` in `main.py` with `from kanboard_cli.commands.config_cmd import config_cmd`
+- Added 24 CliRunner tests in `tests/cli/test_config.py` covering all 5 subcommands, file creation, masking, force overwrite, error paths, and all 4 output formats
+- Files changed: `src/kanboard_cli/commands/config_cmd.py` (new), `src/kanboard_cli/main.py` (import + registration), `tests/cli/test_config.py` (new)
+- **Learnings for future iterations:**
+  - CONFIG_FILE / CONFIG_DIR are module-level Path constants; patch them at `kanboard_cli.commands.config_cmd.CONFIG_FILE` in tests
+  - `ctx.obj.output` is always set from the global `--output` flag even when config resolution fails
+  - Use `tmp_path` pytest fixture + patch for filesystem-touching command tests
+---
+
+## 2026-03-22 - US-002
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/completion.py` with 4 subcommands: `bash`, `zsh`, `fish`, `install`
+- `completion bash/zsh/fish`: generates the Click shell completion script via `click.shell_completion.{Bash,Zsh,Fish}Complete.source()` and echoes to stdout
+- `completion install <shell>`: for bash/zsh appends `eval "$(kanboard completion <shell>)"` to the RC file (skips if already present); for fish writes to `~/.config/fish/completions/kanboard.fish`
+- Module-level path constants (`BASH_RC`, `ZSH_RC`, `FISH_COMPLETIONS_DIR`) are patchable in tests, consistent with the config_cmd pattern
+- `cli` imported lazily inside `_get_completion_source()` to break the circular import (main.py imports completion.py at module level)
+- `completion install` reads module constants via `import kanboard_cli.commands.completion as _this_module` + `getattr` so patches made in tests are respected
+- Registered `completion_cmd` in `main.py`; added import + `cli.add_command(completion_cmd)`
+- Added 15 CliRunner tests in `tests/cli/test_completion.py`: all 3 shell types produce non-empty output referencing "kanboard"; install bash/zsh/fish tested with tmp_path; skip-if-already-present tested; invalid shell rejected; help text verified
+- Files changed: `src/kanboard_cli/commands/completion.py` (new), `src/kanboard_cli/main.py` (import + registration), `tests/cli/test_completion.py` (new)
+- **Learnings for future iterations:**
+  - Module-level constants that reference `Path.home()` are evaluated at import time — always expose them as named constants and patch at the module path for tests
+  - For a command that reads its own module-level variables at runtime, `import <module> as _m; getattr(_m, ATTR)` pattern (vs a local variable) ensures test patches are visible
+  - Lazy imports inside function bodies safely break circular imports when main.py and command modules import each other
+---
+
+## 2026-03-22 - US-003
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented User API authentication support across the config system, transport layer, MeResource, and CLI
+- `KanboardConfig`: added `auth_mode` (default `'app'`), `username`, `password` optional fields; resolve() accepts and resolves them from CLI/env/profile with layered precedence; validation is mode-aware (app requires token, user requires username+password)
+- `KanboardClient`: added `auth_mode`, `username`, `password` params; switches httpx Basic Auth between `(jsonrpc, token)` and `(username, password)` based on mode; exposes `auth_mode` property
+- `MeResource`: replaced "always raises" stubs with real API calls; `_require_user_auth()` guard raises `KanboardAuthError` for app auth; each method calls the appropriate JSON-RPC endpoint when user auth is active
+- `main.py`: added `--auth-mode app|user` global Click option with `KANBOARD_AUTH_MODE` envvar; passes auth_mode to `KanboardConfig.resolve()` and forwards all auth params to `KanboardClient`
+- `commands/me.py`: updated to actually display results from the API (format_output for dashboard/activity/projects/overdue); error path still uses KanboardAuthError
+- Files changed: `src/kanboard/config.py`, `src/kanboard/client.py`, `src/kanboard/resources/me.py`, `src/kanboard_cli/main.py`, `src/kanboard_cli/commands/me.py`, `tests/unit/test_config.py` (15 new tests), `tests/unit/resources/test_me.py` (full rewrite — app auth guards + user auth API call tests), `tests/cli/test_me.py` (added user auth fixtures, success tests, --auth-mode flag tests)
+- 1833 tests pass; ruff clean
+- **Learnings for future iterations:**
+  - Python frozen dataclasses: new optional fields (with defaults) MUST come after all existing required fields — backward compatible for all keyword-arg callers
+  - `KanboardConfig.token` is set to `""` (empty string) when auth_mode='user' and no token provided — avoids changing `str` type to `str | None` which would require reordering all fields
+  - Resource-level auth guards: `_require_user_auth()` as a private method is cleaner than checking `auth_mode` inline in each method
+  - pytest-httpx `httpx_mock.get_request()` returns the last captured request — useful for verifying the JSON-RPC method name sent
+  - The pre-commit hook runs all 4 commands (lint, test, build, format) — ruff format must also pass, not just ruff check
+---
+
+## 2026-03-22 - US-004
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Finalized PyPI metadata in `pyproject.toml`: added `authors = [{name = "Brad Aton"}]` and `[project.urls]` section with Homepage, Repository, Changelog, Documentation links (README already handled long_description)
+- Added `kanboard --version` to CLI via `@click.version_option(version=_VERSION, prog_name="kanboard")` where `_VERSION` reads from `importlib.metadata.version("kanboard-cli")` at import time with `PackageNotFoundError` fallback to `"0.0.0+dev"`
+- Created `.github/workflows/ci.yml`: triggers on push/PR to main; matrix over Python 3.11 + 3.12; steps: install deps + hatch, ruff check, pytest, hatch build
+- Created `.github/workflows/publish.yml`: triggers on `v*` tag push; OIDC trusted publisher (`id-token: write`); builds via `hatch build`; publishes via `pypa/gh-action-pypi-publish@release/v1`
+- Verified: `kanboard --version` → `kanboard, version 0.8.0`; `hatch build` → `.tar.gz` + `.whl`; 1833 tests pass, ruff clean
+- Files changed: `pyproject.toml`, `src/kanboard_cli/main.py`, `.github/workflows/ci.yml` (new), `.github/workflows/publish.yml` (new)
+- **Learnings for future iterations:**
+  - `click.version_option()` must be applied as the innermost decorator (closest to the function) among all click decorators — ordering matters
+  - `importlib.metadata.version("kanboard-cli")` uses the installed package name (matching `[project].name` in pyproject.toml, not the import name); wrap in try/except `PackageNotFoundError` for editable installs in CI before package is distributed
+  - ruff I001 (unsorted imports) fires when stdlib imports (importlib.metadata) are interleaved with third-party imports (click) without proper isort grouping; `ruff check --fix` auto-resolves this
+---
+
+## 2026-03-22 - US-005
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `tests/cli/test_output_snapshots.py` — 118 tests providing systematic cross-cutting format coverage across all major CLI command groups
+- **Format coverage** — for 12 command groups (project, task, column, swimlane, comment, user, category, subtask, tag, group, link, task-link): list command tested in all 4 formats (table, json, csv, quiet); get command tested in json (object) and table
+- **JSON structure tests** — every `list` → JSON array, every `get` → JSON object (not array); verified with `isinstance()` checks
+- **CSV tests** — header row present, values present; used `csv.DictReader` to re-parse and verify structural validity
+- **Quiet tests** — IDs only, one per line, no headers, no field values; separate test verifies exactly one ID per line for multiple items
+- **Error type tests** — `KanboardNotFoundError`, `KanboardAPIError`, `KanboardAuthError` each produce non-zero exit code + "Error" in output; tested across table, json, csv, and quiet output modes
+- **Empty result tests** — all 12 list commands × table + 6 commands × additional formats; empty JSON list produces `[]`; empty quiet produces zero lines
+- **Edge case tests** — 300-char field values (table + json), `None` optional fields (json: `null`, table: no "None" string), CSV commas/double-quotes/embedded-newlines all verified with `csv.DictReader`, Unicode + HTML entities in JSON, datetime ISO-8601 serialization (contains "T" separator)
+- Fixed: `swimlane list` uses `get_active_swimlanes` (not `get_swimlanes`) — corrected mock in format + empty tests
+- 1951 total tests pass; ruff check + format clean
+- Files changed: `tests/cli/test_output_snapshots.py` (new)
+- **Learnings for future iterations:**
+  - `CliRunner(mix_stderr=False)` is not supported in this Click version — use plain `CliRunner()`
+  - Swimlane list uses `get_active_swimlanes` by default; `--all` flag triggers `get_all_swimlanes` — always check command source before setting mock `return_value`
+  - For CSV edge case tests, re-parse with `csv.DictReader(io.StringIO(...))` to verify structural validity, not just string presence
+---
+
+## 2026-03-22 - US-006
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `docker-compose.test.yml` with `kanboard/kanboard:latest` on port 4000, healthcheck polling `/`
+- Created `tests/integration/conftest.py` with:
+  - `_is_docker_available()` — checks Docker daemon via `docker info`
+  - `_wait_for_kanboard()` — polls JSON-RPC `getVersion` until 200+result or timeout
+  - `docker_kanboard` — session-scoped autouse fixture; skips all integration tests if Docker not available; runs `docker compose up -d --wait`; tears down with `docker compose down -v` after session (skippable via `KANBOARD_NO_DOCKER_TEARDOWN` env var)
+  - `kanboard_url` — session fixture returning the endpoint URL
+  - `kanboard_client` — session fixture: `KanboardClient` with `auth_mode='user'`, `admin:admin`
+  - Cleanup fixtures (function-scoped): `cleanup_project_ids`, `cleanup_task_ids`, `cleanup_user_ids`, `cleanup_group_ids` — track IDs, remove in teardown
+- Created `tests/integration/test_smoke.py` with 6 smoke tests (`@pytest.mark.integration`):
+  - `getVersion` returns non-empty string and semver-like value
+  - `getTimezone`, `getColorList`, `getApplicationRoles` all return valid types
+  - `kanboard_url` fixture returns a valid URL
+- Registered `integration` marker in `pyproject.toml` `[tool.pytest.ini_options]`
+- `make test-integration` runs `pytest tests/integration/ -v` (already wired, confirmed working)
+- All 1957 tests pass (1951 existing + 6 new smoke tests); ruff clean
+- Files changed: `docker-compose.test.yml` (new), `tests/integration/conftest.py` (new), `tests/integration/test_smoke.py` (new), `pyproject.toml` (markers section)
+- **Learnings for future iterations:**
+  - Integration tests use `auth_mode='user'` with `admin:admin` — no need to configure API tokens; works for all JSON-RPC methods against the Docker instance
+  - `docker compose up -d --wait` uses the healthcheck in docker-compose.yml to wait for readiness — pair with a fallback API poll for extra confidence
+  - `autouse=True` session-scoped fixture with `pytest.skip()` causes all tests in the conftest scope to skip — ideal for Docker availability guard
+  - `# noqa: BLE001` is unnecessary in test files because `BLE` (flake8-blind-exception) is not in the ruff `select` list — use bare `except Exception: pass`
+  - Cleanup fixtures should be function-scoped (default) not session-scoped for per-test isolation
+  - `KANBOARD_NO_DOCKER_TEARDOWN=1` env var allows inspecting the database after test runs
+---
+
+## 2026-03-22 - US-007
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `tests/integration/test_core_resources.py` with 23 integration tests covering all 5 core resource lifecycles
+- **Project lifecycle** (5 tests): create → get, update, enable/disable, activity, remove; all verified against Docker Kanboard
+- **Task lifecycle** (7 tests): create/get, update, search, open/close, move_task_position (to second column), duplicate_task_to_project, remove
+- **Board** (1 test): get_board returns non-empty list of dicts with columns structure; verified with a task present
+- **Column lifecycle** (4 tests): add, get, update (title + task_limit), change_position (to pos 1), remove (verified via get_columns list)
+- **Swimlane lifecycle** (6 tests): add/get, get_by_name, update, enable/disable (verified via get_all/get_active), change_position (two swimlanes → reorder), remove
+- Fixed SDK bug discovered by integration tests: `ProjectsResource.update_project()` was passing `id=project_id` but Kanboard API `updateProject` expects `project_id` parameter name
+- Added `integration_project` function-scoped fixture (creates project + registers in cleanup_project_ids) for tests that need a project context without managing it inline
+- Files changed: `tests/integration/test_core_resources.py` (new), `src/kanboard/resources/projects.py` (updateProject param fix)
+- 1980 tests pass (unit + integration); ruff clean
+- **Learnings for future iterations:**
+  - Kanboard returns HTTP 403 (not null/404) when querying a deleted project/task/column by ID — verify deletion via list endpoint (`get_all_projects`, `get_all_tasks`, `get_columns`) rather than by re-fetching the deleted ID
+  - `updateProject` in Kanboard API uses `project_id` as parameter name (not `id`) — the SDK had a wrong mapping; the real API confirms the true parameter names
+  - Cleanup via project removal cascades all child resources (tasks, columns, swimlanes) — no need for separate column/swimlane cleanup fixtures
+  - `change_swimlane_position` requires at least 2 user-created swimlanes to test meaningfully; the default swimlane (id=0) does not count
+  - `move_task_position` with `swimlane_id=0` targets the default swimlane successfully
+---
+
+## 2026-03-22 - US-008
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `tests/integration/test_secondary_resources.py` with 33 integration tests covering all 7 secondary resource lifecycles
+- **Comment lifecycle** (4 tests): create/get, get_all, update (content), remove (verify via get_all)
+- **Category lifecycle** (4 tests): create/get, get_all, update (name), remove (verify via get_all)
+- **Tag lifecycle** (5 tests): create/get_all, get_tags_by_project, set_task_tags/get_task_tags (assign by name, retrieve as dict), update (name), remove
+- **Subtask lifecycle** (4 tests): create/get, get_all, update (title + status), remove (verify via get_all)
+- **User lifecycle** (6 tests): create/get, get_by_name, update (display name), enable/disable (verified via get_user), is_active (True→disable→False→enable), remove (verified via get_all_users)
+- **Link type lifecycle** (6 tests): create/get_by_id, get_by_label, get_all, get_opposite_link_id (bidirectional pair with explicit opposite_label), update (label via update_link), remove (verified via get_all_links)
+- **Task link lifecycle** (4 tests): create/get, get_all, update (change link_type), remove (verified via get_all_task_links)
+- Added `cleanup_link_ids` fixture to `tests/integration/conftest.py` — deduplicated cleanup of link type IDs (handles bidirectional pairs where forward/reverse are both tracked)
+- All 62 integration tests + 1951 unit tests pass (2013 total); ruff clean
+- Files changed: `tests/integration/conftest.py` (cleanup_link_ids fixture), `tests/integration/test_secondary_resources.py` (new)
+- **Learnings for future iterations:**
+  - `set_task_tags` takes a list of tag NAME strings (not IDs); `get_task_tags` returns a dict mapping tag_id (str) → tag_name (str) — verify membership via `.values()`
+  - `createLink` with `opposite_label` creates TWO link records; `getOppositeLinkId` returns the second one's ID; cleanup must remove both (deduplicate in cleanup fixture using a `seen` set)
+  - `createLink` without `opposite_label` creates a single self-referencing link; `getOppositeLinkId` returns the same ID
+  - Users require unique usernames — use `uuid.uuid4().hex[:8]` suffix; display `name` field is separate and can be non-unique
+  - Kanboard user lifecycle: `is_active_user` returns bool True/False reflecting active/disabled state; re-enable before `remove_user` is not strictly required but is good practice
+  - Task links cascade-delete when the parent task (or project) is removed — no dedicated cleanup needed beyond cleanup_task_ids/cleanup_project_ids
+---
+
+## 2026-03-22 - US-009
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `tests/integration/test_extended_resources.py` with 46 integration tests covering all 11 extended resource lifecycles
+- **Project file lifecycle** (5 tests): create/get_all, get, download, remove, remove_all
+- **Task file lifecycle** (5 tests): create/get_all, get, download, remove, remove_all
+- **Project metadata lifecycle** (3 tests): save/get_all, get_by_name, remove
+- **Task metadata lifecycle** (3 tests): save/get_all, get_by_name, remove
+- **Project permissions — user** (4 tests): add/get_users, get_user_role, change_role, remove_user
+- **Project permissions — group** (2 tests): add_group/change_group_role, remove_group
+- **Group lifecycle** (4 tests): create/get, get_all, update, remove
+- **Group member lifecycle** (4 tests): add/get_members, get_member_groups, is_member, remove
+- **External task link lifecycle** (5 tests): get_types, create/get, get_all, update, remove
+- **Actions lifecycle** (4 tests): get_available, get_events, get_compatible_events, create/get_actions/remove
+- **Subtask time tracking** (3 tests): start/has_timer, stop, get_time_spent
+- **Application info** (4 tests): get_version, get_timezone, get_colors, get_roles
+- Shared fixtures: `integration_project`, `integration_task`, `integration_subtask`, `integration_user`, `integration_group` all function-scoped with cleanup
+- All 108 integration tests pass (46 new + 62 existing); 2059 total tests pass; ruff clean
+- Files changed: `tests/integration/test_extended_resources.py` (new)
+- **Learnings for future iterations:**
+  - `createExternalTaskLink` requires `type="weblink"` for generic URL links; `dependency="related"` is universally valid
+  - `createAction` params values should be strings even when the underlying data is numeric (e.g. `{"column_id": "5"}`)
+  - Action discovery pattern: call `get_available_actions()`, search keys for known-simple action (`AssignCurrentUser`/`CloseColumn`), use `get_compatible_action_events()` to pick event name
+  - `get_project_users()` returns `dict[str, str]` with user_id as STRING key — must assert `str(user_id) in users`
+  - Subtask time tracking: `user_id` kwarg must be passed explicitly (admin=1) to all timer methods when using user auth mode
+  - `get_subtask_time_spent` after an immediate start→stop returns `0.0` (valid); assert `>= 0.0` not `> 0.0`
+---
+
+## 2026-03-22 - US-011
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `docs/configuration.md` — ~340 lines; covers config file format with all 8 profile fields (url, token, output_format, auth_mode, username, password, settings section, workflows section); env var reference table (7 vars); CLI flag reference table (6 flags); resolution order explanation with illustrated example table; named profiles setup and switching (CLI flag, env var, settings.default_profile); auth modes (app vs user) with examples; minimal configurations section
+- Created `docs/workflows.md` — ~430 lines; `BaseWorkflow` ABC reference with all abstract properties (name, description), abstract methods (register_commands), concrete methods (get_config); step-by-step plugin creation guide (5 steps: file, subclass, register_commands, config, verify); workflow config section in config.toml explained with get_config() usage; discovery mechanism (scan dir, algorithm, importlib.util loading, class inspection); full sprint-close workflow example; multi-command workflow groups example; error handling and logging; workflow testing guide with CliRunner + mock
+- Created `CONTRIBUTING.md` — ~370 lines; development setup (prerequisites, fork/clone, editable install, pre-commit hook); project structure tree; code style (ruff, type hints, docstrings in Google style, naming conventions table); testing guide (unit tests with pytest-httpx pattern, CLI tests with CliRunner pattern, integration tests with fixtures table, running tests, coverage requirements); adding new SDK resource and CLI command checklists; conventional commits reference with types and scope examples; PR process (branch naming, focus, checks, description, merge policy); issue reporting template
+- Updated `README.md`: added Configuration, Workflows, and Contributing links to the Documentation section
+- No code changes — ruff and pytest unchanged (2059 tests pass)
+- Files changed: `docs/configuration.md` (new), `docs/workflows.md` (new), `CONTRIBUTING.md` (new), `README.md` (2 additions)
+- **Learnings for future iterations:**
+  - Doc-only stories: stage ONLY the doc files + README; use `git add <explicit files>` to avoid picking up unrelated untracked files
+  - `docs/configuration.md` is a superset of the "Configuration" section in README — README summary stays; the doc provides the full reference; avoid duplicating large tables
+  - Workflow doc derived entirely from `src/kanboard_cli/workflows/base.py` and `src/kanboard_cli/workflow_loader.py` — both are well-documented; the doc adds step-by-step narrative and examples that the code-level docstrings do not provide
+---
