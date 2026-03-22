@@ -30,6 +30,7 @@ from kanboard_cli.commands.tag import tag
 from kanboard_cli.commands.task import task
 from kanboard_cli.commands.task_file import task_file
 from kanboard_cli.commands.task_link import task_link
+from kanboard_cli.commands.task_meta import task_meta
 from kanboard_cli.commands.user import user
 
 logger = logging.getLogger(__name__)
@@ -180,11 +181,6 @@ def group() -> None:
 @click.group()
 def action() -> None:
     """Manage automatic actions on projects."""
-
-
-@click.group(name="task-meta")
-def task_meta() -> None:
-    """Manage task metadata."""
 
 
 @click.group(name="project-access")

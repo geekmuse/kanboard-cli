@@ -49,6 +49,7 @@ from kanboard.resources.swimlanes import SwimlanesResource
 from kanboard.resources.tags import TagsResource
 from kanboard.resources.task_files import TaskFilesResource
 from kanboard.resources.task_links import TaskLinksResource
+from kanboard.resources.task_metadata import TaskMetadataResource
 from kanboard.resources.tasks import TasksResource
 from kanboard.resources.users import UsersResource
 
@@ -94,6 +95,7 @@ __all__ = [
     "TaskFilesResource",
     "TaskLink",
     "TaskLinksResource",
+    "TaskMetadataResource",
     "TasksResource",
     "User",
     "UsersResource",
