@@ -41,14 +41,14 @@
         "pytest passes"
       ],
       "priority": 2,
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-001"
       ],
       "notes": "Portfolio/Milestone are mutable (edited locally before syncing). MilestoneProgress and DependencyEdge are computed/read-only but kept mutable for simplicity.",
       "startedAt": "2026-03-22T18:16:59.228Z",
-      "updatedAt": "2026-03-22T18:16:59.228Z",
-      "completedAt": null
+      "updatedAt": "2026-03-22T19:10:00.000Z",
+      "completedAt": "2026-03-22T19:10:00.000Z"
     },
     {
       "id": "US-003",

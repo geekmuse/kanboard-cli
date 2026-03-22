@@ -3,6 +3,9 @@
 - **Orchestration is opt-in**: `PortfolioManager`, `DependencyAnalyzer`, `LocalPortfolioStore` are NOT KanboardClient attributes — callers instantiate them with a client arg.
 - **Resource pattern**: resource classes take `KanboardClient` in `__init__`, store as `self._client`. Use `TYPE_CHECKING` guard for client import to avoid circular imports.
 - **ruff strict**: `__all__` must be alphabetically sorted (capitals before lowercase) — RUF022.
+- **Orchestration models have no from_api()**: `Portfolio`, `Milestone`, `MilestoneProgress`, `DependencyEdge` are composed client-side from multiple API responses — never deserialize from a single JSON-RPC dict.
+- **Mutable list fields use `dataclasses.field(default_factory=list)`**: required for any dataclass with list defaults to prevent shared-state bugs between instances.
+- **Milestone defined before Portfolio in models.py**: `Portfolio.milestones: list[Milestone]` requires `Milestone` to be defined first (even with `from __future__ import annotations`, ordering matters for clarity).
 ---
 
 ## PRD Run Context
@@ -27,4 +30,25 @@ Corrective Plan: N/A
   - `store.py` lazy-imports `CONFIG_DIR` inside `__init__` to defer filesystem access until instantiation
   - `__all__` in orchestration package follows alphabetical sort: `DependencyAnalyzer`, `LocalPortfolioStore`, `PortfolioManager`
   - Pre-commit hook runs lint + test + build + format — all must pass before commit is accepted
+---
+
+## 2026-03-22 - US-002
+Session: iter-ac853eff
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Added 4 orchestration dataclasses to `src/kanboard/models.py`: `Milestone`, `Portfolio`, `MilestoneProgress`, `DependencyEdge`
+- All 4 models are mutable (no `frozen=True`); none have `from_api()` classmethods
+- Mutable list fields use `dataclasses.field(default_factory=list)` to prevent shared-state bugs
+- `Milestone` defined before `Portfolio` (Portfolio.milestones references Milestone type)
+- Updated `src/kanboard/__init__.py` imports and `__all__` with 4 new names in sorted position: `DependencyEdge` (after `CommentsResource`), `Milestone`, `MilestoneProgress`, `Portfolio` (between `MeResource` and `Project`)
+- Added test classes for all 4 models in `tests/unit/test_models.py`: construction, mutability, instance isolation of list fields, absence of `from_api()`
+- Updated `TestReExports` to verify the 4 new names are in `kanboard.__all__`
+- Fixed ruff RUF002 (EN DASH in docstring — replaced `–` with `-`)
+- Files changed: `src/kanboard/models.py`, `src/kanboard/__init__.py`, `tests/unit/test_models.py`
+- **Learnings for future iterations:**
+  - Watch for EN DASH (`–`) vs HYPHEN-MINUS (`-`) in docstrings — ruff RUF002 flags it
+  - `__all__` insertion order: D (DependencyEdge) after CommentsResource; M (Milestone, MilestoneProgress) after MeResource; P (Portfolio) after MilestoneProgress and before Project
+  - Test `no_from_api_classmethod` with `assert not hasattr(Cls, "from_api")` — simple and unambiguous
 ---
