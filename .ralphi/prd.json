@@ -212,8 +212,8 @@
       ],
       "notes": "US-002 (exceptions) is transitively required via US-004.",
       "startedAt": "2026-03-22T03:30:58.050Z",
-      "updatedAt": "2026-03-22T04:10:00.000Z",
-      "completedAt": "2026-03-22T04:10:00.000Z"
+      "updatedAt": "2026-03-22T03:38:36.883Z",
+      "completedAt": "2026-03-22T03:38:36.883Z"
     },
     {
       "id": "US-008",
@@ -242,12 +242,15 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 8,
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-004",
         "US-005"
       ],
-      "notes": ""
+      "notes": "",
+      "startedAt": "2026-03-22T03:38:36.951Z",
+      "updatedAt": "2026-03-22T03:38:36.951Z",
+      "completedAt": null
     },
     {
       "id": "US-009",

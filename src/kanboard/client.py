@@ -15,6 +15,7 @@ from kanboard.exceptions import (
     KanboardConnectionError,
     KanboardResponseError,
 )
+from kanboard.resources.projects import ProjectsResource
 from kanboard.resources.tasks import TasksResource
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ class KanboardClient:
     Resource accessors are available as typed attributes:
 
     - :attr:`tasks` — :class:`~kanboard.resources.tasks.TasksResource`
+    - :attr:`projects` — :class:`~kanboard.resources.projects.ProjectsResource`
 
     Example:
         >>> with KanboardClient("https://kb.example.com/jsonrpc.php", "secret") as c:
@@ -56,6 +58,7 @@ class KanboardClient:
             timeout=timeout,
         )
         self.tasks: TasksResource = TasksResource(self)
+        self.projects: ProjectsResource = ProjectsResource(self)
 
     # ------------------------------------------------------------------
     # Public API

@@ -36,6 +36,7 @@ from kanboard.models import (
     TaskLink,
     User,
 )
+from kanboard.resources.projects import ProjectsResource
 from kanboard.resources.tasks import TasksResource
 
 __all__ = [
@@ -61,6 +62,7 @@ __all__ = [
     "Link",
     "Project",
     "ProjectFile",
+    "ProjectsResource",
     "Subtask",
     "Swimlane",
     "Tag",

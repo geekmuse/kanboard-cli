@@ -102,9 +102,7 @@ class TasksResource:
         Raises:
             KanboardNotFoundError: The API returned ``None`` (task not found).
         """
-        result = self._client.call(
-            "getTaskByReference", project_id=project_id, reference=reference
-        )
+        result = self._client.call("getTaskByReference", project_id=project_id, reference=reference)
         if result is None:
             raise KanboardNotFoundError(
                 "Task not found by reference",
