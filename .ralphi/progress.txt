@@ -1,4 +1,9 @@
 ## Codebase Patterns
+- **pytest-httpx 0.36 sync support**: `httpx_mock` fixture works seamlessly with `httpx.Client` (sync). `add_response(json=...)` and `add_exception(httpx.ConnectError("msg"))` are the main APIs. All registered responses must be consumed (strict by default) — match request count to registered responses.
+- **httpx exception hierarchy**: Catch `httpx.ConnectError` and `httpx.TimeoutException` first, then fall back to `httpx.HTTPError` for other transport errors. `ConnectError`, `ReadTimeout`, `ConnectTimeout` are all instantiatable with a message string alone.
+- **`typing.Self` for context managers**: Use `from typing import Self` and annotate `__enter__` return as `Self`. Use `import types` and `types.TracebackType | None` for the `exc_tb` parameter of `__exit__`.
+- **JSON-RPC batch order**: Server may return batch responses out of order. Build an `id → response` dict and re-order by original call sequence before returning results.
+- **`_extract_result` helper pattern**: Factor out `if "error" in data: raise` + `return data.get("result")` into a private helper reused by both `call()` and `batch()` — avoids duplication and keeps each method focused.
 - **tomllib built-in (Python 3.11+)**: Use `import tomllib` directly — no external dep. `tomli-w` is only for writing TOML.
 - **`ruff --fix` for auto-fixable issues**: RUF022 (`__all__` sort) and I001 (import order) are both auto-fixable. Run `ruff check --fix .` before committing.
 - **`__all__` must be sorted alphabetically**: ruff RUF022 enforces isort-style sort. Capital letters sort before lowercase (C before g, K before g).
@@ -50,6 +55,29 @@ Corrective Plan: N/A
   - `__all__` lists are sorted with capitals before lowercase (ASCII order for ruff)
   - Always add `config_file: Path | None = None` param for testability — avoids touching user's real config
   - `monkeypatch.delenv(..., raising=False)` is safe when the var might not exist in CI
+---
+
+## 2026-03-22 - US-004
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `src/kanboard/client.py` with `KanboardClient` — full JSON-RPC 2.0 transport over httpx
+- `__init__(url, token, timeout=30.0)` — httpx.Client with Basic Auth (username='jsonrpc')
+- `call(method, **params)` — single JSON-RPC request, returns parsed `result`
+- `batch(calls)` — sends array of requests, re-orders responses by ID, returns list of results
+- Full exception mapping: JSON-RPC errors → KanboardAPIError, HTTP 401/403 → KanboardAuthError, ConnectError/TimeoutException → KanboardConnectionError, bad JSON → KanboardResponseError
+- DEBUG logging on request method and response result
+- Context manager (`__enter__`/`__exit__`) + `close()` for clean resource management
+- Updated `src/kanboard/__init__.py` to export `KanboardClient` (added to sorted `__all__`)
+- Created `tests/unit/test_client.py`: 25 tests covering all 8 acceptance criteria scenarios
+- **Learnings for future iterations:**
+  - pytest-httpx 0.36 works for sync `httpx.Client` — `httpx_mock` fixture intercepts at transport level
+  - Catch `httpx.ConnectError` and `httpx.TimeoutException` before generic `httpx.HTTPError`
+  - `typing.Self` available in Python 3.11 `typing` module — use for `__enter__` return type
+  - `types.TracebackType | None` is the correct annotation for `__exit__`'s `exc_tb` param
+  - Batch re-ordering: build `{id: response_item}` dict then iterate original request order
 ---
 
 ## PRD Run Context
