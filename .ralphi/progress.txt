@@ -1,3 +1,22 @@
+## 2026-03-22T05:15:00Z - US-007
+Session: iter-c9eb2576
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/subtasks.py` — `SubtasksResource` with all 5 methods: `create_subtask`, `get_subtask`, `get_all_subtasks`, `update_subtask`, `remove_subtask`
+- Wired `self.subtasks = SubtasksResource(self)` into `KanboardClient.__init__`
+- Exported `SubtasksResource` from `src/kanboard/__init__.py`
+- Added 24 unit tests in `tests/unit/resources/test_subtasks.py` covering: all 5 methods, success + error + empty paths, not-found error attributes, importability, client accessor, kwargs forwarding
+- All 658 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `KanboardNotFoundError` requires a positional message argument as its first param (e.g. `KanboardNotFoundError(f"Subtask {id} not found", resource=..., identifier=...)`) — `resource=` and `identifier=` are kwargs, not the first arg
+  - `update_subtask` raises `KanboardAPIError` on False (same "update = must succeed" pattern as `update_column`, `update_comment`, `update_category`, `update_tag`)
+  - `remove_subtask` returns `bool(result)` without raising on False — consistent with all other `remove_*` methods
+  - `get_all_subtasks` guards with `if not result: return []` (handles False, None, and `[]` from the API)
+  - `Subtask.from_api` maps: `id`, `title`, `task_id`, `user_id`, `status`, `time_estimated` (float), `time_spent` (float), `position`, `username`, `name` — all string-encoded in the API response
+---
+
 ## 2026-03-22T06:10:00Z - US-005
 Session: iter-30e30e5e
 Review Outcome: PASS
@@ -14,6 +33,66 @@ Corrective Plan: N/A
   - `remove_category` returns `bool(result)` without raising on False — consistent with other remove_* methods
   - `get_all_categories` uses `if not result: return []` which correctly handles False, None, and `[]` from the API
   - `Category.from_api` maps: `id`, `name`, `project_id`, `color_id` — all string-encoded in the API response, cast via `_int()` and `str()`
+---
+
+## 2026-03-22T05:05:00Z - US-006
+Session: iter-5edc326d
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/tags.py` — `TagsResource` with all 7 methods: `get_all_tags`, `get_tags_by_project`, `create_tag`, `update_tag`, `remove_tag`, `set_task_tags`, `get_task_tags`
+- Wired `self.tags = TagsResource(self)` into `KanboardClient.__init__`
+- Exported `TagsResource` from `src/kanboard/__init__.py`
+- Added 35 unit tests in `tests/unit/resources/test_tags.py` covering: all 7 methods, success + error + empty paths, importability, client accessor, kwargs forwarding
+- All 634 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `get_all_tags()` takes NO arguments — it's a project-agnostic endpoint returning all tags globally
+  - `get_task_tags()` returns a `dict` (tag_id → tag_name), not a list of Tag models — unique return type in this resource group
+  - `set_task_tags()` returns `bool` without raising on False — consistent with other `set_*` methods; replaces all existing tag assignments
+  - `update_tag` raises `KanboardAPIError` on False (same "update = must succeed" pattern as `update_column`, `update_comment`, `update_category`)
+  - `remove_tag` returns `bool(result)` without raising on False — consistent with all other `remove_*` methods
+---
+
+## 2026-03-22T05:10:00Z - US-008
+Session: iter-e31f1bc8
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/users.py` — `UsersResource` with all 10 methods: `create_user`, `create_ldap_user`, `get_user`, `get_user_by_name`, `get_all_users`, `update_user`, `remove_user`, `disable_user`, `enable_user`, `is_active_user`
+- Wired `self.users = UsersResource(self)` into `KanboardClient.__init__`
+- Exported `UsersResource` from `src/kanboard/__init__.py`
+- Added 42 unit tests in `tests/unit/resources/test_users.py` covering: all 10 methods, success + error + empty paths, field mapping (including optional None fields), not-found error attributes, importability, client accessor, kwargs forwarding
+- All 700 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `User.from_api` maps optional fields (`avatar_path`, `timezone`, `language`) as `str | None` — check for `None` before casting to `str`; other fields are all string-encoded in API response
+  - `create_ldap_user` only takes `username` (no password) — it reads from LDAP; maps to `createLdapUser` API method
+  - `get_user_by_name` uses `identifier=username` (a string) in `KanboardNotFoundError`, unlike `get_user` which uses `identifier=user_id` (int)
+  - `is_active_user` returns `bool` and does NOT raise on False — it is a query, not a command; `False` means the user is inactive
+  - `disable_user` and `enable_user` also return `bool(result)` without raising — same passive-return pattern as `remove_*` methods
+  - `update_user` raises `KanboardAPIError` on False — consistent with "update = must succeed" pattern seen in `update_column`, `update_comment`, `update_category`, `update_tag`, `update_subtask`
+---
+
+## 2026-03-22T07:30:00Z - US-009
+Session: iter-89ebb119
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/links.py` — `LinksResource` with all 7 methods: `get_all_links`, `get_opposite_link_id`, `get_link_by_label`, `get_link_by_id`, `create_link`, `update_link`, `remove_link`
+- Wired `self.links = LinksResource(self)` into `KanboardClient.__init__`
+- Exported `LinksResource` from `src/kanboard/__init__.py`
+- Added 35 unit tests in `tests/unit/resources/test_links.py` covering: all 7 methods, success + error + empty paths, both False/None not-found paths, zero-result guard for `get_opposite_link_id` and `create_link`, error attributes, importability, client accessor, kwargs forwarding
+- All 735 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `Link` model fields: `id`, `label`, `opposite_id` — note the field is `opposite_id` (not `opposite_link_id`) in the model, though the API method parameter is named `opposite_link_id`
+  - `get_link_by_label` and `get_link_by_id` both use `if not result` to guard (catches both `False` and `None`) before raising `KanboardNotFoundError`
+  - `get_opposite_link_id` and `create_link` also use `if not result` (catches `False` and `0`) before raising `KanboardAPIError`
+  - `get_link_by_label` uses `identifier=label` (string) in `KanboardNotFoundError`; `get_link_by_id` uses `identifier=link_id` (int)
+  - `update_link` raises `KanboardAPIError` on False — consistent with "update = must succeed" pattern
+  - `remove_link` returns `bool(result)` without raising — consistent with all other `remove_*` methods
+  - Kanboard API method names: `getAllLinks`, `getOppositeLinkId`, `getLinkByLabel`, `getLinkById`, `createLink`, `updateLink`, `removeLink`
 ---
 
 ## Codebase Patterns
