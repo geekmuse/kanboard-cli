@@ -14,6 +14,7 @@
 - For metadata-style APIs returning `dict` or `str` (no dataclass): format as `[{"key": k, "value": v}]` dicts for `format_output`.
 - `get_*_by_name` methods returning strings: use `result is None or result is False or result == ""` guard — `not result` alone fails because `False == 0` in Python, and `str(False)` gives `"False"`.
 - Ruff `RUF002` flags en-dash (`–`) in docstrings — always use plain hyphen-minus (`-`).
+- Ruff `D301` requires `r"""` prefix for docstrings containing backslashes (e.g. `\\TaskClose`).
 ---
 
 ## PRD Run Context
@@ -192,4 +193,25 @@ Corrective Plan: N/A
   - `get_external_task_link_types` and `get_external_task_link_provider_dependencies` return plain dicts (provider -> label, dependency -> label) - format as list of `{"key": k, "label": v}` dicts for table output.
   - `KanboardNotFoundError.__str__` auto-formats as `"Not found: {resource} '{identifier}' does not exist"` - test assertions must match this format, not the message passed to the constructor.
   - Network failure tests must use `httpx_mock.add_exception(httpx_lib.ConnectError("refused"))` pattern, NOT an unreachable URL - pytest-httpx asserts all requests are expected by default.
+---
+
+## 2026-03-22 - US-010
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/actions.py` with `ActionsResource` (6 methods: get_available_actions, get_available_action_events, get_compatible_action_events, get_actions, create_action, remove_action).
+- Implemented `src/kanboard_cli/commands/action.py` with 6 subcommands (list, available, events, compatible-events, create, remove).
+- Wired `ActionsResource` into `KanboardClient.actions`.
+- Exported `ActionsResource` from `kanboard` package `__init__.py`.
+- Replaced stub `action` group in `main.py` with real import from commands module.
+- Added 30 unit tests for SDK resource and 28 CLI tests (58 total); all pass.
+- Files changed: `src/kanboard/resources/actions.py`, `src/kanboard_cli/commands/action.py`, `src/kanboard/__init__.py`, `src/kanboard/client.py`, `src/kanboard_cli/main.py`, `tests/unit/resources/test_actions.py`, `tests/cli/test_action.py`.
+- **Learnings for future iterations:**
+  - Actions resource has a mix of return types: `get_available_actions` and `get_available_action_events` return dicts, `get_compatible_action_events` returns a list, `get_actions` returns list[Action], `create_action` returns int, `remove_action` returns bool.
+  - `get_compatible_action_events` may return either a list or a dict from the API - use `list()` to handle both (dict yields keys).
+  - Ruff `D301` requires `r"""` prefix for docstrings containing backslashes (e.g. `\\TaskClose` in examples).
+  - The `--param`/`-p` repeatable option with `multiple=True` is a good pattern for key=value pairs - parse with `split("=", 1)`.
+  - Ruff `N817` flags CamelCase imported as acronym - use full name aliases like `Imported` instead of abbreviations like `AR`.
 ---
