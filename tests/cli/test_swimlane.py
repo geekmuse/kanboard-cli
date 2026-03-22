@@ -136,9 +136,7 @@ def test_swimlane_list_csv(
 ) -> None:
     """``swimlane list --output csv`` renders swimlanes as CSV with a header row."""
     mock_client.swimlanes.get_active_swimlanes.return_value = [_make_swimlane()]
-    result = _invoke(
-        runner, mock_config, mock_client, ["--output", "csv", "swimlane", "list", "1"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["--output", "csv", "swimlane", "list", "1"])
     assert result.exit_code == 0
     assert "Default" in result.output
     assert "name" in result.output  # header row
@@ -202,9 +200,7 @@ def test_swimlane_get_json(
 ) -> None:
     """``swimlane get --output json`` renders a single JSON object."""
     mock_client.swimlanes.get_swimlane.return_value = _make_swimlane()
-    result = _invoke(
-        runner, mock_config, mock_client, ["--output", "json", "swimlane", "get", "3"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["--output", "json", "swimlane", "get", "3"])
     assert result.exit_code == 0
     data = json.loads(result.output)
     assert isinstance(data, dict)
@@ -238,9 +234,7 @@ def test_swimlane_get_by_name_table(
 ) -> None:
     """``swimlane get-by-name`` exits 0 and calls get_swimlane_by_name."""
     mock_client.swimlanes.get_swimlane_by_name.return_value = _make_swimlane()
-    result = _invoke(
-        runner, mock_config, mock_client, ["swimlane", "get-by-name", "1", "Default"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["swimlane", "get-by-name", "1", "Default"])
     assert result.exit_code == 0
     mock_client.swimlanes.get_swimlane_by_name.assert_called_once_with(1, "Default")
 
@@ -272,9 +266,7 @@ def test_swimlane_get_by_name_not_found(
         resource="Swimlane",
         identifier="Unknown",
     )
-    result = _invoke(
-        runner, mock_config, mock_client, ["swimlane", "get-by-name", "1", "Unknown"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["swimlane", "get-by-name", "1", "Unknown"])
     assert result.exit_code != 0
     assert "Error" in result.output
 
@@ -289,9 +281,7 @@ def test_swimlane_add_minimal(
 ) -> None:
     """``swimlane add`` with project_id and name creates a swimlane."""
     mock_client.swimlanes.add_swimlane.return_value = 5
-    result = _invoke(
-        runner, mock_config, mock_client, ["swimlane", "add", "1", "High Priority"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["swimlane", "add", "1", "High Priority"])
     assert result.exit_code == 0
     assert "5" in result.output
     mock_client.swimlanes.add_swimlane.assert_called_once_with(1, "High Priority")
@@ -412,9 +402,7 @@ def test_swimlane_remove_with_yes(
 ) -> None:
     """``swimlane remove --yes`` deletes without prompting."""
     mock_client.swimlanes.remove_swimlane.return_value = True
-    result = _invoke(
-        runner, mock_config, mock_client, ["swimlane", "remove", "1", "3", "--yes"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["swimlane", "remove", "1", "3", "--yes"])
     assert result.exit_code == 0
     assert "removed" in result.output
     mock_client.swimlanes.remove_swimlane.assert_called_once_with(1, 3)

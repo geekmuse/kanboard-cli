@@ -55,9 +55,7 @@ def test_create_task_link_returns_int_id(httpx_mock: HTTPXMock) -> None:
     """create_task_link() returns the new task link ID as an int."""
     httpx_mock.add_response(json=_rpc_ok(5))
     with KanboardClient(_URL, _TOKEN) as client:
-        result = client.task_links.create_task_link(
-            task_id=10, opposite_task_id=20, link_id=1
-        )
+        result = client.task_links.create_task_link(task_id=10, opposite_task_id=20, link_id=1)
     assert result == 5
     assert isinstance(result, int)
 
@@ -67,9 +65,7 @@ def test_create_task_link_raises_on_false(httpx_mock: HTTPXMock) -> None:
     httpx_mock.add_response(json=_rpc_ok(False))
     with KanboardClient(_URL, _TOKEN) as client:
         with pytest.raises(KanboardAPIError, match="Failed to create task link"):
-            client.task_links.create_task_link(
-                task_id=10, opposite_task_id=20, link_id=1
-            )
+            client.task_links.create_task_link(task_id=10, opposite_task_id=20, link_id=1)
 
 
 def test_create_task_link_raises_on_zero(httpx_mock: HTTPXMock) -> None:
@@ -77,9 +73,7 @@ def test_create_task_link_raises_on_zero(httpx_mock: HTTPXMock) -> None:
     httpx_mock.add_response(json=_rpc_ok(0))
     with KanboardClient(_URL, _TOKEN) as client:
         with pytest.raises(KanboardAPIError, match="Failed to create task link"):
-            client.task_links.create_task_link(
-                task_id=10, opposite_task_id=20, link_id=1
-            )
+            client.task_links.create_task_link(task_id=10, opposite_task_id=20, link_id=1)
 
 
 def test_create_task_link_raises_on_rpc_error(httpx_mock: HTTPXMock) -> None:
@@ -87,9 +81,7 @@ def test_create_task_link_raises_on_rpc_error(httpx_mock: HTTPXMock) -> None:
     httpx_mock.add_response(json=_rpc_err(-32600, "Invalid request"))
     with KanboardClient(_URL, _TOKEN) as client:
         with pytest.raises(KanboardAPIError):
-            client.task_links.create_task_link(
-                task_id=10, opposite_task_id=20, link_id=1
-            )
+            client.task_links.create_task_link(task_id=10, opposite_task_id=20, link_id=1)
 
 
 # ---------------------------------------------------------------------------

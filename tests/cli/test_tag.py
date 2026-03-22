@@ -119,9 +119,7 @@ def test_tag_list_json(
 ) -> None:
     """``tag list --output json`` renders tags as a JSON array."""
     mock_client.tags.get_all_tags.return_value = [_make_tag()]
-    result = _invoke(
-        runner, mock_config, mock_client, ["--output", "json", "tag", "list"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["--output", "json", "tag", "list"])
     assert result.exit_code == 0
     data = json.loads(result.output)
     assert isinstance(data, list)
@@ -192,9 +190,7 @@ def test_tag_get_json(
 ) -> None:
     """``tag get --output json`` renders the task tags as a JSON object."""
     mock_client.tags.get_task_tags.return_value = {"5": "urgent"}
-    result = _invoke(
-        runner, mock_config, mock_client, ["--output", "json", "tag", "get", "42"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["--output", "json", "tag", "get", "42"])
     assert result.exit_code == 0
     data = json.loads(result.output)
     assert isinstance(data, dict)
@@ -340,9 +336,7 @@ def test_tag_remove_without_yes_aborts(
     runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
 ) -> None:
     """``tag remove`` without --yes and answering 'n' aborts."""
-    result = _invoke(
-        runner, mock_config, mock_client, ["tag", "remove", "5"], input="n\n"
-    )
+    result = _invoke(runner, mock_config, mock_client, ["tag", "remove", "5"], input="n\n")
     assert result.exit_code != 0
     mock_client.tags.remove_tag.assert_not_called()
 
@@ -352,9 +346,7 @@ def test_tag_remove_interactive_confirm(
 ) -> None:
     """``tag remove`` without --yes and answering 'y' proceeds."""
     mock_client.tags.remove_tag.return_value = True
-    result = _invoke(
-        runner, mock_config, mock_client, ["tag", "remove", "5"], input="y\n"
-    )
+    result = _invoke(runner, mock_config, mock_client, ["tag", "remove", "5"], input="y\n")
     assert result.exit_code == 0
     mock_client.tags.remove_tag.assert_called_once_with(5)
 
@@ -377,9 +369,7 @@ def test_tag_set_success(
 ) -> None:
     """``tag set`` assigns tags to a task and prints a success message."""
     mock_client.tags.set_task_tags.return_value = True
-    result = _invoke(
-        runner, mock_config, mock_client, ["tag", "set", "1", "42", "urgent", "bug"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["tag", "set", "1", "42", "urgent", "bug"])
     assert result.exit_code == 0
     assert "42" in result.output
     mock_client.tags.set_task_tags.assert_called_once_with(1, 42, ["urgent", "bug"])
@@ -390,9 +380,7 @@ def test_tag_set_single_tag(
 ) -> None:
     """``tag set`` with a single tag assigns it correctly."""
     mock_client.tags.set_task_tags.return_value = True
-    result = _invoke(
-        runner, mock_config, mock_client, ["tag", "set", "1", "42", "urgent"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["tag", "set", "1", "42", "urgent"])
     assert result.exit_code == 0
     mock_client.tags.set_task_tags.assert_called_once_with(1, 42, ["urgent"])
 
@@ -404,9 +392,7 @@ def test_tag_set_api_error(
     mock_client.tags.set_task_tags.side_effect = KanboardAPIError(
         "setTaskTags failed", method="setTaskTags", code=None
     )
-    result = _invoke(
-        runner, mock_config, mock_client, ["tag", "set", "1", "42", "urgent"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["tag", "set", "1", "42", "urgent"])
     assert result.exit_code != 0
     assert "Error" in result.output
 

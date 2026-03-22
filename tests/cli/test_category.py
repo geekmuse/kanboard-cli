@@ -123,9 +123,7 @@ def test_category_list_csv(
 ) -> None:
     """``category list --output csv`` renders categories as CSV with a header row."""
     mock_client.categories.get_all_categories.return_value = [_make_category()]
-    result = _invoke(
-        runner, mock_config, mock_client, ["--output", "csv", "category", "list", "1"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["--output", "csv", "category", "list", "1"])
     assert result.exit_code == 0
     assert "Frontend" in result.output
     assert "id" in result.output  # header row
@@ -201,9 +199,7 @@ def test_category_get_json(
 ) -> None:
     """``category get --output json`` renders the category as a JSON object."""
     mock_client.categories.get_category.return_value = _make_category()
-    result = _invoke(
-        runner, mock_config, mock_client, ["--output", "json", "category", "get", "3"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["--output", "json", "category", "get", "3"])
     assert result.exit_code == 0
     data = json.loads(result.output)
     assert data["id"] == 3
@@ -240,9 +236,7 @@ def test_category_create_success(
 ) -> None:
     """``category create`` creates a category and prints the new ID."""
     mock_client.categories.create_category.return_value = 3
-    result = _invoke(
-        runner, mock_config, mock_client, ["category", "create", "1", "Frontend"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["category", "create", "1", "Frontend"])
     assert result.exit_code == 0
     assert "3" in result.output
     mock_client.categories.create_category.assert_called_once_with(1, "Frontend")
@@ -260,9 +254,7 @@ def test_category_create_with_color_id(
         ["category", "create", "1", "Backend", "--color-id", "blue"],
     )
     assert result.exit_code == 0
-    mock_client.categories.create_category.assert_called_once_with(
-        1, "Backend", color_id="blue"
-    )
+    mock_client.categories.create_category.assert_called_once_with(1, "Backend", color_id="blue")
 
 
 def test_category_create_api_error(
@@ -272,9 +264,7 @@ def test_category_create_api_error(
     mock_client.categories.create_category.side_effect = KanboardAPIError(
         "createCategory failed", method="createCategory", code=None
     )
-    result = _invoke(
-        runner, mock_config, mock_client, ["category", "create", "1", "Frontend"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["category", "create", "1", "Frontend"])
     assert result.exit_code != 0
     assert "Error" in result.output
 
@@ -297,9 +287,7 @@ def test_category_update_success(
 ) -> None:
     """``category update`` updates a category and prints a success message."""
     mock_client.categories.update_category.return_value = True
-    result = _invoke(
-        runner, mock_config, mock_client, ["category", "update", "3", "Renamed"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["category", "update", "3", "Renamed"])
     assert result.exit_code == 0
     assert "3" in result.output
     mock_client.categories.update_category.assert_called_once_with(3, "Renamed")
@@ -317,9 +305,7 @@ def test_category_update_with_color_id(
         ["category", "update", "3", "Frontend", "--color-id", "green"],
     )
     assert result.exit_code == 0
-    mock_client.categories.update_category.assert_called_once_with(
-        3, "Frontend", color_id="green"
-    )
+    mock_client.categories.update_category.assert_called_once_with(3, "Frontend", color_id="green")
 
 
 def test_category_update_api_error(
@@ -329,9 +315,7 @@ def test_category_update_api_error(
     mock_client.categories.update_category.side_effect = KanboardAPIError(
         "updateCategory failed", method="updateCategory", code=None
     )
-    result = _invoke(
-        runner, mock_config, mock_client, ["category", "update", "3", "New Name"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["category", "update", "3", "New Name"])
     assert result.exit_code != 0
     assert "Error" in result.output
 
@@ -354,9 +338,7 @@ def test_category_remove_with_yes(
 ) -> None:
     """``category remove --yes`` removes without prompting."""
     mock_client.categories.remove_category.return_value = True
-    result = _invoke(
-        runner, mock_config, mock_client, ["category", "remove", "3", "--yes"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["category", "remove", "3", "--yes"])
     assert result.exit_code == 0
     assert "3" in result.output
     mock_client.categories.remove_category.assert_called_once_with(3)
@@ -366,9 +348,7 @@ def test_category_remove_without_yes_aborts(
     runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
 ) -> None:
     """``category remove`` without --yes and answering 'n' aborts."""
-    result = _invoke(
-        runner, mock_config, mock_client, ["category", "remove", "3"], input="n\n"
-    )
+    result = _invoke(runner, mock_config, mock_client, ["category", "remove", "3"], input="n\n")
     assert result.exit_code != 0
     mock_client.categories.remove_category.assert_not_called()
 
@@ -378,9 +358,7 @@ def test_category_remove_interactive_confirm(
 ) -> None:
     """``category remove`` without --yes and answering 'y' proceeds."""
     mock_client.categories.remove_category.return_value = True
-    result = _invoke(
-        runner, mock_config, mock_client, ["category", "remove", "3"], input="y\n"
-    )
+    result = _invoke(runner, mock_config, mock_client, ["category", "remove", "3"], input="y\n")
     assert result.exit_code == 0
     mock_client.categories.remove_category.assert_called_once_with(3)
 

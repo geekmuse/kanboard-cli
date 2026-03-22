@@ -20,11 +20,13 @@ from kanboard_cli.commands.board import board
 from kanboard_cli.commands.category import category
 from kanboard_cli.commands.column import column
 from kanboard_cli.commands.comment import comment
+from kanboard_cli.commands.link import link
 from kanboard_cli.commands.project import project
 from kanboard_cli.commands.subtask import subtask
 from kanboard_cli.commands.swimlane import swimlane
 from kanboard_cli.commands.tag import tag
 from kanboard_cli.commands.task import task
+from kanboard_cli.commands.task_link import task_link
 from kanboard_cli.commands.user import user
 
 logger = logging.getLogger(__name__)
@@ -160,16 +162,6 @@ def timer() -> None:
 @click.group()
 def me() -> None:
     """Commands for the authenticated user."""
-
-
-@click.group()
-def link() -> None:
-    """Manage link type definitions."""
-
-
-@click.group(name="task-link")
-def task_link() -> None:
-    """Manage links between tasks."""
 
 
 @click.group(name="external-link")

@@ -84,9 +84,7 @@ def test_create_category_forwards_kwargs(httpx_mock: HTTPXMock) -> None:
     """create_category() accepts and forwards extra keyword arguments to the API."""
     httpx_mock.add_response(json=_rpc_ok(7))
     with KanboardClient(_URL, _TOKEN) as client:
-        result = client.categories.create_category(
-            project_id=1, name="Feature", color_id="blue"
-        )
+        result = client.categories.create_category(project_id=1, name="Feature", color_id="blue")
     assert result == 7
 
 

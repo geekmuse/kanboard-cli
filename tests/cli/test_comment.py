@@ -124,9 +124,7 @@ def test_comment_list_csv(
 ) -> None:
     """``comment list --output csv`` renders comments as CSV with a header row."""
     mock_client.comments.get_all_comments.return_value = [_make_comment()]
-    result = _invoke(
-        runner, mock_config, mock_client, ["--output", "csv", "comment", "list", "42"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["--output", "csv", "comment", "list", "42"])
     assert result.exit_code == 0
     assert "jdoe" in result.output
     assert "id" in result.output  # header row
@@ -199,9 +197,7 @@ def test_comment_get_json(
 ) -> None:
     """``comment get --output json`` renders the comment as a JSON object."""
     mock_client.comments.get_comment.return_value = _make_comment()
-    result = _invoke(
-        runner, mock_config, mock_client, ["--output", "json", "comment", "get", "7"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["--output", "json", "comment", "get", "7"])
     assert result.exit_code == 0
     data = json.loads(result.output)
     assert data["id"] == 7
@@ -270,9 +266,7 @@ def test_comment_add_missing_user_id(
     runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
 ) -> None:
     """``comment add`` without --user-id exits non-zero (required option)."""
-    result = _invoke(
-        runner, mock_config, mock_client, ["comment", "add", "42", "Some text."]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["comment", "add", "42", "Some text."])
     assert result.exit_code != 0
 
 
@@ -294,9 +288,7 @@ def test_comment_update_success(
 ) -> None:
     """``comment update`` updates a comment and prints a success message."""
     mock_client.comments.update_comment.return_value = True
-    result = _invoke(
-        runner, mock_config, mock_client, ["comment", "update", "7", "Updated text."]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["comment", "update", "7", "Updated text."])
     assert result.exit_code == 0
     assert "7" in result.output
     mock_client.comments.update_comment.assert_called_once_with(7, "Updated text.")
@@ -309,9 +301,7 @@ def test_comment_update_api_error(
     mock_client.comments.update_comment.side_effect = KanboardAPIError(
         "updateComment failed", method="updateComment", code=None
     )
-    result = _invoke(
-        runner, mock_config, mock_client, ["comment", "update", "7", "New text."]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["comment", "update", "7", "New text."])
     assert result.exit_code != 0
     assert "Error" in result.output
 
@@ -344,9 +334,7 @@ def test_comment_remove_without_yes_aborts(
     runner: CliRunner, mock_config: KanboardConfig, mock_client: MagicMock
 ) -> None:
     """``comment remove`` without --yes and answering 'n' aborts."""
-    result = _invoke(
-        runner, mock_config, mock_client, ["comment", "remove", "7"], input="n\n"
-    )
+    result = _invoke(runner, mock_config, mock_client, ["comment", "remove", "7"], input="n\n")
     assert result.exit_code != 0
     mock_client.comments.remove_comment.assert_not_called()
 
@@ -356,9 +344,7 @@ def test_comment_remove_interactive_confirm(
 ) -> None:
     """``comment remove`` without --yes and answering 'y' proceeds."""
     mock_client.comments.remove_comment.return_value = True
-    result = _invoke(
-        runner, mock_config, mock_client, ["comment", "remove", "7"], input="y\n"
-    )
+    result = _invoke(runner, mock_config, mock_client, ["comment", "remove", "7"], input="y\n")
     assert result.exit_code == 0
     mock_client.comments.remove_comment.assert_called_once_with(7)
 

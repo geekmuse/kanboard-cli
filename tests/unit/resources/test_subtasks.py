@@ -229,9 +229,7 @@ def test_update_subtask_forwards_kwargs(httpx_mock: HTTPXMock) -> None:
     """update_subtask() forwards optional kwargs to the API."""
     httpx_mock.add_response(json=_rpc_ok(True))
     with KanboardClient(_URL, _TOKEN) as client:
-        result = client.subtasks.update_subtask(
-            id=5, task_id=42, status=2, time_spent=2.5
-        )
+        result = client.subtasks.update_subtask(id=5, task_id=42, status=2, time_spent=2.5)
     assert result is True
 
 
