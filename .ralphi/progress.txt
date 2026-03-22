@@ -134,3 +134,23 @@ Corrective Plan: N/A
   - For `add-user`/`add-group` with optional `--role`, build kwargs dict conditionally rather than always passing `role=None` - the API may not accept explicit `None`.
   - The `user-role` query command returns a single string role - format as `{"user_id": str(user_id), "role": role}` for consistent output across formats.
 ---
+
+## 2026-03-22 - US-007
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/groups.py` with `GroupsResource` (5 methods: create_group, get_group, get_all_groups, update_group, remove_group).
+- Implemented `src/kanboard_cli/commands/group.py` with 5 subcommands (list, get, create, update, remove).
+- Wired `GroupsResource` into `KanboardClient.groups`.
+- Exported `GroupsResource` from `kanboard` package `__init__.py`.
+- Replaced stub `group` group in `main.py` with real import from commands module.
+- Added 32 unit tests for SDK resource and 24 CLI tests (56 total); all pass.
+- Files changed: `src/kanboard/resources/groups.py`, `src/kanboard_cli/commands/group.py`, `src/kanboard/__init__.py`, `src/kanboard/client.py`, `src/kanboard_cli/main.py`, `tests/unit/resources/test_groups.py`, `tests/cli/test_group.py`.
+- **Learnings for future iterations:**
+  - Groups resource is a clean, simple model with only 3 fields (id, name, external_id) - straightforward dataclass mapping.
+  - `update_group` raises KanboardAPIError on False (mutation), while `remove_group` just returns bool (consistent with project_files pattern for non-critical removals).
+  - Single-item JSON output from `format_output` returns a plain dict, not a list wrapping one element - test assertions should use `data["key"]` not `data[0]["key"]`.
+  - US-008 (Group members) depends on US-007 and will add sub-commands under `kanboard group member ...` - need to plan for nested command groups.
+---
