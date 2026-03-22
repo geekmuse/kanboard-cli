@@ -6,6 +6,11 @@
 - **Orchestration models have no from_api()**: `Portfolio`, `Milestone`, `MilestoneProgress`, `DependencyEdge` are composed client-side from multiple API responses — never deserialize from a single JSON-RPC dict.
 - **Mutable list fields use `dataclasses.field(default_factory=list)`**: required for any dataclass with list defaults to prevent shared-state bugs between instances.
 - **Milestone defined before Portfolio in models.py**: `Portfolio.milestones: list[Milestone]` requires `Milestone` to be defined first (even with `from __future__ import annotations`, ordering matters for clarity).
+- **LocalPortfolioStore atomic writes**: use `tempfile.mkstemp(dir=same_dir)` + `os.replace()` for atomic JSON writes; never write directly to the target path.
+- **Store schema version**: JSON store file always has `{"version": 1, "portfolios": [...]}`. Raise `KanboardConfigError` on malformed JSON or version mismatch.
+- **Store CRUD pattern**: load() → mutate in-memory → save() — each write method loads current state, modifies, and persists atomically. No in-memory cache — always reads from disk.
+- **Store datetime serialization**: `datetime.isoformat()` for write, `datetime.fromisoformat()` for read. `None` dates stored as JSON `null`.
+- **ruff I001**: import block must be isort-sorted in tests — run `ruff check --fix` before committing.
 ---
 
 ## PRD Run Context
@@ -51,4 +56,33 @@ Corrective Plan: N/A
   - Watch for EN DASH (`–`) vs HYPHEN-MINUS (`-`) in docstrings — ruff RUF002 flags it
   - `__all__` insertion order: D (DependencyEdge) after CommentsResource; M (Milestone, MilestoneProgress) after MeResource; P (Portfolio) after MilestoneProgress and before Project
   - Test `no_from_api_classmethod` with `assert not hasattr(Cls, "from_api")` — simple and unambiguous
+---
+
+## 2026-03-22 - US-003
+Session: iter-2ecf1019
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented full `LocalPortfolioStore` in `src/kanboard/orchestration/store.py`
+- Serialisation helpers: `_dt_to_str` / `_str_to_dt` (ISO-8601), `_milestone_to_dict` / `_milestone_from_dict`, `_portfolio_to_dict` / `_portfolio_from_dict`
+- Atomic writes via `tempfile.mkstemp(dir=same_dir)` + `os.replace()` with cleanup on failure
+- Full CRUD: `create_portfolio`, `get_portfolio`, `update_portfolio`, `remove_portfolio`
+- Project membership: `add_project` (idempotent), `remove_project` (idempotent)
+- Milestone CRUD: `add_milestone`, `update_milestone`, `remove_milestone`
+- Task membership: `add_task_to_milestone` (idempotent, optional `critical=True`), `remove_task_from_milestone` (removes from both `task_ids` and `critical_task_ids`)
+- Parent dirs created automatically on first write via `Path.mkdir(parents=True, exist_ok=True)`
+- `load()` returns `[]` on missing file; raises `KanboardConfigError` on bad JSON or schema version mismatch
+- `get_portfolio()` raises `KanboardConfigError` (not `KeyError`) when not found
+- `create_portfolio()` raises `ValueError` on duplicate name; `add_milestone()` raises `ValueError` on duplicate within portfolio
+- Written 75 tests in `tests/unit/orchestration/test_store.py` using `tmp_path` fixture only (zero real filesystem access)
+- Coverage: 97% on `store.py` (≥95% required); uncovered lines are defensive error-path cleanup in `save()`
+- Fixed ruff I001 (unsorted imports) in test file before commit
+- Files changed: `src/kanboard/orchestration/store.py`, `tests/unit/orchestration/test_store.py`
+- **Learnings for future iterations:**
+  - `tempfile.mkstemp()` returns `(fd, str_path)` — wrap `fd` with `os.fdopen()` and use `os.replace(str_path, target)` for atomic rename
+  - `Path.unlink(missing_ok=True)` available Python 3.8+ — use it for cleanup
+  - Import private helpers (`_dt_to_str`, etc.) in tests to get full serialiser coverage without needing integration tests
+  - `monkeypatch.setattr(cfg_module, "CONFIG_DIR", fake_path)` is the correct pattern to test default path without touching real filesystem — avoids a `LocalPortfolioStore()` call that would hit `~/.config/kanboard/`
+  - Pre-commit hook runs full 2155-test suite (takes ~4 min) — be patient; do not use `--no-verify`
 ---

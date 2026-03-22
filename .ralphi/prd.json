@@ -47,8 +47,8 @@
       ],
       "notes": "Portfolio/Milestone are mutable (edited locally before syncing). MilestoneProgress and DependencyEdge are computed/read-only but kept mutable for simplicity.",
       "startedAt": "2026-03-22T18:16:59.228Z",
-      "updatedAt": "2026-03-22T19:10:00.000Z",
-      "completedAt": "2026-03-22T19:10:00.000Z"
+      "updatedAt": "2026-03-22T18:34:01.078Z",
+      "completedAt": "2026-03-22T18:34:01.078Z"
     },
     {
       "id": "US-003",
@@ -74,12 +74,15 @@
         "pytest passes"
       ],
       "priority": 3,
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-001",
         "US-002"
       ],
-      "notes": "Portfolio names are case-sensitive and unique. Milestone names are unique within a portfolio. File format version field is 1. Use json stdlib only — no external deps."
+      "notes": "Portfolio names are case-sensitive and unique. Milestone names are unique within a portfolio. File format version field is 1. Use json stdlib only — no external deps.",
+      "startedAt": "2026-03-22T18:34:01.794Z",
+      "updatedAt": "2026-03-22T18:55:00.000Z",
+      "completedAt": "2026-03-22T18:55:00.000Z"
     },
     {
       "id": "US-004",
