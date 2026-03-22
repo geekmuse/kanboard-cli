@@ -299,3 +299,36 @@ Corrective Plan: N/A
   - Sorting discovered workflows by `wf.name` ensures deterministic ordering across platforms.
   - The `workflow list` command uses deferred `discover_workflows()` import in the command handler (not at module load time) to avoid issues with test patching.
 ---
+
+## 2026-03-22 - US-015
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Filled test coverage gaps across all Milestone 3 CLI and SDK test suites.
+- Added 8 output format tests for `me` CLI commands (`--output json/csv/quiet`) verifying auth error output consistency across all formats.
+- Added 7 additional timer CLI tests: "not running" status across json/csv/quiet formats, zero-spent across json/csv/quiet formats.
+- Added 3 empty-result multi-format tests for `project-file list` (json/csv/quiet empty array rendering).
+- Added 3 empty-result multi-format tests for `group list` (json/csv/quiet empty array rendering).
+- Added 3 empty-result multi-format tests for `action list` (json/csv/quiet empty array rendering).
+- Added 2 empty-result multi-format tests for `external-link list` (json/quiet empty rendering).
+- Final test count: 1753 tests, all passing.
+- Coverage: 100% on src/kanboard/resources/ (852 statements, 0 missed).
+- All acceptance criteria verified:
+  - ≥90% coverage (100% achieved)
+  - Error path tests for every M3 resource (NotFoundError, APIError, ConnectionError, AuthError where applicable)
+  - All 4 output formats tested for at least one command per new CLI group
+  - --yes confirmation tested for all 11 M3 destructive commands
+  - Empty result rendering tested for all list commands
+  - Network failure tests for all HTTP-calling M3 SDK resources
+  - All test files follow existing conventions
+  - ruff check passes, pytest passes
+- Files changed: `tests/cli/test_me.py`, `tests/cli/test_timer.py`, `tests/cli/test_project_file.py`, `tests/cli/test_group.py`, `tests/cli/test_action.py`, `tests/cli/test_external_link.py`, `.ralphi/prd.json`.
+- **Learnings for future iterations:**
+  - The `me` resource is a special case — all methods raise KanboardAuthError before making HTTP calls, so ConnectionError tests are N/A and output format tests verify error (not data) display.
+  - Timer commands (status, start, stop, spent) are non-destructive so no --yes tests needed.
+  - Timer and me have no list commands, so empty result tests don't apply.
+  - When ClickException is raised, output format (--output json/csv/quiet) does not change the error display — Click handles error output independently.
+  - This milestone (15 stories) is now fully complete with 100% resource test coverage.
+---
