@@ -11,6 +11,9 @@
 - `download` commands use `[--output PATH]` (named `output_path` to avoid shadowing Click's `output`).
 - Rich table may truncate long cell values — test assertions should check for a prefix, not the full value.
 - Pre-existing `scripts/bump_version.py` had a ruff `F541` error — fixed in US-001 commit.
+- For metadata-style APIs returning `dict` or `str` (no dataclass): format as `[{"key": k, "value": v}]` dicts for `format_output`.
+- `get_*_by_name` methods returning strings: use `result is None or result is False or result == ""` guard — `not result` alone fails because `False == 0` in Python, and `str(False)` gives `"False"`.
+- Ruff `RUF002` flags en-dash (`–`) in docstrings — always use plain hyphen-minus (`-`).
 ---
 
 ## PRD Run Context
@@ -56,4 +59,24 @@ Corrective Plan: N/A
   - Task file API signatures differ from project files: `get_task_file(file_id)` and `download_task_file(file_id)` take only `file_id` (no project_id), while `create_task_file` takes both `project_id` and `task_id`.
   - Import ordering in `client.py` must be alphabetical by module path — `task_files` goes after `tags` and before `task_links`.
   - The `ruff format` pre-commit hook may reformat newly created files — watch for that in the commit output.
+---
+
+## 2026-03-22 - US-003
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/project_metadata.py` with `ProjectMetadataResource` (4 methods: get_project_metadata, get_project_metadata_by_name, save_project_metadata, remove_project_metadata).
+- Implemented `src/kanboard_cli/commands/project_meta.py` with 4 subcommands (list, get, set, remove).
+- Wired `ProjectMetadataResource` into `KanboardClient.project_metadata`.
+- Exported `ProjectMetadataResource` from `kanboard` package `__init__.py`.
+- Replaced stub `project_meta` group in `main.py` with real import.
+- Added 24 unit tests for SDK resource and 20 CLI tests (44 total); all pass.
+- Files changed: `src/kanboard/resources/project_metadata.py`, `src/kanboard_cli/commands/project_meta.py`, `src/kanboard/__init__.py`, `src/kanboard/client.py`, `src/kanboard_cli/main.py`, `tests/unit/resources/test_project_metadata.py`, `tests/cli/test_project_meta.py`.
+- **Learnings for future iterations:**
+  - Metadata APIs return plain dicts/strings, not dataclass models — format list output as `[{"key": k, "value": v}]` dicts.
+  - `get_*_by_name` methods: `not result` fails to catch `False` because `False == 0` in Python — use explicit `result is None or result is False` guard.
+  - Ruff `RUF002` flags en-dash characters in docstrings — always use plain hyphen-minus.
+  - Ruff line-length `E501` applies to docstring lines too — keep class cross-references short when embedded in docstrings.
 ---

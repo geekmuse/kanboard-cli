@@ -94,12 +94,12 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 3,
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "notes": "",
       "startedAt": "2026-03-22T06:22:02.715Z",
-      "updatedAt": "2026-03-22T06:22:02.715Z",
-      "completedAt": null
+      "updatedAt": "2026-03-22T06:30:00.000Z",
+      "completedAt": "2026-03-22T06:30:00.000Z"
     },
     {
       "id": "US-004",
