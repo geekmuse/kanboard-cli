@@ -37,6 +37,7 @@ from kanboard.models import (
     User,
 )
 from kanboard.resources.actions import ActionsResource
+from kanboard.resources.application import ApplicationResource
 from kanboard.resources.board import BoardResource
 from kanboard.resources.categories import CategoriesResource
 from kanboard.resources.columns import ColumnsResource
@@ -66,6 +67,7 @@ __all__ = [
     "WORKFLOW_DIR",
     "Action",
     "ActionsResource",
+    "ApplicationResource",
     "BoardResource",
     "CategoriesResource",
     "Category",

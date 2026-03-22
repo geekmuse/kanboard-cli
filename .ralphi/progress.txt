@@ -236,3 +236,24 @@ Corrective Plan: N/A
   - CLI commands outputting simple status/query data format as `[{"key": ..., "value": ...}]` list-of-dicts for `format_output` consistency across all output formats.
   - Import ordering in `main.py` is strictly alphabetical by module path - `timer` goes after `task_meta` and before `user`.
 ---
+
+## 2026-03-22 - US-012
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/me.py` with `MeResource` (7 methods: get_me, get_my_dashboard, get_my_activity_stream, create_my_private_project, get_my_projects_list, get_my_overdue_tasks, get_my_projects).
+- All 7 methods raise `KanboardAuthError` with a clear message explaining User API auth is required (not yet implemented; planned for Milestone 4).
+- Implemented `src/kanboard_cli/commands/me.py` with 6 subcommands (default show, dashboard, activity, projects, overdue, create-project). Uses `invoke_without_command=True` so bare `kanboard me` shows current user info.
+- Wired `MeResource` into `KanboardClient.me`.
+- Exported `MeResource` from `kanboard` package `__init__.py`.
+- Replaced stub `me` group in `main.py` with real import from commands module.
+- Added 12 unit tests for SDK resource and 12 CLI tests (24 total); all pass.
+- Files changed: `src/kanboard/resources/me.py`, `src/kanboard_cli/commands/me.py`, `src/kanboard/__init__.py`, `src/kanboard/client.py`, `src/kanboard_cli/main.py`, `tests/unit/resources/test_me.py`, `tests/cli/test_me.py`.
+- **Learnings for future iterations:**
+  - `invoke_without_command=True` on a Click group allows the group itself to act as a command when no subcommand is given - useful for "me" which should show the current user by default.
+  - Resource methods that unconditionally raise exceptions don't need pytest-httpx mocking - no HTTP calls are made.
+  - The `KanboardAuthError` class supports an optional `http_status` parameter, but for pre-emptive auth errors (before any HTTP call), omit it - the `__str__` format changes accordingly.
+  - When all SDK methods raise errors, CLI tests can use `MagicMock` with `side_effect=KanboardAuthError(...)` on each method rather than patching the actual resource class.
+---

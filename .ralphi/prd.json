@@ -385,12 +385,12 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 12,
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "notes": "All 7 methods raise KanboardAuthError until User API auth is implemented in Milestone 4 (Task 46).",
       "startedAt": "2026-03-22T07:18:37.261Z",
-      "updatedAt": "2026-03-22T07:18:37.261Z",
-      "completedAt": null
+      "updatedAt": "2026-03-22T07:23:56.789Z",
+      "completedAt": "2026-03-22T07:23:56.789Z"
     },
     {
       "id": "US-013",
@@ -419,9 +419,12 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 13,
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
-      "notes": ""
+      "notes": "",
+      "startedAt": "2026-03-22T07:23:57.239Z",
+      "updatedAt": "2026-03-22T07:23:57.239Z",
+      "completedAt": null
     },
     {
       "id": "US-014",

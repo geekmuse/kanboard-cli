@@ -17,6 +17,7 @@ from kanboard.client import KanboardClient
 from kanboard.config import KanboardConfig
 from kanboard.exceptions import KanboardConfigError
 from kanboard_cli.commands.action import action
+from kanboard_cli.commands.app_info import app
 from kanboard_cli.commands.board import board
 from kanboard_cli.commands.category import category
 from kanboard_cli.commands.column import column
@@ -162,11 +163,6 @@ def cli(
 # Stub command groups
 # (Populated with real sub-commands in later user stories)
 # ---------------------------------------------------------------------------
-
-
-@click.group()
-def app() -> None:
-    """Application-level information and settings."""
 
 
 @click.group(name="config")
