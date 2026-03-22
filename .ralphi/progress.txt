@@ -1,4 +1,8 @@
 ## Codebase Patterns
+- **`project` group replaces stub in `main.py`**: The stub `@click.group() def project()` is removed from `main.py`; the real group is imported with `from kanboard_cli.commands.project import project`. Same pattern as `task`.
+- **`project activity` returns `list[dict]` not typed models**: Activity events are raw dicts from the SDK. `format_output` handles them via `_normalize` → list of dicts path — no dataclass required.
+- **`project update` guards against no-op**: Same pattern as `task update` — build `kwargs`, raise `click.UsageError` if empty. Keeps the CLI honest about destructive no-ops.
+
 - **CLI command modules use `TYPE_CHECKING` guard for `AppContext` import**: `commands/task.py` imports `AppContext` from `kanboard_cli.main` only under `if TYPE_CHECKING:` to avoid circular imports. At runtime the import is skipped; type checkers still resolve it. Required because `main.py` imports from `commands/`.
 - **CLI `task` group replaces stub in `main.py`**: The stub `@click.group() def task()` is removed from `main.py`; the real group is imported with `from kanboard_cli.commands.task import task`. Same pattern applies to all future command modules.
 - **CliRunner + Rich table assertions**: Rich tables in CliRunner tests have an unpredictable effective terminal width (often very narrow), causing cell data to be truncated to `…`. Use `--output json` or `--output csv` for data-value assertions; table tests should only check `exit_code == 0` and mock call assertions.
@@ -46,6 +50,30 @@
 - **src/ layout + hatchling**: Wheel packages must be explicitly listed in `[tool.hatch.build.targets.wheel]` as `packages = ["src/kanboard", "src/kanboard_cli"]`.
 - **strict ruff convention=google**: pydocstyle convention is Google-style (D2xx). Ignore D203+D213 (conflict with D211+D212).
 - **per-file-ignores F401**: Add `"src/**/__init__.py" = ["F401"]` to allow re-export patterns in `__init__.py`.
+---
+
+## 2026-03-22 - US-012
+Session: iter-929a3b92
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `src/kanboard_cli/commands/project.py` with 8 project subcommands: list, get, create, update, remove, enable, disable, activity
+- Replaced stub `project` group in `main.py` with import from `commands/project.py`
+- `project list` → `get_all_projects()` with `_LIST_COLUMNS` (id, name, is_active, is_public, owner_id, identifier, last_modified)
+- `project get` → `get_project_by_id(project_id)` with `KanboardNotFoundError` → ClickException
+- `project create` → `create_project(name, **kwargs)` — maps `--owner-id`, `--identifier`, `--start-date`, `--end-date`, `--description` to kwargs
+- `project update` → `update_project(project_id, **kwargs)` — raises `UsageError` if no options provided
+- `project remove` → `click.confirm(abort=True)` unless `--yes`; maps to `remove_project`
+- `project enable/disable` → `enable_project`/`disable_project` with `format_success`
+- `project activity` → `get_project_activity(project_id)` — returns `list[dict]` (raw activity events)
+- Created `tests/cli/test_project.py`: 39 tests; all 468 suite tests pass
+- **Learnings for future iterations:**
+  - `project activity` returns `list[dict]` not typed models — `format_output` handles this via the plain-dict path in `_normalize`
+  - `format_output` with a single plain dict (not a dataclass) is safe — `_normalize` wraps it as `[dict]`
+  - Activity commands don't need column filtering (no predefined `_LIST_COLUMNS`) — pass `columns=None` or omit
+  - Same `TYPE_CHECKING` + stub-replacement pattern applies to every future command module
+
 ---
 
 ## 2026-03-22 - US-011
