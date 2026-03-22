@@ -16,6 +16,7 @@ from kanboard.exceptions import (
     KanboardResponseError,
 )
 from kanboard.resources.board import BoardResource
+from kanboard.resources.columns import ColumnsResource
 from kanboard.resources.projects import ProjectsResource
 from kanboard.resources.tasks import TasksResource
 
@@ -34,6 +35,7 @@ class KanboardClient:
     Resource accessors are available as typed attributes:
 
     - :attr:`board` — :class:`~kanboard.resources.board.BoardResource`
+    - :attr:`columns` — :class:`~kanboard.resources.columns.ColumnsResource`
     - :attr:`projects` — :class:`~kanboard.resources.projects.ProjectsResource`
     - :attr:`tasks` — :class:`~kanboard.resources.tasks.TasksResource`
 
@@ -60,6 +62,7 @@ class KanboardClient:
             timeout=timeout,
         )
         self.board: BoardResource = BoardResource(self)
+        self.columns: ColumnsResource = ColumnsResource(self)
         self.tasks: TasksResource = TasksResource(self)
         self.projects: ProjectsResource = ProjectsResource(self)
 
