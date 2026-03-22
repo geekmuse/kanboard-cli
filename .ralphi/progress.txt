@@ -1,4 +1,8 @@
 ## Codebase Patterns
+- **`ProjectsResource` follows the exact same `TYPE_CHECKING` + resource accessor pattern as `TasksResource`**: `from kanboard.client import KanboardClient` under `if TYPE_CHECKING:`, wired in `KanboardClient.__init__` as `self.projects = ProjectsResource(self)`.
+- **`updateProject` uses `id=` not `project_id=`**: Kanboard's `updateProject` JSON-RPC method takes `id` as the project identifier (same convention as `updateTask`). All other project methods use `project_id`. Map with `self._client.call("updateProject", id=project_id, **kwargs)`.
+- **Activity methods return `list[dict[str, Any]]`**: `get_project_activity` and `get_project_activities` return raw dicts (no typed model) — Kanboard activity payloads are complex nested structures. Use `list(result)` to normalise falsy → `[]`.
+- **`get_project_by_*` lookup methods (name/identifier/email) carry the lookup key as `identifier`**: `KanboardNotFoundError.identifier` stores the lookup value used (name string, identifier code, or email address) for human-readable error messages.
 - **`TasksResource` (and future resources) use `TYPE_CHECKING` import guard**: `from kanboard.client import KanboardClient` is placed under `if TYPE_CHECKING:` to avoid circular imports. The client imports the resource; the resource type-hints the client. This pattern must be followed for every resource module.
 - **Resource accessor wired in `KanboardClient.__init__`**: `self.tasks = TasksResource(self)` added directly in `__init__`, annotated as `self.tasks: TasksResource`. The client owns the resource instances.
 - **`update_task` uses `id=` not `task_id=`**: Kanboard's `updateTask` JSON-RPC method takes `id` (not `task_id`) as the task identifier param. All other task methods use `task_id`. Map with `self._client.call("updateTask", id=task_id, **kwargs)`.
@@ -159,6 +163,27 @@ Corrective Plan: N/A
   - `Link` (relationship type label) and `TaskLink` (concrete task-to-task association) are distinct models
   - File models share a consistent field set: `is_image` (bool via `_int`), `date` (Unix ts), `size` (int), `mime_type` (str)
   - Docstrings for model classes with long endpoint names need line wrapping to stay under the 100-char ruff limit
+---
+
+## 2026-03-22 - US-008
+Session: iter-d3fef94f
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `src/kanboard/resources/projects.py` with `ProjectsResource` covering all 14 project API methods
+- Methods: `create_project`, `get_project_by_id`, `get_project_by_name`, `get_project_by_identifier`, `get_project_by_email`, `get_all_projects`, `update_project`, `remove_project`, `enable_project`, `disable_project`, `enable_project_public_access`, `disable_project_public_access`, `get_project_activity`, `get_project_activities`
+- Wired `ProjectsResource` into `KanboardClient.__init__` as `self.projects = ProjectsResource(self)`
+- Used `TYPE_CHECKING` guard in `projects.py` to import `KanboardClient` type without circular import
+- Updated `src/kanboard/__init__.py` to import and re-export `ProjectsResource` (sorted `__all__`)
+- Updated `KanboardClient` docstring to document the `.projects` resource accessor
+- Created `tests/unit/resources/test_projects.py`: 39 tests covering all methods, edge cases (False/None/kwargs), and the resource accessor
+- All 293 tests pass; ruff clean; 100% coverage on `src/kanboard/resources/`
+- **Learnings for future iterations:**
+  - `updateProject` uses `id=` (not `project_id=`) — same convention as `updateTask`; always check Kanboard API parameter naming for update methods
+  - Activity list methods (`get_project_activity`, `get_project_activities`) return `list[dict[str, Any]]` — no typed model needed for complex event payloads
+  - `get_project_by_*` lookup methods store the lookup value as `KanboardNotFoundError.identifier` for clear error messages
+  - `__all__` sort with `ProjectFile` before `ProjectsResource` because `ord('F') < ord('s')` (uppercase before lowercase)
 ---
 
 ## 2026-03-22 - US-007
