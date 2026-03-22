@@ -198,3 +198,31 @@ Corrective Plan: N/A
   - Deduplication set holds `(blocker_id, blocked_id)` tuples — different from `frozenset({A, B})` to preserve direction; two reverse edges in a cycle (A→B, B→A) are NOT duplicates
   - ruff format reformatted both files after writing — always run `ruff format .` before committing
 ---
+
+## 2026-03-22 - US-008
+Session: iter-c8ba0902
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/milestone.py` with 7 Click subcommands: list, show, create, remove, add-task, remove-task, progress
+- Registered `milestone` command group in `src/kanboard_cli/main.py` (sorted import position)
+- `milestone list`: renders table with name, target_date, task_count, critical_count from LocalPortfolioStore; all 4 output formats
+- `milestone show`: renders progress bar via render_milestone_progress + task counts + blocked_task_ids; graceful fallback to cached store data with warning on API unreachable
+- `milestone create`: positional PORTFOLIO_NAME + MILESTONE_NAME args + optional `--target-date YYYY-MM-DD` + `--description` (accepted but not stored — Milestone model has no description field)
+- `milestone remove`: requires `--yes`; best-effort metadata cleanup via sync_metadata() before returning; detects not-found via `remove_milestone()` return value (False = not found)
+- `milestone add-task`: validates task exists via `client.tasks.get_task()`, then checks `task.project_id in portfolio.project_ids`; clear error message if project not in portfolio
+- `milestone remove-task`: requires `--yes`; delegates to `store.remove_task_from_milestone()`
+- `milestone progress`: with milestone_name → `get_milestone_progress()`; without → `get_all_milestone_progress()`; "No milestones found." when empty
+- Date parsing helper `_parse_target_date()` uses `datetime.strptime("%Y-%m-%d")`; raises ClickException on invalid format
+- Internal helpers `_get_store()` and `_get_manager()` mirror the portfolio.py pattern (lazy imports)
+- 35 CLI tests in `tests/cli/test_milestone.py` using MagicMock for store and PortfolioManager
+- 2341 tests pass; ruff check + format clean; commit 786f481
+- Files changed: `src/kanboard_cli/commands/milestone.py` (new), `src/kanboard_cli/main.py` (milestone import + registration), `tests/cli/test_milestone.py` (new)
+- **Learnings for future iterations:**
+  - `Milestone` model has no `description` field (US-002 spec) — `--description` CLI option must be accepted but silently ignored; do NOT fail if the AC includes it
+  - `store.remove_milestone()` returns `True`/`False` (not exception) for not-found — check return value for error detection
+  - `milestone show` fallback: catch all `Exception` subclasses (including `Exception`) on the manager call since pytest-mocked managers may raise base Exception
+  - When patching `PortfolioManager` in CLI tests, patch at `kanboard.orchestration.portfolio.PortfolioManager` (where the class is defined), not at the import site in `milestone.py` (which uses lazy import inside `_get_manager`)
+  - `milestone progress` without milestone_name arg: Click `required=False, default=None` argument works correctly for optional positional args
+---
