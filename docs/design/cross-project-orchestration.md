@@ -1,6 +1,6 @@
 # Cross-Project Orchestration for Kanboard
 
-## Research Findings & Plugin Design Specification
+## Research Findings & CLI/SDK Design
 
 **Date:** 2026-03-22
 **Author:** kanboard-cli team
@@ -11,23 +11,20 @@
 ## Table of Contents
 
 1. [Executive Summary](#1-executive-summary)
-2. [Phase 1: Research Findings](#2-phase-1-research-findings)
+2. [Research Findings](#2-research-findings)
    - [2.1 Existing Kanboard Capabilities](#21-existing-kanboard-capabilities-already-cross-project)
    - [2.2 Existing Plugins](#22-existing-plugins-evaluated)
    - [2.3 Approaches with Existing Functionality](#23-approaches-with-existing-functionality)
    - [2.4 Community Discussions](#24-community-discussions--feature-requests)
    - [2.5 Third-Party Tools](#25-third-party-tools--middleware)
    - [2.6 Gap Analysis](#26-gap-analysis)
-3. [Phase 2: Plugin Design — "Kanboard Portfolio"](#3-phase-2-plugin-design--kanboard-portfolio)
-   - [3.1 Problem Statement & User Stories](#31-problem-statement--user-stories)
-   - [3.2 Architecture Overview](#32-architecture-overview)
-   - [3.3 Data Model](#33-data-model)
-   - [3.4 Feature Specification](#34-feature-specification)
-   - [3.5 API Endpoints](#35-api-endpoints-json-rpc)
-   - [3.6 UI/UX Design](#36-uiux-design)
-   - [3.7 SDK Integration](#37-integration-with-our-sdk)
-   - [3.8 Implementation Phases](#38-implementation-phases)
-   - [3.9 Risks, Constraints & Trade-offs](#39-risks-constraints--trade-offs)
+3. [Solution Architecture](#3-solution-architecture)
+   - [3.1 Two-Layer Approach](#31-two-layer-approach)
+   - [3.2 Problem Statement & User Stories](#32-problem-statement--user-stories)
+   - [3.3 The Kanboard Portfolio Plugin (External Dependency)](#33-the-kanboard-portfolio-plugin-external-dependency)
+   - [3.4 CLI/SDK Integration](#34-clisdk-integration)
+   - [3.5 Implementation Roadmap](#35-implementation-roadmap)
+4. [Appendix: Existing Cross-Project Link Verification](#appendix-existing-cross-project-link-verification)
 
 ---
 
@@ -43,15 +40,15 @@
 
 **Our recommendation:** Build a two-layer solution:
 
-1. **A Kanboard PHP plugin ("Portfolio")** that adds server-side data model extensions (portfolios, cross-project milestones, dependency metadata), new views (unified board, timeline, dependency graph), and new API endpoints.
+1. **A Kanboard PHP plugin ("Portfolio")** — a separate project — that adds server-side data model extensions (portfolios, cross-project milestones, dependency metadata), new views (unified board, timeline, dependency graph), and new API endpoints.
 
-2. **A CLI/SDK companion layer** in our existing `kanboard-cli` project that extends the Python SDK with the plugin's API endpoints and adds CLI commands for cross-project orchestration workflows.
+2. **A CLI/SDK companion layer** in this project (`kanboard-cli`) that provides cross-project orchestration both as a standalone CLI capability (Phase 0, no plugin required) and as a typed client for the plugin's API endpoints (Phase 1+).
 
 No existing plugin or third-party tool adequately solves this problem. The closest candidates (Bigboard, Gantt, Milestone, Relation Graph) each address a fragment but none provide the integrated portfolio management experience required.
 
 ---
 
-## 2. Phase 1: Research Findings
+## 2. Research Findings
 
 ### 2.1 Existing Kanboard Capabilities (Already Cross-Project)
 
@@ -281,9 +278,20 @@ Kanboard's GitHub issues and forum discussions reveal this is a **frequently req
 
 ---
 
-## 3. Phase 2: Plugin Design — "Kanboard Portfolio"
+## 3. Solution Architecture
 
-### 3.1 Problem Statement & User Stories
+### 3.1 Two-Layer Approach
+
+The solution is split across two projects:
+
+| Layer | Project | Language | Responsibility |
+|-------|---------|----------|----------------|
+| **Server-side plugin** | `kanboard-plugin-portfolio` (separate repo) | PHP | Database tables, JSON-RPC API endpoints, Kanboard UI views (dashboards, graphs, board indicators), event listeners, automatic actions |
+| **CLI/SDK client** | `kanboard-cli` (this repo) | Python | CLI-side orchestration (Phase 0 — no plugin), typed SDK resource modules for the plugin API (Phase 1+), CLI commands for portfolio/milestone/dependency workflows |
+
+**Key principle:** The CLI provides cross-project orchestration value **independently** of the plugin (Phase 0), and gains additional capabilities when the plugin is installed (Phase 1+). The plugin is an external dependency, not something built or maintained within this project.
+
+### 3.2 Problem Statement & User Stories
 
 #### Problem Statement
 
@@ -321,584 +329,90 @@ A product company managing multiple software products and a marketing/site proje
 **US-10: API Access**
 > As an automation engineer, I want API endpoints for all portfolio features so that I can build CLI tools, reports, and integrations using our Python SDK.
 
-### 3.2 Architecture Overview
-
-The plugin follows Kanboard's standard plugin architecture and uses every major extension point:
-
-```
-plugins/Portfolio/
-├── Plugin.php                    # Registration: hooks, events, routes, API, DI
-├── Schema/
-│   ├── Sqlite.php               # Database migrations (SQLite)
-│   ├── Mysql.php                # Database migrations (MySQL/MariaDB)
-│   └── Postgres.php             # Database migrations (PostgreSQL)
-├── Model/
-│   ├── PortfolioModel.php       # CRUD for portfolios
-│   ├── PortfolioProjectModel.php # Portfolio ↔ project membership
-│   ├── MilestoneModel.php       # Cross-project milestones
-│   ├── MilestoneTaskModel.php   # Milestone ↔ task membership
-│   ├── DependencyModel.php      # Cross-project dependency queries & graph
-│   └── PortfolioQueryModel.php  # Unified cross-project task queries
-├── Controller/
-│   ├── PortfolioController.php  # Portfolio CRUD views
-│   ├── PortfolioViewController.php  # Unified task list, timeline, graph
-│   ├── MilestoneController.php  # Milestone management views
-│   └── DependencyController.php # Dependency graph views
-├── Action/
-│   ├── NotifyOnDependencyResolved.php  # Automatic action
-│   └── BlockColumnMoveIfDependency.php # Automatic action
-├── Notification/
-│   └── DependencyResolvedNotification.php
-├── Formatter/
-│   ├── PortfolioTaskListFormatter.php
-│   └── PortfolioGanttFormatter.php
-├── Filter/
-│   └── TaskPortfolioFilter.php  # "portfolio:name" search filter
-├── Template/
-│   ├── portfolio/               # Portfolio views
-│   ├── milestone/               # Milestone views
-│   ├── dependency/              # Dependency views
-│   └── widget/                  # Dashboard widgets, board indicators
-├── Asset/
-│   ├── js/
-│   │   ├── dependency-graph.js  # D3.js force-directed graph
-│   │   ├── portfolio-gantt.js   # Multi-project Gantt chart
-│   │   └── milestone-progress.js
-│   └── css/
-│       └── portfolio.css
-├── Locale/
-│   └── en_US/
-│       └── translations.php
-└── Test/
-```
-
-#### Integration Points Used
-
-| Kanboard Extension Point | How We Use It |
-|--------------------------|---------------|
-| **Schema Migrations** | 4 new tables: `portfolios`, `portfolio_has_projects`, `milestones`, `milestone_has_tasks` |
-| **Custom Routes** | `/portfolio/:id`, `/portfolio/:id/timeline`, `/portfolio/:id/dependencies`, `/milestone/:id` |
-| **API Methods** | ~20 new JSON-RPC methods for portfolio/milestone/dependency CRUD and queries |
-| **Template Hooks** | Dashboard sidebar, dashboard show, board task footer, task detail sidebar, project header |
-| **Event Listeners** | `task.close`, `task.open`, `task.move.column`, `task_internal_link.create_update` |
-| **Automatic Actions** | 2 new actions: dependency-resolved notification, block-move-if-blocked |
-| **Task Filters** | New `portfolio:` filter keyword in task search |
-| **Reference Hooks** | `formatter:board:query` to inject blocking indicators into board rendering |
-| **Asset Hooks** | JavaScript (D3.js for graphs, chart library for Gantt) and CSS |
-| **DI Container** | Register all Model classes for application-wide access |
-
-### 3.3 Data Model
-
-#### New Tables
-
-```sql
--- Portfolio: a named group of related projects
-CREATE TABLE portfolios (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    description TEXT DEFAULT '',
-    owner_id INTEGER NOT NULL DEFAULT 0,
-    is_active INTEGER NOT NULL DEFAULT 1,
-    created_at INTEGER NOT NULL DEFAULT 0,
-    updated_at INTEGER NOT NULL DEFAULT 0,
-    UNIQUE(name)
-);
-
--- Portfolio ↔ Project membership (many-to-many)
-CREATE TABLE portfolio_has_projects (
-    portfolio_id INTEGER NOT NULL,
-    project_id INTEGER NOT NULL,
-    position INTEGER NOT NULL DEFAULT 0,    -- display ordering
-    added_at INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (portfolio_id, project_id),
-    FOREIGN KEY (portfolio_id) REFERENCES portfolios(id) ON DELETE CASCADE,
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-);
-
--- Cross-project milestones (first-class entities, not tasks)
-CREATE TABLE milestones (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    portfolio_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    description TEXT DEFAULT '',
-    target_date INTEGER DEFAULT 0,          -- Unix timestamp
-    status INTEGER NOT NULL DEFAULT 1,      -- 1=active, 0=completed, 2=cancelled
-    color_id TEXT DEFAULT 'blue',
-    owner_id INTEGER NOT NULL DEFAULT 0,
-    created_at INTEGER NOT NULL DEFAULT 0,
-    updated_at INTEGER NOT NULL DEFAULT 0,
-    FOREIGN KEY (portfolio_id) REFERENCES portfolios(id) ON DELETE CASCADE
-);
-
--- Milestone ↔ Task membership (many-to-many, cross-project)
-CREATE TABLE milestone_has_tasks (
-    milestone_id INTEGER NOT NULL,
-    task_id INTEGER NOT NULL,
-    position INTEGER NOT NULL DEFAULT 0,    -- sequencing within milestone
-    is_critical INTEGER NOT NULL DEFAULT 0, -- marks task as critical path
-    added_at INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (milestone_id, task_id),
-    FOREIGN KEY (milestone_id) REFERENCES milestones(id) ON DELETE CASCADE,
-    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
-);
-
--- Indexes for query performance
-CREATE INDEX idx_portfolio_projects_portfolio ON portfolio_has_projects(portfolio_id);
-CREATE INDEX idx_portfolio_projects_project ON portfolio_has_projects(project_id);
-CREATE INDEX idx_milestones_portfolio ON milestones(portfolio_id);
-CREATE INDEX idx_milestone_tasks_milestone ON milestone_has_tasks(milestone_id);
-CREATE INDEX idx_milestone_tasks_task ON milestone_has_tasks(task_id);
-```
-
-#### Relationship to Existing Tables
-
-```
-portfolios ──1:N──> portfolio_has_projects ──N:1──> projects (existing)
-portfolios ──1:N──> milestones
-milestones ──1:N──> milestone_has_tasks ──N:1──> tasks (existing)
-tasks ──N:N──> tasks (via existing task_has_links — cross-project dependencies)
-```
-
-**Critical design decision:** We do NOT create a new dependency table. Cross-project dependencies use Kanboard's **existing `task_has_links` table** with the built-in "blocks"/"is blocked by" link types. The plugin adds *visualization and query capabilities* on top of existing data, not a parallel data store.
-
-This means:
-- Dependencies created via the standard Kanboard UI or API are automatically visible in portfolio views
-- No data migration needed for existing cross-project links
-- The plugin enhances rather than replaces core Kanboard functionality
-
-#### Entity Relationship Diagram
-
-```
-┌──────────────┐     ┌──────────────────────┐     ┌──────────────┐
-│  portfolios  │────>│ portfolio_has_projects│────>│   projects   │
-│              │     │                      │     │  (existing)  │
-│  id          │     │  portfolio_id (FK)   │     │              │
-│  name        │     │  project_id (FK)     │     │  id          │
-│  description │     │  position            │     │  name        │
-│  owner_id    │     └──────────────────────┘     │  ...         │
-│  is_active   │                                  └──────┬───────┘
-│  created_at  │                                         │
-│  updated_at  │                                         │
-└──────┬───────┘                                         │
-       │                                                 │
-       │ 1:N                                             │ 1:N
-       ▼                                                 ▼
-┌──────────────┐     ┌──────────────────────┐     ┌──────────────┐
-│  milestones  │────>│  milestone_has_tasks  │────>│    tasks     │
-│              │     │                      │     │  (existing)  │
-│  id          │     │  milestone_id (FK)   │     │              │
-│  portfolio_id│     │  task_id (FK)        │     │  id          │
-│  name        │     │  position            │     │  project_id  │
-│  target_date │     │  is_critical         │     │  title       │
-│  status      │     └──────────────────────┘     │  ...         │
-│  color_id    │                                  └──────┬───────┘
-│  owner_id    │                                         │
-└──────────────┘                                         │ N:N
-                                                         ▼
-                                                  ┌──────────────┐
-                                                  │task_has_links│
-                                                  │  (existing)  │
-                                                  │              │
-                                                  │  id          │
-                                                  │  link_id     │
-                                                  │  task_id     │
-                                                  │opposite_task_│
-                                                  │  id          │
-                                                  └──────────────┘
-```
-
-### 3.4 Feature Specification
-
-#### 3.4.1 Portfolio Management
-
-**Create/Edit/Delete Portfolios:**
-- Global-level entity (not project-scoped)
-- Only app-admin and app-manager roles can create portfolios
-- A portfolio has a name, description, owner, and active/inactive status
-- Projects can belong to multiple portfolios (a project might be in both "Q2 Launch" and "Annual Roadmap")
-
-**Portfolio ↔ Project Membership:**
-- Add/remove projects from a portfolio
-- Reorder projects within a portfolio (display ordering)
-- A project's membership in a portfolio does not affect its independent configuration
-
-#### 3.4.2 Unified Multi-Project Task View
-
-**Portfolio Task List:**
-- Displays all tasks from all projects in the portfolio in a single sortable, filterable table
-- Columns: Task ID, Title, Project, Column (status), Assignee, Due Date, Priority, Tags, Blocked By, Blocking
-- Filters: by project, by status (active/closed), by assignee, by tag, by date range, by "has cross-project dependency", by milestone
-- Sort: by due date, priority, project, creation date, last modified
-- Pagination for large portfolios
-
-**Portfolio Board View (Aggregate Kanban):**
-- Displays an aggregate board where columns represent workflow stages (configurable mapping of per-project columns to portfolio-level stages)
-- Each card shows the project badge, task title, assignee, and blocking indicators
-- Swimlanes can be grouped by project or by milestone
-- Cards with cross-project blockers show a red "blocked" indicator with the blocking task's project and title on hover
-
-**Portfolio List View:**
-- Simple card/tile view of all portfolios the user has access to
-- Shows: portfolio name, project count, active task count, milestone progress summary, at-risk indicator
-
-#### 3.4.3 Cross-Project Dependency Declaration & Visualization
-
-**Dependency Declaration:**
-- Uses existing `createTaskLink` API with "blocks"/"is blocked by" link types
-- The plugin adds a **convenience UI** on the portfolio dependency view: select two tasks from different projects and declare a dependency
-- No new data storage — leverages existing `task_has_links`
-
-**Dependency Graph View:**
-- Force-directed graph (D3.js) showing all tasks in the portfolio that have cross-project links
-- Nodes = tasks, colored by project, sized by priority
-- Edges = dependency arrows (blocking direction), colored by status:
-  - 🔴 Red: Blocking task is open → downstream task is blocked
-  - 🟢 Green: Blocking task is closed → dependency resolved
-  - 🟡 Yellow: Blocking task is open but downstream task is not yet ready (no scheduling conflict)
-- Click a node to navigate to the task detail page
-- Hover for tooltip: task title, project, assignee, due date, status
-- Filter by: project, milestone, status, critical path only
-
-**Critical Path Analysis:**
-- Compute the longest dependency chain in the portfolio
-- Highlight critical path tasks in the graph and task list
-- Show estimated completion date based on critical path + task dates
-
-**Blocking Indicators on Project Boards:**
-- Via `template:board:task:icons` hook: inject a small icon on board cards that have unresolved cross-project blockers
-- Via `template:board:task:footer` hook: show "Blocked by: [Project X] Task #NN" text
-- Tooltip on hover shows the full dependency chain
-
-#### 3.4.4 Cross-Project Milestones
-
-**Milestone CRUD:**
-- Create milestones within a portfolio
-- Set target date, description, color, owner
-- Assign tasks from any project in the portfolio to the milestone
-- Mark tasks as "critical" within a milestone
-
-**Milestone Progress Tracking:**
-- Progress = (closed tasks / total tasks) × 100
-- Weighted progress option: weight by task complexity/score
-- At-risk indicator: milestone is at risk if target date is approaching and progress < threshold
-- Overdue indicator: target date has passed and milestone is not complete
-
-**Milestone Dashboard:**
-- Shows all milestones in a portfolio as horizontal progress bars
-- Sorted by target date
-- Color-coded by health: green (on track), yellow (at risk), red (overdue/blocked)
-- Click to expand: shows all tasks in the milestone grouped by project, with status indicators
-- Shows blockers: tasks in the milestone that are blocked by tasks outside the milestone
-
-**Milestone Timeline:**
-- Gantt-style view of milestones along a date axis
-- Each milestone shows its target date and actual progress
-- Task bars within each milestone row, colored by project
-- Dependency arrows between tasks (including cross-project)
-
-#### 3.4.5 Notifications and Automatic Actions
-
-**New Event: `portfolio.dependency.resolved`**
-- Fired when a task that blocks another task in a different project is closed
-- Event data includes: resolved task, unblocked tasks, portfolio(s), milestone(s)
-
-**New Automatic Action: "Notify on Cross-Project Dependency Resolved"**
-- Trigger: `portfolio.dependency.resolved`
-- Action: Send notification to the assignee of the unblocked task
-- Parameters: notification channel (email, web, Slack via existing plugins)
-
-**New Automatic Action: "Add Comment When Dependency Resolved"**
-- Trigger: `portfolio.dependency.resolved`
-- Action: Add an automated comment on the unblocked task: "✅ Dependency resolved: [Task #NN] in [Project X] has been completed. This task is no longer blocked."
-
-**New Automatic Action: "Block Column Move If Dependency Unresolved"** (optional, may require core override)
-- Trigger: `task.move.column`
-- Action: Prevent moving a task to a "Done"-type column if it has unresolved "blocked by" dependencies
-- Parameters: target column, dependency link types to check
-
-#### 3.4.6 Portfolio Search Filter
-
-**New filter keyword: `portfolio:`**
-- Example: `portfolio:"Q2 Launch" status:open assignee:me`
-- Returns tasks from all projects in the named portfolio matching the filter criteria
-- Registered via `$this->container->extend('taskLexer', ...)` hook
-
-### 3.5 API Endpoints (JSON-RPC)
-
-All endpoints follow Kanboard's JSON-RPC 2.0 convention. Method names use `camelCase` to match Kanboard's API style.
-
-#### Portfolio CRUD
-
-| Method | Params | Returns |
-|--------|--------|---------|
-| `createPortfolio` | `name` (str, **req**), `description` (str, opt), `owner_id` (int, opt) | `int` portfolio_id or `false` |
-| `getPortfolio` | `portfolio_id` (int, **req**) | portfolio dict or `null` |
-| `getPortfolioByName` | `name` (str, **req**) | portfolio dict or `null` |
-| `getAllPortfolios` | none | `list[dict]` |
-| `updatePortfolio` | `portfolio_id` (int, **req**), `name` (str, opt), `description` (str, opt), `owner_id` (int, opt), `is_active` (int, opt) | `true` or `false` |
-| `removePortfolio` | `portfolio_id` (int, **req**) | `true` or `false` |
-
-#### Portfolio ↔ Project Membership
-
-| Method | Params | Returns |
-|--------|--------|---------|
-| `addProjectToPortfolio` | `portfolio_id` (int, **req**), `project_id` (int, **req**), `position` (int, opt) | `true` or `false` |
-| `removeProjectFromPortfolio` | `portfolio_id` (int, **req**), `project_id` (int, **req**) | `true` or `false` |
-| `getPortfolioProjects` | `portfolio_id` (int, **req**) | `list[dict]` project dicts with position |
-| `getProjectPortfolios` | `project_id` (int, **req**) | `list[dict]` portfolio dicts |
-
-#### Milestone CRUD
-
-| Method | Params | Returns |
-|--------|--------|---------|
-| `createMilestone` | `portfolio_id` (int, **req**), `name` (str, **req**), `description` (str, opt), `target_date` (str, opt), `color_id` (str, opt), `owner_id` (int, opt) | `int` milestone_id or `false` |
-| `getMilestone` | `milestone_id` (int, **req**) | milestone dict or `null` |
-| `getPortfolioMilestones` | `portfolio_id` (int, **req**) | `list[dict]` |
-| `updateMilestone` | `milestone_id` (int, **req**), `name` (str, opt), `description` (str, opt), `target_date` (str, opt), `color_id` (str, opt), `owner_id` (int, opt), `status` (int, opt) | `true` or `false` |
-| `removeMilestone` | `milestone_id` (int, **req**) | `true` or `false` |
-
-#### Milestone ↔ Task Membership
-
-| Method | Params | Returns |
-|--------|--------|---------|
-| `addTaskToMilestone` | `milestone_id` (int, **req**), `task_id` (int, **req**), `is_critical` (int, opt) | `true` or `false` |
-| `removeTaskFromMilestone` | `milestone_id` (int, **req**), `task_id` (int, **req**) | `true` or `false` |
-| `getMilestoneTasks` | `milestone_id` (int, **req**) | `list[dict]` task dicts with milestone metadata |
-| `getTaskMilestones` | `task_id` (int, **req**) | `list[dict]` milestone dicts |
-| `getMilestoneProgress` | `milestone_id` (int, **req**) | `dict` `{total, completed, percent, is_at_risk, is_overdue}` |
-
-#### Cross-Project Dependency Queries
-
-| Method | Params | Returns |
-|--------|--------|---------|
-| `getPortfolioDependencies` | `portfolio_id` (int, **req**), `cross_project_only` (bool, opt, default true) | `list[dict]` link dicts with full task+project info |
-| `getPortfolioCriticalPath` | `portfolio_id` (int, **req**) | `list[dict]` ordered chain of tasks on critical path |
-| `getBlockedTasks` | `portfolio_id` (int, **req**) | `list[dict]` tasks with unresolved blockers |
-| `getBlockingTasks` | `portfolio_id` (int, **req**) | `list[dict]` open tasks that block other tasks |
-| `getPortfolioDependencyGraph` | `portfolio_id` (int, **req**) | `dict` `{nodes: [...], edges: [...]}` for graph rendering |
-
-#### Unified Task Queries
-
-| Method | Params | Returns |
-|--------|--------|---------|
-| `getPortfolioTasks` | `portfolio_id` (int, **req**), `status_id` (int, opt), `assignee_id` (int, opt), `project_id` (int, opt), `milestone_id` (int, opt), `limit` (int, opt), `offset` (int, opt) | `list[dict]` |
-| `getPortfolioTaskCount` | `portfolio_id` (int, **req**), `status_id` (int, opt) | `dict` `{total, active, closed, blocked}` |
-| `getPortfolioOverview` | `portfolio_id` (int, **req**) | `dict` comprehensive portfolio stats |
-
-### 3.6 UI/UX Design
-
-#### Navigation & Entry Points
-
-**Global Navigation (header):**
-- New "Portfolios" link in the top navigation bar (via `template:header:creation-dropdown` hook for creating, and a custom menu entry)
-- Route: `/portfolios` → list of all portfolios
-- Route: `/portfolio/:id` → portfolio dashboard
-
-**Dashboard Integration:**
-- Via `template:dashboard:sidebar` hook: "My Portfolios" section in the dashboard sidebar
-- Via `template:dashboard:show` hook: Portfolio summary widget showing at-risk milestones across all portfolios the user participates in
-
-**Project-Level Integration:**
-- Via `template:project:sidebar` hook: "Portfolios" link in project settings sidebar showing which portfolios this project belongs to
-- Via `template:project:header:after` hook: Small badge indicating portfolio membership
-
-**Task-Level Integration:**
-- Via `template:task:sidebar:information` hook: "Milestones" section showing which milestones this task belongs to
-- Via `template:task:show:before-internal-links` hook: "Cross-Project Dependencies" section with visual indicators
-- Via `template:board:task:icons` hook: 🔴 blocked indicator, 🟢 blocking-resolved indicator
-- Via `template:board:task:footer` hook: "Blocked by: [Project] #ID" text on board cards
-
-#### View Hierarchy
-
-```
-/portfolios                          ← Portfolio list (all portfolios)
-/portfolio/create                    ← Create new portfolio form
-/portfolio/:id                       ← Portfolio dashboard (overview + milestones)
-/portfolio/:id/tasks                 ← Unified task list (filterable table)
-/portfolio/:id/board                 ← Aggregate Kanban board
-/portfolio/:id/timeline              ← Multi-project Gantt timeline
-/portfolio/:id/dependencies          ← Dependency graph (D3.js interactive)
-/portfolio/:id/milestones            ← Milestone management list
-/portfolio/:id/settings              ← Portfolio settings (members, projects)
-/milestone/:id                       ← Milestone detail (tasks, progress)
-```
-
-#### Portfolio Dashboard (`/portfolio/:id`)
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Portfolio: Q2 2026 Launch                          [Settings]  │
-│  3 projects · 47 active tasks · 12 blocked                     │
-├──────────────────────────┬──────────────────────────────────────┤
-│                          │                                      │
-│  📊 Milestone Progress   │  📋 View Switcher                    │
-│                          │  [Dashboard] [Tasks] [Board]         │
-│  ████████░░ v2.0 Feat    │  [Timeline]  [Dependencies]          │
-│  Complete (72%) - Jun 1  │                                      │
-│                          │  ⚠️  At-Risk Items                   │
-│  ████░░░░░░ Marketing    │                                      │
-│  Site Launch (35%) Jun15 │  🔴 Task #42 "Publish product page"  │
-│                          │     Blocked by #15 in Product A      │
-│  ██░░░░░░░░ Onboarding   │     (14 days until milestone)        │
-│  Flow v2 (18%) - Jul 1   │                                      │
-│                          │  🟡 Task #88 "Blog post sequence"    │
-│  📈 Project Health       │     Waiting on #67 in Product B      │
-│                          │     (21 days until milestone)        │
-│  Product A    ████ 80%   │                                      │
-│  Product B    ██░░ 45%   │  📅 Upcoming Dates                   │
-│  Site Project █░░░ 25%   │                                      │
-│                          │  Jun 01 - v2.0 Feature Complete      │
-│                          │  Jun 15 - Marketing Site Launch      │
-│                          │  Jul 01 - Onboarding Flow v2         │
-└──────────────────────────┴──────────────────────────────────────┘
-```
-
-#### Dependency Graph (`/portfolio/:id/dependencies`)
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Dependencies: Q2 2026 Launch                                   │
-│  [All] [Cross-Project Only] [Critical Path] [Blocked Only]     │
-│  Filter by project: [All ▼]  Filter by milestone: [All ▼]     │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│         Product A                Site Project                   │
-│         ┌───────┐                ┌────────────┐                 │
-│    ┌───>│ #15   │──── blocks ──>│   #42      │                 │
-│    │    │Branding│               │Publish page│                 │
-│    │    │ ⬤ OPEN │               │ 🔴 BLOCKED │                 │
-│    │    └───────┘                └─────┬──────┘                 │
-│    │                                   │                        │
-│    │    Product B                      │ blocks                 │
-│    │    ┌───────┐                      ▼                        │
-│    │    │ #67   │               ┌────────────┐                  │
-│    │    │Feature│── blocks ──> │   #88      │                  │
-│    │    │ ⬤ OPEN │               │Blog series │                  │
-│    │    └───────┘               │ 🔴 BLOCKED │                  │
-│    │                            └────────────┘                  │
-│    │                                                            │
-│    │    ┌───────┐                ┌────────────┐                 │
-│    └────│ #22   │──── blocks ──>│   #55      │                 │
-│         │API v2 │               │Landing page│                  │
-│         │ ✅ DONE│               │ ⬤ READY    │                  │
-│         └───────┘               └────────────┘                  │
-│                                                                 │
-│  Legend: ⬤ Open  ✅ Done  🔴 Blocked  ── blocks ──>            │
-│  Critical path highlighted in bold                              │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-#### Aggregate Board (`/portfolio/:id/board`)
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Board: Q2 2026 Launch                                          │
-│  Group by: [Project ▼]  Filter: [____________]                 │
-├──────────────┬──────────────┬──────────────┬───────────────────┤
-│   Backlog    │  In Progress │   Review     │     Done          │
-├──────────────┼──────────────┼──────────────┼───────────────────┤
-│ Product A    │              │              │                   │
-│ ┌──────────┐│ ┌──────────┐ │              │ ┌───────────────┐ │
-│ │#15 Brand │││ │#18 API   │ │              │ │#22 API v2    ✅│ │
-│ │  @alice  │││ │  @bob    │ │              │ │  @bob         │ │
-│ └──────────┘│ └──────────┘ │              │ └───────────────┘ │
-├──────────────┼──────────────┼──────────────┼───────────────────┤
-│ Product B    │              │              │                   │
-│ ┌──────────┐│ ┌──────────┐ │              │                   │
-│ │#67 Feat  │││ │#70 Tests │ │              │                   │
-│ │  @carol  │││ │  @dave   │ │              │                   │
-│ └──────────┘│ └──────────┘ │              │                   │
-├──────────────┼──────────────┼──────────────┼───────────────────┤
-│ Site Project │              │              │                   │
-│ ┌──────────┐│              │              │ ┌───────────────┐ │
-│ │#42 Pub 🔴│││              │              │ │#55 Landing  ⬤│ │
-│ │  @eve    │││              │              │ │  @eve         │ │
-│ │Blocked by││              │              │ └───────────────┘ │
-│ │ProdA #15 ││              │              │                   │
-│ └──────────┘│              │              │                   │
-└──────────────┴──────────────┴──────────────┴───────────────────┘
-```
-
-### 3.7 Integration with Our SDK
-
-#### New Resource Module: `src/kanboard/resources/portfolios.py`
+#### User Story Coverage by Layer
+
+| User Story | Phase 0 (CLI-only) | Phase 1+ (CLI + Plugin) |
+|------------|---------------------|--------------------------|
+| US-1 Portfolio Definition | ✅ Local JSON store + metadata sync | ✅ Server-side portfolio entities via plugin API |
+| US-2 Unified Task View | ✅ CLI table output | ✅ CLI + Kanboard web UI |
+| US-3 Dependency Declaration | ✅ Uses existing `task-link` commands | ✅ Same (built-in Kanboard feature) |
+| US-4 Dependency Visualization | 🟡 ASCII graph in CLI | ✅ Interactive D3.js graph in Kanboard UI |
+| US-5 Milestones | ✅ Local milestone definitions | ✅ Server-side milestone entities |
+| US-6 Milestone Dashboard | 🟡 CLI progress bars | ✅ Web dashboard with progress bars |
+| US-7 Notifications | ❌ Not feasible CLI-only | ✅ Plugin event listeners + automatic actions |
+| US-8 Timeline | ❌ Not feasible CLI-only | ✅ Plugin Gantt timeline view |
+| US-9 Board Indicators | ❌ Not feasible CLI-only | ✅ Plugin template hooks on board cards |
+| US-10 API Access | ✅ Python orchestration classes | ✅ Plugin JSON-RPC endpoints + SDK resource modules |
+
+### 3.3 The Kanboard Portfolio Plugin (External Dependency)
+
+The Kanboard Portfolio plugin is a **separate PHP project** maintained in its own repository. It is not built, tested, or shipped as part of `kanboard-cli`.
+
+> **Plugin specification:** See `/tmp/kanboard-portfolio-plugin-spec.md` for the complete
+> implementation specification (2,400+ lines covering data model, all 28 API endpoints,
+> controllers, templates, events, security, and testing strategy).
+
+#### What the Plugin Provides
+
+| Capability | Details |
+|-----------|---------|
+| **Database tables** | 4 new tables: `portfolios`, `portfolio_has_projects`, `milestones`, `milestone_has_tasks` |
+| **JSON-RPC API** | 28 new methods across 6 categories (portfolio CRUD, project membership, milestone CRUD, milestone-task membership, dependency queries, unified task queries) |
+| **Web UI** | Portfolio dashboard, unified task list, aggregate board, D3.js dependency graph, Gantt timeline, milestone management views |
+| **Template hooks** | Board task blocking indicators, task detail milestone/dependency sections, dashboard sidebar, project sidebar |
+| **Event system** | Listens to `task.close`/`task.open`/`task_internal_link.*`; fires `portfolio.dependency.resolved` |
+| **Automatic actions** | "Notify on dependency resolved", "Comment on dependency resolved" |
+| **Search filter** | `portfolio:` keyword in Kanboard's task search |
+
+#### How This Project Relates to the Plugin
+
+| Concern | Who Owns It |
+|---------|------------|
+| Plugin PHP code, schema, templates, JS assets | `kanboard-plugin-portfolio` repo |
+| Plugin installation, packaging, Kanboard directory listing | `kanboard-plugin-portfolio` repo |
+| Python SDK resource modules that call the plugin's API | **This project** (`kanboard-cli`) |
+| CLI commands that wrap the plugin's API | **This project** (`kanboard-cli`) |
+| CLI-only orchestration (Phase 0, no plugin) | **This project** (`kanboard-cli`) |
+| Plugin specification document | Authored here, delivered to the plugin project |
+
+#### Plugin API Summary (for SDK integration)
+
+The plugin exposes 28 JSON-RPC methods. The CLI/SDK needs typed wrappers for all of them:
+
+**Portfolio CRUD (6):** `createPortfolio`, `getPortfolio`, `getPortfolioByName`, `getAllPortfolios`, `updatePortfolio`, `removePortfolio`
+
+**Portfolio ↔ Project Membership (4):** `addProjectToPortfolio`, `removeProjectFromPortfolio`, `getPortfolioProjects`, `getProjectPortfolios`
+
+**Milestone CRUD (5):** `createMilestone`, `getMilestone`, `getPortfolioMilestones`, `updateMilestone`, `removeMilestone`
+
+**Milestone ↔ Task Membership (5):** `addTaskToMilestone`, `removeTaskFromMilestone`, `getMilestoneTasks`, `getTaskMilestones`, `getMilestoneProgress`
+
+**Dependency Queries (5):** `getPortfolioDependencies`, `getBlockedTasks`, `getBlockingTasks`, `getPortfolioCriticalPath`, `getPortfolioDependencyGraph`
+
+**Unified Task Queries (3):** `getPortfolioTasks`, `getPortfolioTaskCount`, `getPortfolioOverview`
+
+### 3.4 CLI/SDK Integration
+
+#### New SDK Resource Modules (Phase 1+ — requires plugin)
 
 ```python
-"""Portfolio resource module — cross-project portfolio management for Kanboard."""
-
-from __future__ import annotations
-from typing import TYPE_CHECKING
-from kanboard.exceptions import KanboardAPIError, KanboardNotFoundError
-from kanboard.models import Portfolio, PortfolioProject, Milestone, MilestoneProgress
-
-if TYPE_CHECKING:
-    from kanboard.client import KanboardClient
-
-
+# src/kanboard/resources/portfolios.py
 class PortfoliosResource:
     """Kanboard Portfolio Plugin API resource.
-
     Requires the Portfolio plugin to be installed on the Kanboard server.
     """
+    def create_portfolio(self, name: str, **kwargs) -> int: ...
+    def get_portfolio(self, portfolio_id: int) -> Portfolio: ...
+    def get_all_portfolios(self) -> list[Portfolio]: ...
+    def add_project_to_portfolio(self, portfolio_id: int, project_id: int, **kwargs) -> bool: ...
+    def get_portfolio_dependencies(self, portfolio_id: int, cross_project_only: bool = True) -> list[dict]: ...
+    def get_portfolio_critical_path(self, portfolio_id: int) -> list[dict]: ...
+    def get_blocked_tasks(self, portfolio_id: int) -> list[dict]: ...
+    # ... (all 28 methods)
 
-    def __init__(self, client: KanboardClient) -> None:
-        self._client = client
-
-    def create_portfolio(self, name: str, **kwargs) -> int:
-        """Create a new portfolio."""
-        result = self._client.call("createPortfolio", name=name, **kwargs)
-        if not result:
-            raise KanboardAPIError(f"Failed to create portfolio '{name}'", method="createPortfolio")
-        return int(result)
-
-    def get_portfolio(self, portfolio_id: int) -> Portfolio:
-        """Get a portfolio by ID."""
-        result = self._client.call("getPortfolio", portfolio_id=portfolio_id)
-        if result is None:
-            raise KanboardNotFoundError("Portfolio", portfolio_id)
-        return Portfolio.from_api(result)
-
-    def get_all_portfolios(self) -> list[Portfolio]:
-        """Get all portfolios."""
-        result = self._client.call("getAllPortfolios")
-        if not result:
-            return []
-        return [Portfolio.from_api(p) for p in result]
-
-    def add_project_to_portfolio(self, portfolio_id: int, project_id: int, **kwargs) -> bool:
-        """Add a project to a portfolio."""
-        result = self._client.call(
-            "addProjectToPortfolio", portfolio_id=portfolio_id, project_id=project_id, **kwargs
-        )
-        if not result:
-            raise KanboardAPIError("Failed to add project to portfolio", method="addProjectToPortfolio")
-        return True
-
-    def get_portfolio_dependencies(self, portfolio_id: int, cross_project_only: bool = True) -> list[dict]:
-        """Get all dependency links in a portfolio."""
-        return self._client.call(
-            "getPortfolioDependencies",
-            portfolio_id=portfolio_id,
-            cross_project_only=cross_project_only,
-        ) or []
-
-    def get_portfolio_critical_path(self, portfolio_id: int) -> list[dict]:
-        """Get the critical path through the portfolio's dependency graph."""
-        return self._client.call("getPortfolioCriticalPath", portfolio_id=portfolio_id) or []
-
-    def get_blocked_tasks(self, portfolio_id: int) -> list[dict]:
-        """Get all tasks blocked by unresolved cross-project dependencies."""
-        return self._client.call("getBlockedTasks", portfolio_id=portfolio_id) or []
-
-    # ... (similar methods for all API endpoints)
-```
-
-#### New Resource Module: `src/kanboard/resources/milestones.py`
-
-```python
+# src/kanboard/resources/milestones.py
 class MilestonesResource:
     """Kanboard Portfolio Plugin — Milestone management."""
-
     def create_milestone(self, portfolio_id: int, name: str, **kwargs) -> int: ...
     def get_milestone(self, milestone_id: int) -> Milestone: ...
     def get_portfolio_milestones(self, portfolio_id: int) -> list[Milestone]: ...
@@ -907,7 +421,7 @@ class MilestonesResource:
     # ...
 ```
 
-#### New Models in `src/kanboard/models.py`
+#### New Models
 
 ```python
 @dataclasses.dataclass
@@ -952,7 +466,7 @@ class MilestoneProgress:
     def from_api(cls, data: dict) -> Self: ...
 ```
 
-#### New CLI Commands in `src/kanboard_cli/commands/`
+#### CLI Commands
 
 ```
 kanboard portfolio list                              # List all portfolios
@@ -1028,173 +542,52 @@ $ kanboard portfolio critical-path 1
   2. #42  Publish product page  [Site]       🔴 BLOCKED  Est: May 30
   3. #88  Blog post sequence    [Site]       🔴 BLOCKED  Est: Jun 10
   4. #95  Social campaign       [Site]       🔴 BLOCKED  Est: Jun 15
-  
+
   Critical path length: 4 tasks, ~26 days
   Bottleneck: Task #15 blocks 3 downstream tasks
 ```
 
-### 3.8 Implementation Phases
+### 3.5 Implementation Roadmap
 
-#### Phase 0: Immediate CLI-Only Solution (1-2 weeks)
+#### Phase 0: CLI-Only Orchestration (this project)
 
-**No plugin required.** Build a cross-project orchestration tool using our existing SDK that:
+> **Task list:** [docs/tasks/phase-0-cross-project-orchestration.md](../tasks/phase-0-cross-project-orchestration.md) — Tasks 49–62
 
-1. Uses `task_metadata` to store portfolio/milestone membership as JSON
-2. Uses existing `createTaskLink` for cross-project dependencies
-3. Aggregates data from multiple projects via API calls
-4. Renders unified views in the CLI (tables, ASCII dependency graphs)
+**No plugin required.** Build cross-project orchestration as a CLI-side meta-construct using the existing Kanboard API:
 
-**Deliverables:**
-- New CLI commands: `portfolio`, `milestone`, `cross-deps`
-- ASCII dependency graph renderer
-- Critical path calculator (topological sort on dependency graph)
-- Portfolio overview report
+- `src/kanboard/orchestration/` subpackage with `PortfolioManager`, `DependencyAnalyzer`, `LocalPortfolioStore`
+- Portfolio/milestone definitions stored locally (`~/.config/kanboard/portfolios.json`) with metadata sync to Kanboard
+- Cross-project dependencies via existing `task_has_links` (blocks/is blocked by)
+- CLI commands: `kanboard portfolio`, `kanboard milestone`
+- ASCII dependency graph renderer, critical path calculator
 
-**Value:** Immediate relief for the stated problem. Establishes conventions for portfolio metadata that the plugin will later formalize.
+**Limitation:** No Kanboard UI integration. Metadata-based storage has no referential integrity. N+1 API calls for aggregation.
 
-**Limitation:** No Kanboard UI integration. Metadata-based storage has no referential integrity.
+#### Phase 1: Plugin SDK Integration (this project — requires plugin)
 
-#### Phase 1: Plugin MVP — Data Model + API (2-3 weeks)
+> **Depends on:** The Kanboard Portfolio plugin being implemented and installed on the target Kanboard instance.
 
-**Server-side plugin providing the data model and API endpoints.**
+Once the plugin is available, this project adds:
 
-1. Schema migrations for `portfolios`, `portfolio_has_projects`, `milestones`, `milestone_has_tasks`
-2. Model classes for all CRUD operations
-3. All ~25 JSON-RPC API endpoints
-4. Event listeners for `task.close` → check and fire `portfolio.dependency.resolved`
-5. Basic PHP unit tests
+- SDK resource modules (`src/kanboard/resources/portfolios.py`, `milestones.py`) wrapping the plugin's 28 JSON-RPC endpoints
+- Typed dataclass models (`Portfolio`, `Milestone`, `MilestoneProgress`) with `from_api()` factories
+- CLI commands rewritten to call the plugin API instead of the local-store/metadata approach
+- Detection logic: CLI commands auto-detect whether the plugin is installed (by calling `getPortfolio` and checking for a JSON-RPC method-not-found error) and fall back to Phase 0 behavior if not
 
-**Deliverables:**
-- `plugins/Portfolio/` with Schema, Model, Plugin.php
-- SDK resource modules: `portfolios.py`, `milestones.py`
-- Updated CLI commands that call plugin API instead of metadata hack
-- Full test coverage for SDK and CLI
+**Value:** Proper data model with referential integrity. Server-side queries (no N+1). CLI and Kanboard UI share the same data.
 
-**Value:** Proper data model with referential integrity. API-first design enables both CLI and future UI.
+#### Phase 2+: Advanced CLI Features (this project)
 
-#### Phase 2: Plugin UI — Views + Dashboard (3-4 weeks)
+Future CLI enhancements that build on the plugin's API:
 
-**Server-side views in Kanboard's UI.**
-
-1. Portfolio list and dashboard views (Controller + Template)
-2. Unified task list view with filtering/sorting
-3. Milestone management views with progress bars
-4. Template hooks for dashboard sidebar, project sidebar, task detail
-5. Board card indicators for blocked tasks
-6. CSS styling consistent with Kanboard's default theme
-
-**Deliverables:**
-- All Controller and Template files
-- Template hook integrations (dashboard, board, task, project)
-- Portfolio task filter (`portfolio:` keyword)
-- Automatic actions: notification on dependency resolved
-
-**Value:** Full Kanboard UI integration. Non-CLI users can access portfolio features.
-
-#### Phase 3: Plugin Advanced — Visualizations (2-3 weeks)
-
-**Interactive JavaScript visualizations.**
-
-1. D3.js dependency graph with force-directed layout
-2. Multi-project Gantt/timeline view (using a lightweight Gantt library or custom D3)
-3. Interactive board view with cross-project drag support (if feasible)
-4. Milestone progress charts
-5. Critical path highlighting
-
-**Deliverables:**
-- `Asset/js/` graph and timeline components
-- Dependency graph view with filtering, zooming, node click-through
-- Timeline view with dependency arrows
-- Milestone progress visualization
-
-**Value:** The "wow factor" — visual dependency graphs and timelines that make cross-project relationships tangible.
-
-#### Phase 4: Polish + Publish (1-2 weeks)
-
-1. Performance optimization (query efficiency for large portfolios)
-2. Localization (at minimum en_US, framework for additional languages)
-3. Documentation (user guide, admin guide, API reference)
-4. Plugin packaging for Kanboard's plugin directory
-5. Integration tests against Docker Kanboard instance
-
-### 3.9 Risks, Constraints & Trade-offs
-
-#### Plugin Architecture Constraints
-
-| Constraint | Impact | Mitigation |
-|-----------|--------|------------|
-| **No global menu hook** | Kanboard doesn't provide a clean hook to add top-level navigation items. The `template:header:creation-dropdown` hook adds to the "+" menu, not the main nav. | Use `template:layout:top` or `template:header:creation-dropdown` + a sidebar approach. Or override the header template. |
-| **Template hooks are append-only** | Cannot insert content *between* existing elements, only before/after defined hook points. | Work within existing hook points. Use CSS for visual positioning if needed. |
-| **No global task query** | Kanboard's core task queries are project-scoped. `getAllTasks` requires a `project_id`. | Our plugin models will build custom SQL queries using PicoDb (Kanboard's query builder) that join across projects. |
-| **Single-page Kanban limitation** | Kanboard's board view is tightly coupled to a single project. Creating a true multi-project Kanban board requires significant custom rendering. | The portfolio board view will be a completely custom controller/template, not an extension of the existing board. |
-| **JavaScript ecosystem** | Kanboard uses jQuery + vanilla JS. No modern framework (React, Vue). Complex visualizations must work within this context. | Use D3.js (framework-agnostic) for graphs. Keep JS dependencies minimal. Bundle with the plugin. |
-| **Synchronous webhooks** | Kanboard's webhook calls are synchronous and must respond in <1 second. Complex dependency chain analysis might be slow. | Perform dependency analysis asynchronously via a background worker or pre-compute and cache dependency data in the database. |
-
-#### Performance Risks
-
-| Risk | Scenario | Mitigation |
-|------|----------|------------|
-| **N+1 query problem** | Portfolio with 10 projects × 100 tasks each = 1000+ tasks to fetch and analyze | Use batch SQL queries with JOINs across portfolio tables. Cache computed metrics (milestone progress, dependency graph) in portfolio metadata. |
-| **Large dependency graphs** | 500+ tasks with complex interdependencies could make D3 graph unusable | Implement graph filtering (cross-project only, critical path, per-milestone). Paginate and virtualize. |
-| **API response size** | `getPortfolioTasks` for a large portfolio could return massive payloads | Support `limit`/`offset` pagination in all list endpoints. |
-
-#### Data Integrity Risks
-
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| **Task deleted with milestone membership** | Orphaned references in `milestone_has_tasks` | `ON DELETE CASCADE` foreign keys handle this automatically. |
-| **Project removed from portfolio** | Tasks from that project still in milestones | On project removal, also remove that project's tasks from portfolio milestones (cascade logic in model layer). |
-| **Kanboard upgrade breaks plugin** | Schema migrations or hook changes in Kanboard core could break plugin | Pin `getCompatibleVersion()`. Test against each Kanboard release. Follow Kanboard's deprecation notices. |
-
-#### Trade-offs
-
-1. **Plugin vs. External Service:**
-   We chose a Kanboard plugin over a standalone service because it provides native UI integration, uses the same database, and doesn't require deploying/maintaining a separate application. The trade-off is that we're constrained by Kanboard's plugin architecture and PHP ecosystem.
-
-2. **New tables vs. Metadata-only:**
-   We chose new database tables over using metadata key-value storage because proper tables provide referential integrity, efficient queries (JOINs, indexes), and type safety. The trade-off is that the plugin requires schema migrations and DB access.
-
-3. **Reusing existing `task_has_links` vs. New dependency table:**
-   We chose to reuse the existing link system because it means all dependencies created through any channel (UI, API, other plugins) are automatically visible in portfolio views. The trade-off is that we can't add metadata to dependencies (e.g., "expected resolution date") without a supplementary table.
-
-4. **PHP plugin + Python SDK vs. Pure Python:**
-   The Kanboard server is PHP; the plugin must be PHP. Our SDK and CLI are Python. This dual-language approach means developing and maintaining code in two languages. But this is inherent to extending a PHP application with a Python toolchain.
+- Export portfolio reports (HTML, PDF)
+- Automated portfolio health checks (CI-friendly exit codes)
+- Dependency change detection (diff between runs)
+- Integration with workflow plugins for automated cross-project orchestration
 
 ---
 
-## Appendix A: Kanboard Plugin Architecture Quick Reference
-
-### Extension Points Summary
-
-| Category | Mechanism | Documentation |
-|----------|-----------|---------------|
-| Database | Schema migrations (`Schema/*.php`) | [docs/plugins/schema_migrations](https://docs.kanboard.org/v1/plugins/schema_migrations/) |
-| API | `$this->api->getProcedureHandler()->withCallback()` | [docs/plugins/hooks](https://docs.kanboard.org/v1/plugins/hooks/) |
-| Routes | `$this->route->addRoute()` | [docs/plugins/routes](https://docs.kanboard.org/v1/plugins/routes/) |
-| UI Templates | `$this->template->hook->attach()` | [docs/plugins/hooks](https://docs.kanboard.org/v1/plugins/hooks/) |
-| Events | `$this->on('event.name', $callback)` | [docs/plugins/events](https://docs.kanboard.org/v1/plugins/events/) |
-| DI Container | `getClasses()` → auto-register models | [docs/plugins/registration](https://docs.kanboard.org/v1/plugins/registration/) |
-| Auto Actions | `$this->actionManager->register()` | [docs/plugins/automatic_actions](https://docs.kanboard.org/v1/plugins/automatic_actions/) |
-| Task Filters | `$this->container->extend('taskLexer', ...)` | [docs/plugins/hooks](https://docs.kanboard.org/v1/plugins/hooks/) |
-| Assets | `template:layout:css` / `template:layout:js` hooks | [docs/plugins/hooks](https://docs.kanboard.org/v1/plugins/hooks/) |
-| Overrides | `$this->template->setTemplateOverride()` | [docs/plugins/overrides](https://docs.kanboard.org/v1/plugins/overrides/) |
-
-### Key Template Hooks for Portfolio Plugin
-
-| Hook | Our Usage |
-|------|-----------|
-| `template:dashboard:sidebar` | "My Portfolios" sidebar section |
-| `template:dashboard:show` | At-risk milestones widget |
-| `template:board:task:icons` | 🔴 Blocked indicator on board cards |
-| `template:board:task:footer` | "Blocked by: [Project] #ID" text |
-| `template:task:show:before-internal-links` | Cross-project dependency section |
-| `template:task:sidebar:information` | Milestone membership |
-| `template:project:sidebar` | Portfolio membership link |
-| `template:header:creation-dropdown` | "Create Portfolio" quick action |
-| `template:layout:css` | Plugin stylesheet |
-| `template:layout:js` | D3.js and plugin JavaScript |
-
-## Appendix B: Existing Cross-Project Link Verification
+## Appendix: Existing Cross-Project Link Verification
 
 To verify that cross-project task links work today with our SDK:
 

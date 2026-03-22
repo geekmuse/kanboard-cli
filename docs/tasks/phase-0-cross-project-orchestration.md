@@ -10,7 +10,7 @@
 >
 > **Pre-requisite reading:** [docs/design/cross-project-orchestration.md](../design/cross-project-orchestration.md)
 > — especially §2.1 (existing cross-project capabilities), §2.3 Approach A,
-> and §3.7–§3.8 (SDK integration, implementation phases).
+> and §3.4–§3.5 (CLI/SDK integration, implementation roadmap).
 
 ---
 
