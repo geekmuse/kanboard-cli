@@ -226,3 +226,32 @@ Corrective Plan: N/A
   - When patching `PortfolioManager` in CLI tests, patch at `kanboard.orchestration.portfolio.PortfolioManager` (where the class is defined), not at the import site in `milestone.py` (which uses lazy import inside `_get_manager`)
   - `milestone progress` without milestone_name arg: Click `required=False, default=None` argument works correctly for optional positional args
 ---
+
+## 2026-03-22 - US-009
+Session: iter-286b940d
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Added 4 dependency subcommands to `portfolio` command group (not a new top-level group)
+- `portfolio dependencies <name> [--cross-project-only] [--format graph|table|json]`: graph=ASCII render_dependency_graph, table=flat DependencyEdge rows via format_output, json=structured dict via get_dependency_graph
+- `portfolio blocked <name>`: cross-project blocked tasks (implicitly `is_cross_project=True`); all 4 output formats
+- `portfolio blocking <name>`: cross-project blocking tasks (implicitly `is_cross_project=True`); all 4 output formats
+- `portfolio critical-path <name>`: numbered list with BOTTLENECK annotation via render_critical_path
+- Added `_get_analyzer(app_ctx)` helper — mirrors `_get_manager()` pattern with lazy import and client-null guard
+- Added `DependencyAnalyzer` to `TYPE_CHECKING` import block in portfolio.py
+- Added column constants: `_DEP_EDGE_COLUMNS`, `_BLOCKED_COLUMNS`, `_BLOCKING_COLUMNS`
+- `blocked`/`blocking` rows are one per (task, edge) pair — expanded with cross-project filter in the loop
+- `critical-path` calls `get_dependency_edges` first to populate task cache, then `get_critical_path` (which re-calls internally); `getAllTaskLinks` is called twice but `getTask` benefits from cache
+- Updated docstring to list all 12 subcommands (added dependencies, blocked, blocking, critical-path)
+- 17 new CLI tests in `tests/cli/test_portfolio.py`: graph output, cross-project-only flag, table format (JSON mode), JSON format, not-found; blocked success/JSON/same-project-filter/not-found; blocking success/JSON/same-project-filter/not-found; critical-path success/empty/not-found/bottleneck
+- Added `_make_dependency_edge()` helper and `_invoke_dep()` helper that patches both PortfolioManager and DependencyAnalyzer
+- 2358 tests pass; ruff check + format clean; commit bbb2011
+- Files changed: `src/kanboard_cli/commands/portfolio.py` (4 new subcommands, _get_analyzer, column constants), `tests/cli/test_portfolio.py` (17 new tests, _make_dependency_edge, _invoke_dep)
+- **Learnings for future iterations:**
+  - `DependencyAnalyzer` patch target is `kanboard.orchestration.dependencies.DependencyAnalyzer` (definition location), consistent with PortfolioManager pattern at `kanboard.orchestration.portfolio.PortfolioManager`
+  - `_invoke_dep()` helper uses ExitStack to combine 5 patches cleanly — reuse this for commands needing both manager and analyzer
+  - `blocked`/`blocking` cross-project filter is done at the row-building loop level (not at get_blocked_tasks call) since get_blocked_tasks returns all edges; filtering in the loop avoids an extra analyzer method call
+  - `--format` option uses `"fmt"` as the Python parameter name to avoid shadowing the built-in `format`
+  - `click.Choice(["graph","table","json"], case_sensitive=False)` allows `--format TABLE` etc.
+---
