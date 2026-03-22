@@ -232,8 +232,8 @@
       ],
       "notes": "add-task validation: call client.tasks.get_task(task_id), verify task.project_id is in portfolio.project_ids. Error clearly if task is in a project not belonging to the portfolio.",
       "startedAt": "2026-03-22T20:36:07.866Z",
-      "updatedAt": "2026-03-22T21:00:00.000Z",
-      "completedAt": "2026-03-22T21:00:00.000Z"
+      "updatedAt": "2026-03-22T20:57:15.993Z",
+      "completedAt": "2026-03-22T20:57:15.993Z"
     },
     {
       "id": "US-009",
@@ -251,13 +251,16 @@
         "pytest passes"
       ],
       "priority": 9,
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-005",
         "US-006",
         "US-007"
       ],
-      "notes": "dependencies fetches all portfolio tasks via PortfolioManager.get_portfolio_tasks() then passes to DependencyAnalyzer. bottleneck = task with highest count of transitively unblocked downstream tasks."
+      "notes": "dependencies fetches all portfolio tasks via PortfolioManager.get_portfolio_tasks() then passes to DependencyAnalyzer. bottleneck = task with highest count of transitively unblocked downstream tasks.",
+      "startedAt": "2026-03-22T20:57:16.701Z",
+      "updatedAt": "2026-03-22T20:57:16.701Z",
+      "completedAt": null
     },
     {
       "id": "US-010",

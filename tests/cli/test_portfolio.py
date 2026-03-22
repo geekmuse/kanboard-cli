@@ -12,7 +12,7 @@ from click.testing import CliRunner
 
 from kanboard.config import KanboardConfig
 from kanboard.exceptions import KanboardAPIError, KanboardConfigError, KanboardNotFoundError
-from kanboard.models import MilestoneProgress, Portfolio, Project, Task
+from kanboard.models import DependencyEdge, MilestoneProgress, Portfolio, Project, Task
 from kanboard_cli.main import cli
 
 # ---------------------------------------------------------------------------
@@ -124,6 +124,35 @@ def _make_milestone_progress(
         percent=percent,
         is_at_risk=is_at_risk,
         is_overdue=is_overdue,
+    )
+
+
+def _make_dependency_edge(
+    task_id: int = 1,
+    task_title: str = "Blocker Task",
+    task_project_id: int = 1,
+    task_project_name: str = "Alpha Project",
+    opposite_task_id: int = 2,
+    opposite_task_title: str = "Blocked Task",
+    opposite_task_project_id: int = 2,
+    opposite_task_project_name: str = "Beta Project",
+    link_label: str = "blocks",
+    is_cross_project: bool = True,
+    is_resolved: bool = False,
+) -> DependencyEdge:
+    """Build a DependencyEdge for tests."""
+    return DependencyEdge(
+        task_id=task_id,
+        task_title=task_title,
+        task_project_id=task_project_id,
+        task_project_name=task_project_name,
+        opposite_task_id=opposite_task_id,
+        opposite_task_title=opposite_task_title,
+        opposite_task_project_id=opposite_task_project_id,
+        opposite_task_project_name=opposite_task_project_name,
+        link_label=link_label,
+        is_cross_project=is_cross_project,
+        is_resolved=is_resolved,
     )
 
 
@@ -1009,3 +1038,661 @@ def test_portfolio_sync_api_error(
 
     assert result.exit_code != 0
     assert "Error" in result.output or "error" in result.output.lower()
+
+
+# ===========================================================================
+# portfolio dependencies (US-009)
+# ===========================================================================
+
+
+def _invoke_dep(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+    mock_manager: MagicMock,
+    mock_analyzer: MagicMock,
+    args: list[str],
+) -> object:
+    """Invoke CLI with PortfolioManager and DependencyAnalyzer both mocked."""
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch("kanboard_cli.main.KanboardConfig.resolve", return_value=mock_config)
+        )
+        stack.enter_context(patch("kanboard_cli.main.KanboardClient", return_value=mock_client))
+        stack.enter_context(
+            patch("kanboard_cli.commands.portfolio._get_store", return_value=mock_store)
+        )
+        stack.enter_context(
+            patch(
+                "kanboard.orchestration.portfolio.PortfolioManager",
+                return_value=mock_manager,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "kanboard.orchestration.dependencies.DependencyAnalyzer",
+                return_value=mock_analyzer,
+            )
+        )
+        return runner.invoke(cli, args)
+
+
+def test_portfolio_dependencies_graph_output(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio dependencies`` default graph format shows project headers and tasks."""
+    tasks = [
+        _make_task(task_id=1, title="Blocker Task", project_id=1),
+        _make_task(task_id=2, title="Blocked Task", project_id=2),
+    ]
+    edge = _make_dependency_edge()
+
+    mock_manager = MagicMock()
+    mock_manager.get_portfolio_tasks.return_value = tasks
+    mock_analyzer = MagicMock()
+    mock_analyzer.get_dependency_edges.return_value = [edge]
+
+    result = _invoke_dep(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        mock_manager,
+        mock_analyzer,
+        ["portfolio", "dependencies", "Test Portfolio"],
+    )
+
+    assert result.exit_code == 0
+    # ASCII graph should contain task IDs or project references.
+    assert "#1" in result.output or "#2" in result.output or "Alpha" in result.output
+    mock_manager.get_portfolio_tasks.assert_called_once_with("Test Portfolio")
+    mock_analyzer.get_dependency_edges.assert_called_once_with(tasks, cross_project_only=False)
+
+
+def test_portfolio_dependencies_cross_project_only_flag(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio dependencies --cross-project-only`` passes flag to analyzer."""
+    tasks = [_make_task(task_id=1, project_id=1)]
+    mock_manager = MagicMock()
+    mock_manager.get_portfolio_tasks.return_value = tasks
+    mock_analyzer = MagicMock()
+    mock_analyzer.get_dependency_edges.return_value = []
+
+    result = _invoke_dep(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        mock_manager,
+        mock_analyzer,
+        ["portfolio", "dependencies", "Test Portfolio", "--cross-project-only"],
+    )
+
+    assert result.exit_code == 0
+    mock_analyzer.get_dependency_edges.assert_called_once_with(tasks, cross_project_only=True)
+
+
+def test_portfolio_dependencies_table_format(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio dependencies --format table`` shows flat DependencyEdge rows."""
+    tasks = [_make_task(task_id=1, project_id=1), _make_task(task_id=2, project_id=2)]
+    edge = _make_dependency_edge()
+
+    mock_manager = MagicMock()
+    mock_manager.get_portfolio_tasks.return_value = tasks
+    mock_analyzer = MagicMock()
+    mock_analyzer.get_dependency_edges.return_value = [edge]
+
+    result = _invoke_dep(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        mock_manager,
+        mock_analyzer,
+        ["--output", "json", "portfolio", "dependencies", "Test Portfolio", "--format", "table"],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert isinstance(data, list)
+    assert data[0]["task_id"] == 1
+    assert data[0]["task_project_name"] == "Alpha Project"
+    assert data[0]["opposite_task_id"] == 2
+    assert data[0]["link_label"] == "blocks"
+
+
+def test_portfolio_dependencies_json_format(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio dependencies --format json`` returns structured dict with nodes and edges."""
+    tasks = [_make_task(task_id=1, project_id=1)]
+    graph_dict = {
+        "nodes": [{"id": 1, "title": "Blocker Task", "project_id": 1, "is_active": True}],
+        "edges": [],
+    }
+
+    mock_manager = MagicMock()
+    mock_manager.get_portfolio_tasks.return_value = tasks
+    mock_analyzer = MagicMock()
+    mock_analyzer.get_dependency_graph.return_value = graph_dict
+
+    result = _invoke_dep(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        mock_manager,
+        mock_analyzer,
+        ["portfolio", "dependencies", "Test Portfolio", "--format", "json"],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert "nodes" in data
+    assert "edges" in data
+    assert data["nodes"][0]["id"] == 1
+    mock_analyzer.get_dependency_graph.assert_called_once_with(tasks, cross_project_only=False)
+
+
+def test_portfolio_dependencies_not_found(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio dependencies`` shows error when portfolio not found."""
+    mock_manager = MagicMock()
+    mock_manager.get_portfolio_tasks.side_effect = KanboardConfigError(
+        "Portfolio 'Ghost' not found"
+    )
+    mock_analyzer = MagicMock()
+
+    result = _invoke_dep(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        mock_manager,
+        mock_analyzer,
+        ["portfolio", "dependencies", "Ghost"],
+    )
+
+    assert result.exit_code != 0
+    assert "Ghost" in result.output
+
+
+# ===========================================================================
+# portfolio blocked (US-009)
+# ===========================================================================
+
+
+def test_portfolio_blocked_success(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio blocked`` shows cross-project blocked tasks in table format."""
+    tasks = [
+        _make_task(task_id=2, title="Blocked Task", project_id=2),
+    ]
+    edge = _make_dependency_edge(
+        task_id=1,
+        task_title="Blocker Task",
+        task_project_id=1,
+        task_project_name="Alpha Project",
+        opposite_task_id=2,
+        opposite_task_title="Blocked Task",
+        opposite_task_project_id=2,
+        opposite_task_project_name="Beta Project",
+        is_cross_project=True,
+    )
+    blocked_task = _make_task(task_id=2, title="Blocked Task", project_id=2)
+
+    mock_manager = MagicMock()
+    mock_manager.get_portfolio_tasks.return_value = tasks
+    mock_analyzer = MagicMock()
+    mock_analyzer.get_blocked_tasks.return_value = [(blocked_task, [edge])]
+
+    result = _invoke_dep(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        mock_manager,
+        mock_analyzer,
+        ["portfolio", "blocked", "Test Portfolio"],
+    )
+
+    assert result.exit_code == 0
+    assert "Blocked Task" in result.output
+    assert "Blocker Task" in result.output
+
+
+def test_portfolio_blocked_json_output(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio blocked --output json`` returns JSON rows with correct columns."""
+    tasks = [_make_task(task_id=2, title="Blocked Task", project_id=2)]
+    edge = _make_dependency_edge(
+        task_id=1,
+        task_title="Blocker",
+        task_project_id=1,
+        task_project_name="Alpha Project",
+        opposite_task_id=2,
+        opposite_task_title="Blocked Task",
+        opposite_task_project_id=2,
+        opposite_task_project_name="Beta Project",
+        is_cross_project=True,
+    )
+    blocked_task = _make_task(task_id=2, title="Blocked Task", project_id=2)
+
+    mock_manager = MagicMock()
+    mock_manager.get_portfolio_tasks.return_value = tasks
+    mock_analyzer = MagicMock()
+    mock_analyzer.get_blocked_tasks.return_value = [(blocked_task, [edge])]
+
+    result = _invoke_dep(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        mock_manager,
+        mock_analyzer,
+        ["--output", "json", "portfolio", "blocked", "Test Portfolio"],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert isinstance(data, list)
+    row = data[0]
+    assert row["task_id"] == 2
+    assert row["title"] == "Blocked Task"
+    assert "Beta Project" in row["project"]
+    assert "#1" in row["blocked_by_task"]
+    assert "Alpha Project" in row["blocked_by_project"]
+
+
+def test_portfolio_blocked_filters_same_project(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio blocked`` omits same-project blocking edges (is_cross_project=False)."""
+    tasks = [_make_task(task_id=2, project_id=1)]
+    same_proj_edge = _make_dependency_edge(
+        task_id=1,
+        task_project_id=1,
+        opposite_task_id=2,
+        opposite_task_project_id=1,
+        is_cross_project=False,  # same project — should be filtered out
+    )
+    blocked_task = _make_task(task_id=2, project_id=1)
+
+    mock_manager = MagicMock()
+    mock_manager.get_portfolio_tasks.return_value = tasks
+    mock_analyzer = MagicMock()
+    mock_analyzer.get_blocked_tasks.return_value = [(blocked_task, [same_proj_edge])]
+
+    result = _invoke_dep(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        mock_manager,
+        mock_analyzer,
+        ["--output", "json", "portfolio", "blocked", "Test Portfolio"],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    # Same-project edge filtered — empty result.
+    assert data == []
+
+
+def test_portfolio_blocked_not_found(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio blocked`` shows error when portfolio not found."""
+    mock_manager = MagicMock()
+    mock_manager.get_portfolio_tasks.side_effect = KanboardConfigError(
+        "Portfolio 'Ghost' not found"
+    )
+    mock_analyzer = MagicMock()
+
+    result = _invoke_dep(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        mock_manager,
+        mock_analyzer,
+        ["portfolio", "blocked", "Ghost"],
+    )
+
+    assert result.exit_code != 0
+    assert "Ghost" in result.output
+
+
+# ===========================================================================
+# portfolio blocking (US-009)
+# ===========================================================================
+
+
+def test_portfolio_blocking_success(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio blocking`` shows cross-project blocking tasks in table format."""
+    tasks = [_make_task(task_id=1, title="Blocker Task", project_id=1)]
+    edge = _make_dependency_edge(
+        task_id=1,
+        task_title="Blocker Task",
+        task_project_id=1,
+        task_project_name="Alpha Project",
+        opposite_task_id=2,
+        opposite_task_title="Blocked Task",
+        opposite_task_project_id=2,
+        opposite_task_project_name="Beta Project",
+        is_cross_project=True,
+    )
+    blocking_task = _make_task(task_id=1, title="Blocker Task", project_id=1)
+
+    mock_manager = MagicMock()
+    mock_manager.get_portfolio_tasks.return_value = tasks
+    mock_analyzer = MagicMock()
+    mock_analyzer.get_blocking_tasks.return_value = [(blocking_task, [edge])]
+
+    result = _invoke_dep(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        mock_manager,
+        mock_analyzer,
+        ["portfolio", "blocking", "Test Portfolio"],
+    )
+
+    assert result.exit_code == 0
+    assert "Blocker Task" in result.output
+    assert "Blocked Task" in result.output
+
+
+def test_portfolio_blocking_json_output(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio blocking --output json`` returns JSON rows with correct columns."""
+    tasks = [_make_task(task_id=1, title="Blocker Task", project_id=1)]
+    edge = _make_dependency_edge(
+        task_id=1,
+        task_title="Blocker Task",
+        task_project_id=1,
+        task_project_name="Alpha Project",
+        opposite_task_id=2,
+        opposite_task_title="Blocked Task",
+        opposite_task_project_id=2,
+        opposite_task_project_name="Beta Project",
+        is_cross_project=True,
+    )
+    blocking_task = _make_task(task_id=1, title="Blocker Task", project_id=1)
+
+    mock_manager = MagicMock()
+    mock_manager.get_portfolio_tasks.return_value = tasks
+    mock_analyzer = MagicMock()
+    mock_analyzer.get_blocking_tasks.return_value = [(blocking_task, [edge])]
+
+    result = _invoke_dep(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        mock_manager,
+        mock_analyzer,
+        ["--output", "json", "portfolio", "blocking", "Test Portfolio"],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert isinstance(data, list)
+    row = data[0]
+    assert row["task_id"] == 1
+    assert row["title"] == "Blocker Task"
+    assert "Alpha Project" in row["project"]
+    assert "#2" in row["blocks_task"]
+    assert "Beta Project" in row["blocks_project"]
+
+
+def test_portfolio_blocking_filters_same_project(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio blocking`` omits same-project blocking edges (is_cross_project=False)."""
+    tasks = [_make_task(task_id=1, project_id=1)]
+    same_proj_edge = _make_dependency_edge(
+        task_id=1,
+        task_project_id=1,
+        opposite_task_id=2,
+        opposite_task_project_id=1,
+        is_cross_project=False,
+    )
+    blocking_task = _make_task(task_id=1, project_id=1)
+
+    mock_manager = MagicMock()
+    mock_manager.get_portfolio_tasks.return_value = tasks
+    mock_analyzer = MagicMock()
+    mock_analyzer.get_blocking_tasks.return_value = [(blocking_task, [same_proj_edge])]
+
+    result = _invoke_dep(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        mock_manager,
+        mock_analyzer,
+        ["--output", "json", "portfolio", "blocking", "Test Portfolio"],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data == []
+
+
+def test_portfolio_blocking_not_found(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio blocking`` shows error when portfolio not found."""
+    mock_manager = MagicMock()
+    mock_manager.get_portfolio_tasks.side_effect = KanboardConfigError(
+        "Portfolio 'Ghost' not found"
+    )
+    mock_analyzer = MagicMock()
+
+    result = _invoke_dep(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        mock_manager,
+        mock_analyzer,
+        ["portfolio", "blocking", "Ghost"],
+    )
+
+    assert result.exit_code != 0
+    assert "Ghost" in result.output
+
+
+# ===========================================================================
+# portfolio critical-path (US-009)
+# ===========================================================================
+
+
+def test_portfolio_critical_path_success(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio critical-path`` renders numbered list with bottleneck annotation."""
+    tasks = [
+        _make_task(task_id=1, title="Blocker Task", project_id=1),
+        _make_task(task_id=2, title="Blocked Task", project_id=2),
+    ]
+    edge = _make_dependency_edge()
+    path = tasks  # Both tasks in the critical path.
+
+    mock_manager = MagicMock()
+    mock_manager.get_portfolio_tasks.return_value = tasks
+    mock_analyzer = MagicMock()
+    mock_analyzer.get_dependency_edges.return_value = [edge]
+    mock_analyzer.get_critical_path.return_value = path
+
+    result = _invoke_dep(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        mock_manager,
+        mock_analyzer,
+        ["portfolio", "critical-path", "Test Portfolio"],
+    )
+
+    assert result.exit_code == 0
+    assert "Critical Path" in result.output
+    assert "Blocker Task" in result.output
+    assert "Blocked Task" in result.output
+    mock_analyzer.get_dependency_edges.assert_called_once_with(tasks)
+    mock_analyzer.get_critical_path.assert_called_once_with(tasks)
+
+
+def test_portfolio_critical_path_empty(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio critical-path`` reports 'No critical path found' when no path exists."""
+    tasks = [_make_task(task_id=1, project_id=1)]
+
+    mock_manager = MagicMock()
+    mock_manager.get_portfolio_tasks.return_value = tasks
+    mock_analyzer = MagicMock()
+    mock_analyzer.get_dependency_edges.return_value = []
+    mock_analyzer.get_critical_path.return_value = []
+
+    result = _invoke_dep(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        mock_manager,
+        mock_analyzer,
+        ["portfolio", "critical-path", "Test Portfolio"],
+    )
+
+    assert result.exit_code == 0
+    assert "No critical path" in result.output
+
+
+def test_portfolio_critical_path_not_found(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio critical-path`` shows error when portfolio not found."""
+    mock_manager = MagicMock()
+    mock_manager.get_portfolio_tasks.side_effect = KanboardConfigError(
+        "Portfolio 'Ghost' not found"
+    )
+    mock_analyzer = MagicMock()
+
+    result = _invoke_dep(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        mock_manager,
+        mock_analyzer,
+        ["portfolio", "critical-path", "Ghost"],
+    )
+
+    assert result.exit_code != 0
+    assert "Ghost" in result.output
+
+
+def test_portfolio_critical_path_bottleneck(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio critical-path`` marks the task with the most outbound edges as BOTTLENECK."""
+    tasks = [
+        _make_task(task_id=1, title="Root Blocker", project_id=1),
+        _make_task(task_id=2, title="Mid Task", project_id=1),
+        _make_task(task_id=3, title="Leaf Task", project_id=2),
+    ]
+    # Task 1 blocks task 2 and task 3 (two outbound edges in path).
+    edge1 = _make_dependency_edge(task_id=1, task_title="Root Blocker", opposite_task_id=2)
+    edge2 = _make_dependency_edge(
+        task_id=1,
+        task_title="Root Blocker",
+        opposite_task_id=3,
+        opposite_task_title="Leaf Task",
+        opposite_task_project_id=2,
+        opposite_task_project_name="Beta Project",
+    )
+    path = tasks
+
+    mock_manager = MagicMock()
+    mock_manager.get_portfolio_tasks.return_value = tasks
+    mock_analyzer = MagicMock()
+    mock_analyzer.get_dependency_edges.return_value = [edge1, edge2]
+    mock_analyzer.get_critical_path.return_value = path
+
+    result = _invoke_dep(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        mock_manager,
+        mock_analyzer,
+        ["portfolio", "critical-path", "Test Portfolio"],
+    )
+
+    assert result.exit_code == 0
+    assert "BOTTLENECK" in result.output
+    assert "Root Blocker" in result.output

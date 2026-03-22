@@ -1,6 +1,7 @@
 """Portfolio CLI commands — CRUD and aggregation for cross-project portfolio management.
 
-Subcommands: list, show, create, remove, add-project, remove-project, tasks, sync.
+Subcommands: list, show, create, remove, add-project, remove-project, tasks, sync,
+dependencies, blocked, blocking, critical-path.
 
 Portfolios are stored locally in ``~/.config/kanboard/portfolios.json`` via
 :class:`~kanboard.orchestration.store.LocalPortfolioStore`.  Live task and
@@ -24,6 +25,7 @@ from kanboard.exceptions import (
 from kanboard_cli.formatters import format_output, format_success
 
 if TYPE_CHECKING:
+    from kanboard.orchestration.dependencies import DependencyAnalyzer
     from kanboard.orchestration.portfolio import PortfolioManager
     from kanboard.orchestration.store import LocalPortfolioStore
     from kanboard_cli.main import AppContext
@@ -43,6 +45,25 @@ _TASKS_COLUMNS = [
 
 # Default columns for ``portfolio list`` table output.
 _LIST_COLUMNS = ["name", "description", "project_count", "milestone_count"]
+
+# Columns for ``portfolio dependencies --format table`` (flat DependencyEdge rows).
+_DEP_EDGE_COLUMNS = [
+    "task_id",
+    "task_title",
+    "task_project_name",
+    "opposite_task_id",
+    "opposite_task_title",
+    "opposite_task_project_name",
+    "link_label",
+    "is_cross_project",
+    "is_resolved",
+]
+
+# Columns for ``portfolio blocked`` table output.
+_BLOCKED_COLUMNS = ["task_id", "title", "project", "blocked_by_task", "blocked_by_project"]
+
+# Columns for ``portfolio blocking`` table output.
+_BLOCKING_COLUMNS = ["task_id", "title", "project", "blocks_task", "blocks_project"]
 
 
 # ---------------------------------------------------------------------------
@@ -80,6 +101,25 @@ def _get_manager(app_ctx: AppContext, store: LocalPortfolioStore) -> PortfolioMa
     if app_ctx.client is None:
         raise click.ClickException("No Kanboard configuration found. Run 'kanboard config init'.")
     return PortfolioManager(app_ctx.client, store)
+
+
+def _get_analyzer(app_ctx: AppContext) -> DependencyAnalyzer:
+    """Instantiate DependencyAnalyzer, raising ClickException if no client configured.
+
+    Args:
+        app_ctx: The current application context.
+
+    Returns:
+        A ready-to-use :class:`~kanboard.orchestration.dependencies.DependencyAnalyzer`.
+
+    Raises:
+        click.ClickException: If no Kanboard client is configured.
+    """
+    from kanboard.orchestration.dependencies import DependencyAnalyzer
+
+    if app_ctx.client is None:
+        raise click.ClickException("No Kanboard configuration found. Run 'kanboard config init'.")
+    return DependencyAnalyzer(app_ctx.client)
 
 
 # ---------------------------------------------------------------------------
@@ -459,3 +499,237 @@ def portfolio_sync(ctx: click.Context, name: str) -> None:
     projects_synced = result.get("projects_synced", 0)
     tasks_synced = result.get("tasks_synced", 0)
     click.echo(f"Synced {projects_synced} projects, {tasks_synced} tasks.")
+
+
+# ---------------------------------------------------------------------------
+# portfolio dependencies
+# ---------------------------------------------------------------------------
+
+
+@portfolio.command("dependencies")
+@click.argument("name")
+@click.option(
+    "--cross-project-only",
+    is_flag=True,
+    default=False,
+    help="Show only cross-project dependency edges.",
+)
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["graph", "table", "json"], case_sensitive=False),
+    default="graph",
+    show_default=True,
+    help="Visualization format: graph=ASCII render, table=flat rows, json=structured dict.",
+)
+@click.pass_context
+def portfolio_dependencies(
+    ctx: click.Context,
+    name: str,
+    cross_project_only: bool,
+    fmt: str,
+) -> None:
+    r"""Show the dependency graph for all tasks in portfolio NAME.
+
+    Defaults to an ASCII dependency graph.  Use ``--format table`` for flat
+    DependencyEdge rows or ``--format json`` for a machine-readable dict.
+
+    \b
+    Examples:
+        kanboard portfolio dependencies "My Portfolio"
+        kanboard portfolio dependencies "My Portfolio" --cross-project-only
+        kanboard portfolio dependencies "My Portfolio" --format json
+        kanboard --output csv portfolio dependencies "My Portfolio" --format table
+    """
+    from kanboard_cli.renderers import render_dependency_graph
+
+    app_ctx: AppContext = ctx.obj
+    store = _get_store()
+    manager = _get_manager(app_ctx, store)
+    analyzer = _get_analyzer(app_ctx)
+
+    try:
+        tasks = manager.get_portfolio_tasks(name)
+    except KanboardConfigError as exc:
+        raise click.ClickException(str(exc)) from exc
+    except (KanboardAPIError, KanboardConnectionError) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    if fmt == "graph":
+        edges = analyzer.get_dependency_edges(tasks, cross_project_only=cross_project_only)
+        output = render_dependency_graph(
+            edges, tasks, cross_project_only=cross_project_only, use_color=False
+        )
+        click.echo(output, nl=False)
+
+    elif fmt == "table":
+        edges = analyzer.get_dependency_edges(tasks, cross_project_only=cross_project_only)
+        rows: list[dict[str, Any]] = [
+            {
+                "task_id": e.task_id,
+                "task_title": e.task_title,
+                "task_project_name": e.task_project_name,
+                "opposite_task_id": e.opposite_task_id,
+                "opposite_task_title": e.opposite_task_title,
+                "opposite_task_project_name": e.opposite_task_project_name,
+                "link_label": e.link_label,
+                "is_cross_project": e.is_cross_project,
+                "is_resolved": e.is_resolved,
+            }
+            for e in edges
+        ]
+        format_output(rows, app_ctx.output, columns=_DEP_EDGE_COLUMNS)
+
+    else:  # json
+        import json
+
+        graph = analyzer.get_dependency_graph(tasks, cross_project_only=cross_project_only)
+        click.echo(json.dumps(graph, indent=2))
+
+
+# ---------------------------------------------------------------------------
+# portfolio blocked
+# ---------------------------------------------------------------------------
+
+
+@portfolio.command("blocked")
+@click.argument("name")
+@click.pass_context
+def portfolio_blocked(ctx: click.Context, name: str) -> None:
+    r"""List tasks in portfolio NAME that are blocked by cross-project dependencies.
+
+    Shows only edges where the blocking task belongs to a different project
+    (``is_cross_project=True``).  All four output formats are supported.
+
+    \b
+    Examples:
+        kanboard portfolio blocked "My Portfolio"
+        kanboard --output json portfolio blocked "My Portfolio"
+    """
+    app_ctx: AppContext = ctx.obj
+    store = _get_store()
+    manager = _get_manager(app_ctx, store)
+    analyzer = _get_analyzer(app_ctx)
+
+    try:
+        tasks = manager.get_portfolio_tasks(name)
+    except KanboardConfigError as exc:
+        raise click.ClickException(str(exc)) from exc
+    except (KanboardAPIError, KanboardConnectionError) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    blocked = analyzer.get_blocked_tasks(tasks)
+
+    rows: list[dict[str, Any]] = []
+    for task, edges in blocked:
+        for edge in edges:
+            if not edge.is_cross_project:
+                continue
+            rows.append(
+                {
+                    "task_id": task.id,
+                    "title": task.title,
+                    "project": edge.opposite_task_project_name
+                    or f"Project #{edge.opposite_task_project_id}",
+                    "blocked_by_task": f"#{edge.task_id} {edge.task_title}",
+                    "blocked_by_project": edge.task_project_name
+                    or f"Project #{edge.task_project_id}",
+                }
+            )
+
+    format_output(rows, app_ctx.output, columns=_BLOCKED_COLUMNS)
+
+
+# ---------------------------------------------------------------------------
+# portfolio blocking
+# ---------------------------------------------------------------------------
+
+
+@portfolio.command("blocking")
+@click.argument("name")
+@click.pass_context
+def portfolio_blocking(ctx: click.Context, name: str) -> None:
+    r"""List tasks in portfolio NAME that are blocking other tasks cross-project.
+
+    Shows only edges where the blocking task and the blocked task belong to
+    different projects (``is_cross_project=True``).  All four output formats
+    are supported.
+
+    \b
+    Examples:
+        kanboard portfolio blocking "My Portfolio"
+        kanboard --output json portfolio blocking "My Portfolio"
+    """
+    app_ctx: AppContext = ctx.obj
+    store = _get_store()
+    manager = _get_manager(app_ctx, store)
+    analyzer = _get_analyzer(app_ctx)
+
+    try:
+        tasks = manager.get_portfolio_tasks(name)
+    except KanboardConfigError as exc:
+        raise click.ClickException(str(exc)) from exc
+    except (KanboardAPIError, KanboardConnectionError) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    blocking = analyzer.get_blocking_tasks(tasks)
+
+    rows: list[dict[str, Any]] = []
+    for task, edges in blocking:
+        for edge in edges:
+            if not edge.is_cross_project:
+                continue
+            rows.append(
+                {
+                    "task_id": task.id,
+                    "title": task.title,
+                    "project": edge.task_project_name or f"Project #{edge.task_project_id}",
+                    "blocks_task": f"#{edge.opposite_task_id} {edge.opposite_task_title}",
+                    "blocks_project": edge.opposite_task_project_name
+                    or f"Project #{edge.opposite_task_project_id}",
+                }
+            )
+
+    format_output(rows, app_ctx.output, columns=_BLOCKING_COLUMNS)
+
+
+# ---------------------------------------------------------------------------
+# portfolio critical-path
+# ---------------------------------------------------------------------------
+
+
+@portfolio.command("critical-path")
+@click.argument("name")
+@click.pass_context
+def portfolio_critical_path(ctx: click.Context, name: str) -> None:
+    r"""Show the critical dependency chain for portfolio NAME.
+
+    Identifies the longest unresolved dependency chain across all portfolio
+    tasks and annotates the bottleneck — the task whose completion would
+    unblock the most downstream work.
+
+    \b
+    Examples:
+        kanboard portfolio critical-path "My Portfolio"
+    """
+    from kanboard_cli.renderers import render_critical_path
+
+    app_ctx: AppContext = ctx.obj
+    store = _get_store()
+    manager = _get_manager(app_ctx, store)
+    analyzer = _get_analyzer(app_ctx)
+
+    try:
+        tasks = manager.get_portfolio_tasks(name)
+    except KanboardConfigError as exc:
+        raise click.ClickException(str(exc)) from exc
+    except (KanboardAPIError, KanboardConnectionError) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    # Fetch edges first so the task cache is populated.  get_critical_path
+    # internally calls get_dependency_edges again; the task cache prevents
+    # duplicate getTask calls even though getAllTaskLinks is still fetched twice.
+    edges = analyzer.get_dependency_edges(tasks)
+    critical = analyzer.get_critical_path(tasks)
+    output = render_critical_path(critical, edges)
+    click.echo(output, nl=False)
