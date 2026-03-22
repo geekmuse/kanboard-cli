@@ -108,9 +108,7 @@ class TestCompletionFish:
 class TestCompletionInstallBash:
     """Tests for ``kanboard completion install bash``."""
 
-    def test_install_bash_appends_eval_to_bashrc(
-        self, runner: CliRunner, tmp_path: Path
-    ) -> None:
+    def test_install_bash_appends_eval_to_bashrc(self, runner: CliRunner, tmp_path: Path) -> None:
         """install bash appends eval line to BASH_RC."""
         fake_bashrc = tmp_path / ".bashrc"
         fake_bashrc.write_text("# existing content\n")
@@ -133,9 +131,7 @@ class TestCompletionInstallBash:
         assert fake_bashrc.exists()
         assert 'eval "$(kanboard completion bash)"' in fake_bashrc.read_text()
 
-    def test_install_bash_skips_if_already_present(
-        self, runner: CliRunner, tmp_path: Path
-    ) -> None:
+    def test_install_bash_skips_if_already_present(self, runner: CliRunner, tmp_path: Path) -> None:
         """install bash does not add a duplicate eval line."""
         fake_bashrc = tmp_path / ".bashrc"
         fake_bashrc.write_text('eval "$(kanboard completion bash)"\n')
@@ -155,9 +151,7 @@ class TestCompletionInstallBash:
 class TestCompletionInstallZsh:
     """Tests for ``kanboard completion install zsh``."""
 
-    def test_install_zsh_appends_eval_to_zshrc(
-        self, runner: CliRunner, tmp_path: Path
-    ) -> None:
+    def test_install_zsh_appends_eval_to_zshrc(self, runner: CliRunner, tmp_path: Path) -> None:
         """install zsh appends eval line to ZSH_RC."""
         fake_zshrc = tmp_path / ".zshrc"
         fake_zshrc.write_text("# existing content\n")
@@ -168,9 +162,7 @@ class TestCompletionInstallZsh:
         assert 'eval "$(kanboard completion zsh)"' in content
         assert "✓" in result.output
 
-    def test_install_zsh_skips_if_already_present(
-        self, runner: CliRunner, tmp_path: Path
-    ) -> None:
+    def test_install_zsh_skips_if_already_present(self, runner: CliRunner, tmp_path: Path) -> None:
         """install zsh does not add a duplicate eval line."""
         fake_zshrc = tmp_path / ".zshrc"
         fake_zshrc.write_text('eval "$(kanboard completion zsh)"\n')
@@ -188,14 +180,10 @@ class TestCompletionInstallZsh:
 class TestCompletionInstallFish:
     """Tests for ``kanboard completion install fish``."""
 
-    def test_install_fish_writes_completion_file(
-        self, runner: CliRunner, tmp_path: Path
-    ) -> None:
+    def test_install_fish_writes_completion_file(self, runner: CliRunner, tmp_path: Path) -> None:
         """install fish writes completion script to FISH_COMPLETIONS_DIR/kanboard.fish."""
         fake_fish_dir = tmp_path / "fish" / "completions"
-        with patch(
-            "kanboard_cli.commands.completion.FISH_COMPLETIONS_DIR", fake_fish_dir
-        ):
+        with patch("kanboard_cli.commands.completion.FISH_COMPLETIONS_DIR", fake_fish_dir):
             result = _invoke(runner, ["completion", "install", "fish"])
         assert result.exit_code == 0, result.output
         fish_file = fake_fish_dir / "kanboard.fish"
@@ -203,15 +191,11 @@ class TestCompletionInstallFish:
         assert len(fish_file.read_text().strip()) > 0
         assert "✓" in result.output
 
-    def test_install_fish_creates_parent_dirs(
-        self, runner: CliRunner, tmp_path: Path
-    ) -> None:
+    def test_install_fish_creates_parent_dirs(self, runner: CliRunner, tmp_path: Path) -> None:
         """install fish creates the completions directory if it does not exist."""
         fake_fish_dir = tmp_path / "nested" / "completions"
         assert not fake_fish_dir.exists()
-        with patch(
-            "kanboard_cli.commands.completion.FISH_COMPLETIONS_DIR", fake_fish_dir
-        ):
+        with patch("kanboard_cli.commands.completion.FISH_COMPLETIONS_DIR", fake_fish_dir):
             result = _invoke(runner, ["completion", "install", "fish"])
         assert result.exit_code == 0, result.output
         assert fake_fish_dir.exists()

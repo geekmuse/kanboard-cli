@@ -26,8 +26,8 @@
       "dependsOn": [],
       "notes": "Depends on existing config system (M1 Task 4) and application resource (M3 Task 39) already on main.",
       "startedAt": "2026-03-22T14:00:55.129Z",
-      "updatedAt": "2026-03-22T14:30:00.000Z",
-      "completedAt": "2026-03-22T14:30:00.000Z"
+      "updatedAt": "2026-03-22T14:09:57.105Z",
+      "completedAt": "2026-03-22T14:09:57.105Z"
     },
     {
       "id": "US-002",
@@ -44,9 +44,12 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 2,
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
-      "notes": "Uses Click's built-in _<PROG_NAME>_COMPLETE mechanism."
+      "notes": "Uses Click's built-in _<PROG_NAME>_COMPLETE mechanism.",
+      "startedAt": "2026-03-22T14:09:58.125Z",
+      "updatedAt": "2026-03-22T14:30:00.000Z",
+      "completedAt": "2026-03-22T14:30:00.000Z"
     },
     {
       "id": "US-003",

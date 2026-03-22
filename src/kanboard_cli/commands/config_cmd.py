@@ -96,8 +96,7 @@ def config_init(ctx: click.Context, force: bool) -> None:
     """
     if CONFIG_FILE.exists() and not force:
         raise click.ClickException(
-            f"Config file already exists: {CONFIG_FILE}\n"
-            "Use --force to overwrite."
+            f"Config file already exists: {CONFIG_FILE}\nUse --force to overwrite."
         )
 
     url: str = click.prompt("Kanboard URL", default="http://localhost/jsonrpc.php")

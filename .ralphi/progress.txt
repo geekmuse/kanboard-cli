@@ -3,6 +3,7 @@
 - Patching for tests: use `patch("kanboard_cli.main.KanboardConfig.resolve", return_value=...)` and `patch("kanboard_cli.main.KanboardClient", return_value=...)` to inject config/client. For module-level Path constants in commands (CONFIG_FILE, CONFIG_DIR), patch at `kanboard_cli.commands.<module>.CONFIG_FILE`.
 - Config-less commands (e.g., `config init`): the root `cli` callback absorbs `KanboardConfigError`, so `ctx.obj.config` / `.client` are `None` but `ctx.obj.output` always has a value from the global `--output` flag.
 - Token masking: `****{token[-4:]}` for tokens > 4 chars, `****` for shorter.
+- Shell completion: use `click.shell_completion.{Bash,Zsh,Fish}Complete(cli, {}, "kanboard", "_KANBOARD_COMPLETE").source()` to generate scripts. Import `cli` lazily inside the function to avoid the circular import (main.py imports completion.py, completion.py must not import main.py at module level).
 ---
 
 ## PRD Run Context
@@ -29,4 +30,25 @@ Corrective Plan: N/A
   - CONFIG_FILE / CONFIG_DIR are module-level Path constants; patch them at `kanboard_cli.commands.config_cmd.CONFIG_FILE` in tests
   - `ctx.obj.output` is always set from the global `--output` flag even when config resolution fails
   - Use `tmp_path` pytest fixture + patch for filesystem-touching command tests
+---
+
+## 2026-03-22 - US-002
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/completion.py` with 4 subcommands: `bash`, `zsh`, `fish`, `install`
+- `completion bash/zsh/fish`: generates the Click shell completion script via `click.shell_completion.{Bash,Zsh,Fish}Complete.source()` and echoes to stdout
+- `completion install <shell>`: for bash/zsh appends `eval "$(kanboard completion <shell>)"` to the RC file (skips if already present); for fish writes to `~/.config/fish/completions/kanboard.fish`
+- Module-level path constants (`BASH_RC`, `ZSH_RC`, `FISH_COMPLETIONS_DIR`) are patchable in tests, consistent with the config_cmd pattern
+- `cli` imported lazily inside `_get_completion_source()` to break the circular import (main.py imports completion.py at module level)
+- `completion install` reads module constants via `import kanboard_cli.commands.completion as _this_module` + `getattr` so patches made in tests are respected
+- Registered `completion_cmd` in `main.py`; added import + `cli.add_command(completion_cmd)`
+- Added 15 CliRunner tests in `tests/cli/test_completion.py`: all 3 shell types produce non-empty output referencing "kanboard"; install bash/zsh/fish tested with tmp_path; skip-if-already-present tested; invalid shell rejected; help text verified
+- Files changed: `src/kanboard_cli/commands/completion.py` (new), `src/kanboard_cli/main.py` (import + registration), `tests/cli/test_completion.py` (new)
+- **Learnings for future iterations:**
+  - Module-level constants that reference `Path.home()` are evaluated at import time — always expose them as named constants and patch at the module path for tests
+  - For a command that reads its own module-level variables at runtime, `import <module> as _m; getattr(_m, ATTR)` pattern (vs a local variable) ensures test patches are visible
+  - Lazy imports inside function bodies safely break circular imports when main.py and command modules import each other
 ---

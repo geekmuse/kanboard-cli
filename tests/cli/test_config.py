@@ -352,11 +352,7 @@ def test_config_profiles_json(
     tmp_path: Path,
 ) -> None:
     """``config profiles`` renders in JSON format."""
-    toml_content = (
-        b"[profiles.default]\n"
-        b'url = "http://localhost/jsonrpc.php"\n'
-        b'token = "abc"\n'
-    )
+    toml_content = b'[profiles.default]\nurl = "http://localhost/jsonrpc.php"\ntoken = "abc"\n'
     config_file = tmp_path / "config.toml"
     config_file.write_bytes(toml_content)
 
