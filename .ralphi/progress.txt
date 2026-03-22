@@ -1,332 +1,49 @@
 ## Codebase Patterns
-- **`project` group replaces stub in `main.py`**: The stub `@click.group() def project()` is removed from `main.py`; the real group is imported with `from kanboard_cli.commands.project import project`. Same pattern as `task`.
-- **`project activity` returns `list[dict]` not typed models**: Activity events are raw dicts from the SDK. `format_output` handles them via `_normalize` → list of dicts path — no dataclass required.
-- **`project update` guards against no-op**: Same pattern as `task update` — build `kwargs`, raise `click.UsageError` if empty. Keeps the CLI honest about destructive no-ops.
+- **KanboardNotFoundError signature**: uses `resource=` and `identifier=` kwargs (NOT `resource_type`/`resource_id`); `__str__` formats as `"Not found: {resource} '{identifier}' does not exist"` — match patterns in tests must reflect this.
 
-- **CLI command modules use `TYPE_CHECKING` guard for `AppContext` import**: `commands/task.py` imports `AppContext` from `kanboard_cli.main` only under `if TYPE_CHECKING:` to avoid circular imports. At runtime the import is skipped; type checkers still resolve it. Required because `main.py` imports from `commands/`.
-- **CLI `task` group replaces stub in `main.py`**: The stub `@click.group() def task()` is removed from `main.py`; the real group is imported with `from kanboard_cli.commands.task import task`. Same pattern applies to all future command modules.
-- **CliRunner + Rich table assertions**: Rich tables in CliRunner tests have an unpredictable effective terminal width (often very narrow), causing cell data to be truncated to `…`. Use `--output json` or `--output csv` for data-value assertions; table tests should only check `exit_code == 0` and mock call assertions.
-- **`--tag` is `multiple=True` → tuple**: Click's `multiple=True` returns a tuple. Convert to `list(tags)` before passing to SDK. Only add to kwargs `if tags:` (empty tuple is falsy).
-- **Only pass non-None options to SDK kwargs**: Build a `kwargs: dict[str, Any] = {}` and add each option `if value is not None`. This ensures omitted CLI options don't overwrite API defaults.
-- **`click.UsageError` for invalid usage in commands**: Raise `click.UsageError(message)` (not `click.ClickException`) for user-input problems like no options provided to `update`. `click.ClickException` is for runtime/API errors.
-- **`click.confirm(..., abort=True)` for destructive commands**: `abort=True` causes CliRunner to exit non-zero when input is not `y`. With `--yes` flag: skip the prompt entirely.
-- **`@task.command("name")` for explicit CLI names**: Use `@task.command("move-to-project")` with hyphenated names; function name uses underscores (`task_move_to_project`). This avoids Click's automatic underscore→hyphen conversion.
-
-
-- **`format_output(data, format, columns)` is the single formatter entry point**: normalises via `_normalize` → dispatches to `_format_table`, `_format_json`, `_format_csv`, or `_format_quiet`. `format_success(message, format)` is the success/confirmation companion.
-- **`_normalize` handles all SDK return types**: `None` → `[]`; single dataclass → `[asdict(dc)]`; list → list of dicts; plain dict → `[dict]`. Always call `_normalize` before rendering.
-- **JSON list vs object detection**: `_format_json` checks `isinstance(data, list)` on the ORIGINAL input (before normalisation) to decide array vs single-object output. Pass the raw SDK value to `format_output`, not pre-normalised rows.
-- **`_DatetimeEncoder` handles datetime in JSON**: `dataclasses.asdict` leaves `datetime` objects in-place; `_DatetimeEncoder(json.JSONEncoder)` converts them to ISO-8601 strings. Always use `cls=_DatetimeEncoder` when dumping SDK data.
-- **`capsys` captures Rich Console output**: `Console()` created inside a function call uses `sys.stdout` at construction time. In pytest with `capsys`, `sys.stdout` is already replaced when the function executes, so Rich output IS captured. No monkey-patching needed.
-- **CSV uses `csv.DictWriter(extrasaction="ignore")`**: `extrasaction="ignore"` prevents `ValueError` when a row dict has keys not in `fieldnames`. Always set this when columns filtering is in use.
-
-- **`ProjectsResource` follows the exact same `TYPE_CHECKING` + resource accessor pattern as `TasksResource`**: `from kanboard.client import KanboardClient` under `if TYPE_CHECKING:`, wired in `KanboardClient.__init__` as `self.projects = ProjectsResource(self)`.
-- **`updateProject` uses `id=` not `project_id=`**: Kanboard's `updateProject` JSON-RPC method takes `id` as the project identifier (same convention as `updateTask`). All other project methods use `project_id`. Map with `self._client.call("updateProject", id=project_id, **kwargs)`.
-- **Activity methods return `list[dict[str, Any]]`**: `get_project_activity` and `get_project_activities` return raw dicts (no typed model) — Kanboard activity payloads are complex nested structures. Use `list(result)` to normalise falsy → `[]`.
-- **`get_project_by_*` lookup methods (name/identifier/email) carry the lookup key as `identifier`**: `KanboardNotFoundError.identifier` stores the lookup value used (name string, identifier code, or email address) for human-readable error messages.
-- **`TasksResource` (and future resources) use `TYPE_CHECKING` import guard**: `from kanboard.client import KanboardClient` is placed under `if TYPE_CHECKING:` to avoid circular imports. The client imports the resource; the resource type-hints the client. This pattern must be followed for every resource module.
-- **Resource accessor wired in `KanboardClient.__init__`**: `self.tasks = TasksResource(self)` added directly in `__init__`, annotated as `self.tasks: TasksResource`. The client owns the resource instances.
-- **`update_task` uses `id=` not `task_id=`**: Kanboard's `updateTask` JSON-RPC method takes `id` (not `task_id`) as the task identifier param. All other task methods use `task_id`. Map with `self._client.call("updateTask", id=task_id, **kwargs)`.
-- **Resource method return patterns**: `create_task` raises on False/0; `get_*` single raises `KanboardNotFoundError` on None; `get_all_*` / `search_*` return `[]` on falsy; `update_task` raises on False; `open/close/remove/move_*` methods just `return bool(result)` without raising.
-
-
-- **Extended models follow the same from_api() pattern**: `_int()` for all integer fields, `_parse_date()` for date fields, `.get()` with sensible defaults. `params` dicts use `dict(data.get("params") or {})` — handles None, missing, and present cases.
-- **`Action.params` is `dict[str, Any]`**: Kanboard returns arbitrary key/value pairs for action parameters. Always wrap with `dict(...or {})` to normalise None/missing.
-- **File models (`ProjectFile`, `TaskFile`) share `date` (Unix timestamp), `is_image` (bool via `_int`), `size` (int), `mime_type` (str)** — consistent pattern for both resource types.
-- **`Link` vs `TaskLink` distinction**: `Link` = the relationship *type label* (e.g. "blocks"); `TaskLink` = the concrete association between two specific task IDs using a `link_id`.
-
-- **pytest-httpx 0.36 sync support**: `httpx_mock` fixture works seamlessly with `httpx.Client` (sync). `add_response(json=...)` and `add_exception(httpx.ConnectError("msg"))` are the main APIs. All registered responses must be consumed (strict by default) — match request count to registered responses.
-- **httpx exception hierarchy**: Catch `httpx.ConnectError` and `httpx.TimeoutException` first, then fall back to `httpx.HTTPError` for other transport errors. `ConnectError`, `ReadTimeout`, `ConnectTimeout` are all instantiatable with a message string alone.
-- **`typing.Self` for context managers**: Use `from typing import Self` and annotate `__enter__` return as `Self`. Use `import types` and `types.TracebackType | None` for the `exc_tb` parameter of `__exit__`.
-- **JSON-RPC batch order**: Server may return batch responses out of order. Build an `id → response` dict and re-order by original call sequence before returning results.
-- **`_extract_result` helper pattern**: Factor out `if "error" in data: raise` + `return data.get("result")` into a private helper reused by both `call()` and `batch()` — avoids duplication and keeps each method focused.
-- **tomllib built-in (Python 3.11+)**: Use `import tomllib` directly — no external dep. `tomli-w` is only for writing TOML.
-- **`ruff --fix` for auto-fixable issues**: RUF022 (`__all__` sort) and I001 (import order) are both auto-fixable. Run `ruff check --fix .` before committing.
-- **`__all__` must be sorted alphabetically**: ruff RUF022 enforces isort-style sort. Capital letters sort before lowercase (C before g, K before g).
-- **`monkeypatch.delenv(..., raising=False)`**: Always use `raising=False` when clearing env vars in config tests — the var may not exist in the test runner environment.
-- **config_file param for testability**: Any function reading CONFIG_FILE should accept `config_file: Path | None = None` and default to `CONFIG_FILE` internally — enables clean unit tests without touching the real config.
-- **ruff ANN101/ANN102 removed**: These rules no longer exist in ruff ≥0.15; remove from ignore list to avoid warnings.
-- **pytest exit code 5**: "no tests collected" is exit 5 — pre-commit hook fails. Add a `tests/test_smoke.py` with import tests to get exit 0.
-- **src/ layout + hatchling**: Wheel packages must be explicitly listed in `[tool.hatch.build.targets.wheel]` as `packages = ["src/kanboard", "src/kanboard_cli"]`.
-- **strict ruff convention=google**: pydocstyle convention is Google-style (D2xx). Ignore D203+D213 (conflict with D211+D212).
-- **per-file-ignores F401**: Add `"src/**/__init__.py" = ["F401"]` to allow re-export patterns in `__init__.py`.
----
-
-## 2026-03-22 - US-012
-Session: iter-929a3b92
-Review Outcome: PASS
-Trajectory: ON_TRACK
-Trajectory Notes: N/A
-Corrective Plan: N/A
-- Created `src/kanboard_cli/commands/project.py` with 8 project subcommands: list, get, create, update, remove, enable, disable, activity
-- Replaced stub `project` group in `main.py` with import from `commands/project.py`
-- `project list` → `get_all_projects()` with `_LIST_COLUMNS` (id, name, is_active, is_public, owner_id, identifier, last_modified)
-- `project get` → `get_project_by_id(project_id)` with `KanboardNotFoundError` → ClickException
-- `project create` → `create_project(name, **kwargs)` — maps `--owner-id`, `--identifier`, `--start-date`, `--end-date`, `--description` to kwargs
-- `project update` → `update_project(project_id, **kwargs)` — raises `UsageError` if no options provided
-- `project remove` → `click.confirm(abort=True)` unless `--yes`; maps to `remove_project`
-- `project enable/disable` → `enable_project`/`disable_project` with `format_success`
-- `project activity` → `get_project_activity(project_id)` — returns `list[dict]` (raw activity events)
-- Created `tests/cli/test_project.py`: 39 tests; all 468 suite tests pass
-- **Learnings for future iterations:**
-  - `project activity` returns `list[dict]` not typed models — `format_output` handles this via the plain-dict path in `_normalize`
-  - `format_output` with a single plain dict (not a dataclass) is safe — `_normalize` wraps it as `[dict]`
-  - Activity commands don't need column filtering (no predefined `_LIST_COLUMNS`) — pass `columns=None` or omit
-  - Same `TYPE_CHECKING` + stub-replacement pattern applies to every future command module
-
----
-
-## 2026-03-22 - US-011
-Session: iter-66369225
-Review Outcome: PASS
-Trajectory: ON_TRACK
-Trajectory Notes: N/A
-Corrective Plan: N/A
-- Created `src/kanboard_cli/commands/task.py` with 12 task subcommands: list, get, create, update, close, open, remove, search, move, move-to-project, duplicate, overdue
-- Replaced stub `task` group in `main.py` with import from `commands/task.py`
-- `TYPE_CHECKING` guard in `commands/task.py` imports `AppContext` from `main.py` — avoids circular import at runtime
-- `task list` → `get_all_tasks(project_id, status_id=)` (1=active, 0=inactive via `--status` Choice)
-- `task get` → `get_task(task_id)` with `KanboardNotFoundError` → ClickException
-- `task create` → `create_task(title, project_id, **kwargs)` — maps `--color` to `color_id`, `--due` to `date_due`, `--tag` (multiple) to `tags` list
-- `task update` → `update_task(task_id, **kwargs)` — raises `UsageError` if no options provided
-- `task close/open` → `close_task`/`open_task` with format_success
-- `task remove` → `click.confirm(abort=True)` unless `--yes`; maps to `remove_task`
-- `task search` → `search_tasks(project_id, query)`
-- `task move` → `move_task_position(project_id, task_id, column_id, position, swimlane_id)` with 4 required options
-- `task move-to-project` → `move_task_to_project(task_id, project_id, **kwargs)`
-- `task duplicate` → `duplicate_task_to_project(task_id, project_id, **kwargs)` — prints new task ID
-- `task overdue` → `get_overdue_tasks()` or `get_overdue_tasks_by_project(project_id)` based on `--project-id`
-- `_LIST_COLUMNS` constant defines the 7-column subset shown in list/search/overdue table output
-- Created `tests/cli/test_task.py`: 52 tests; all 429 suite tests pass
-- **Learnings for future iterations:**
-  - `CliRunner` + Rich: terminal width is unpredictable (often narrow), cell data gets truncated to `…`. Assert on `exit_code` + JSON/CSV output for data values; only column headers may be reliable for table tests with short column names.
-  - `TYPE_CHECKING` guard is the correct pattern for `commands/*.py` importing from `main.py` — prevents circular import while still allowing type checking.
-  - `multiple=True` Click options return tuples; use `if tags: kwargs["tags"] = list(tags)` pattern.
-  - `click.UsageError` vs `click.ClickException`: UsageError for bad user input (shows "Usage:"), ClickException for runtime errors (shows "Error:").
-  - All future command modules should follow the same `task.py` pattern: group defined in module, imported and registered in `main.py`, stub in `main.py` removed.
----
-
-## 2026-03-22 - US-010
-Session: iter-87a8bf54
-Review Outcome: PASS
-Trajectory: ON_TRACK
-Trajectory Notes: N/A
-Corrective Plan: N/A
-- Created `src/kanboard_cli/formatters.py` with `format_output()` and `format_success()`
-- `_normalize()` converts dataclasses (via `dataclasses.asdict`), dicts, lists, and None into a flat `list[dict[str, Any]]`
-- `_format_table()` — `rich.table.Table` with `header_style="bold cyan"`, auto-width columns, `_cell_str` for cell values
-- `_format_json()` — `json.dumps(indent=2, cls=_DatetimeEncoder)`; list input → array, single input → object, empty+non-list → `{}`
-- `_format_csv()` — `csv.DictWriter(extrasaction="ignore")` for proper escaping + column filtering
-- `_format_quiet()` — prints `row["id"]` one per line; rows without `id` silently skipped
-- `format_success()` — JSON mode: `{"status":"ok","message":...}`; else: `✓ {message}`
-- `_DatetimeEncoder` subclasses `json.JSONEncoder` to serialise `datetime` as ISO-8601
-- Created `tests/cli/test_formatters.py`: 41 tests covering normalisation, all 4 formats, edge cases, and `format_success`
-- All 377 tests pass; ruff clean; pre-commit hooks pass
-- **Learnings for future iterations:**
-  - `Console()` uses `sys.stdout` at constructor call time — pytest's `capsys` replacement of `sys.stdout` is already in effect, so Rich table output IS captured by `capsys`. No fixture patching needed.
-  - `dataclasses.asdict` leaves `datetime` objects as-is (does not convert to str/int); always use `_DatetimeEncoder` or equivalent when JSON-serialising SDK data
-  - `csv.DictWriter(extrasaction="ignore")` is essential when rendering a `columns` subset — without it, extra keys in the row dicts raise `ValueError`
-  - Test list-vs-object distinction in JSON by checking `isinstance(original_data, list)` BEFORE normalisation; do NOT infer from `len(rows)`
-  - `_cell_str(None) == ""` — ensures None fields render cleanly in table/CSV without crashing `Table.add_row`
----
-
-## 2026-03-22 - US-002
-Session: N/A
-Review Outcome: PASS
-Trajectory: ON_TRACK
-Trajectory Notes: N/A
-Corrective Plan: N/A
-- Created `src/kanboard/exceptions.py` with 8-class exception hierarchy
-- KanboardError (base) → KanboardConfigError, KanboardConnectionError, KanboardAuthError, KanboardAPIError, KanboardResponseError
-- KanboardAPIError → KanboardNotFoundError (resource+identifier attrs), KanboardValidationError
-- Each exception: structured context attributes + human-readable str()
-- Re-exported all 8 classes in `src/kanboard/__init__.py` with `__all__`
-- Created `tests/unit/test_exceptions.py`: 47 tests covering construction, str(), subclass hierarchy, raise/catch at each level
-- ruff import-sort fix applied (pytest import needed blank-line separator)
-- **Learnings for future iterations:**
-  - `from __future__ import annotations` allows `BaseException | None` union types in Python 3.11 without issues
-  - ruff I001 fires on test files too — isort requires stdlib before third-party (pytest before local imports)
-  - KanboardNotFoundError overrides `__str__` completely (doesn't call super) since the context format differs from KanboardAPIError
-  - Raw bytes body in KanboardResponseError needs `.decode("utf-8", errors="replace")` for safe stringification
----
-
-## 2026-03-22 - US-003
-Session: N/A
-Review Outcome: PASS
-Trajectory: ON_TRACK
-Trajectory Notes: N/A
-Corrective Plan: N/A
-- Created `src/kanboard/config.py` with `KanboardConfig` frozen dataclass, `resolve()` classmethod, `get_workflow_config()`, `_load_toml()`, and `CONFIG_DIR`, `CONFIG_FILE`, `WORKFLOW_DIR` path constants
-- `KanboardConfig.resolve()` implements full layered resolution: CLI arg > env var > TOML profile > built-in default
-- Profile resolution: CLI flag > KANBOARD_PROFILE env var > settings.default_profile > "default"
-- `get_workflow_config(name)` reads `[workflows.<name>]` from config file; returns {} when absent or file missing
-- Updated `src/kanboard/__init__.py` to re-export all config symbols in sorted `__all__`
-- Created `tests/unit/test_config.py`: 32 tests covering all acceptance criteria (100% coverage on config.py)
-- Two ruff fixes required: RUF022 (`__all__` sort) and I001 (import order in test file); both auto-fixed with `ruff check --fix .`
-- **Learnings for future iterations:**
-  - `tomllib` is built-in to Python 3.11+ — no dep needed (only `tomli-w` for writing)
-  - ruff `--fix` auto-resolves RUF022 and I001; always run before committing
-  - `__all__` lists are sorted with capitals before lowercase (ASCII order for ruff)
-  - Always add `config_file: Path | None = None` param for testability — avoids touching user's real config
-  - `monkeypatch.delenv(..., raising=False)` is safe when the var might not exist in CI
----
-
-## 2026-03-22 - US-004
-Session: N/A
-Review Outcome: PASS
-Trajectory: ON_TRACK
-Trajectory Notes: N/A
-Corrective Plan: N/A
-- Created `src/kanboard/client.py` with `KanboardClient` — full JSON-RPC 2.0 transport over httpx
-- `__init__(url, token, timeout=30.0)` — httpx.Client with Basic Auth (username='jsonrpc')
-- `call(method, **params)` — single JSON-RPC request, returns parsed `result`
-- `batch(calls)` — sends array of requests, re-orders responses by ID, returns list of results
-- Full exception mapping: JSON-RPC errors → KanboardAPIError, HTTP 401/403 → KanboardAuthError, ConnectError/TimeoutException → KanboardConnectionError, bad JSON → KanboardResponseError
-- DEBUG logging on request method and response result
-- Context manager (`__enter__`/`__exit__`) + `close()` for clean resource management
-- Updated `src/kanboard/__init__.py` to export `KanboardClient` (added to sorted `__all__`)
-- Created `tests/unit/test_client.py`: 25 tests covering all 8 acceptance criteria scenarios
-- **Learnings for future iterations:**
-  - pytest-httpx 0.36 works for sync `httpx.Client` — `httpx_mock` fixture intercepts at transport level
-  - Catch `httpx.ConnectError` and `httpx.TimeoutException` before generic `httpx.HTTPError`
-  - `typing.Self` available in Python 3.11 `typing` module — use for `__enter__` return type
-  - `types.TracebackType | None` is the correct annotation for `__exit__`'s `exc_tb` param
-  - Batch re-ordering: build `{id: response_item}` dict then iterate original request order
+- **Resource class pattern**: `__init__(self, client: KanboardClient)` stores `self._client = client`; methods call `self._client.call("CamelCaseMethod", **kwargs)`.
+- **Falsy guard**: use `if not result: return []` for list-returning methods; `if result is None: raise KanboardNotFoundError(...)` for single-item lookups.
+- **Error responses**: JSON-RPC `error` objects are raised as `KanboardAPIError` by `client.call()` automatically — no manual check needed in resource methods.
+- **Type hints**: all resource public methods use `from __future__ import annotations` + `TYPE_CHECKING` guard for `KanboardClient` to avoid circular imports.
+- **Tests**: use `_rpc_ok(result)` / `_rpc_err(code, message)` helpers; `httpx_mock.add_response(json=...)` pattern with `KanboardClient` as context manager.
+- **ruff noqa**: avoid `as ACRONYM` aliases in tests (N817); prefer `import module` + `module.Symbol` for import-verification tests.
 ---
 
 ## PRD Run Context
-PRD Branch: ralph/milestone-1-foundation
-Started: 2026-03-22T02:55:46.144Z
+PRD Branch: ralph/milestone-2-core
+Started: 2026-03-22T04:28:03.409Z
 ---
 
-## 2026-03-22 - US-001
-Session: N/A
+## 2026-03-22T04:45:00Z - US-001
+Session: iter-1fc84caf
 Review Outcome: PASS
 Trajectory: ON_TRACK
 Trajectory Notes: N/A
 Corrective Plan: N/A
-- Created full project skeleton with hatchling build backend in src/ layout
-- pyproject.toml: name=kanboard-cli, version=0.1.0, requires-python=>=3.11, all deps, strict ruff rules (D, ANN, B, C4, UP, RUF, N, I, E, W, F)
-- src/kanboard/__init__.py, src/kanboard/resources/__init__.py
-- src/kanboard_cli/__init__.py, src/kanboard_cli/commands/__init__.py, src/kanboard_cli/workflows/__init__.py
-- tests/conftest.py, tests/unit/__init__.py, tests/unit/resources/__init__.py, tests/cli/__init__.py, tests/integration/__init__.py
-- tests/test_smoke.py: smoke import test to ensure pytest exits 0 (pre-commit hook requires exit 0)
-- Makefile: install, lint, format, test, coverage, clean, test-integration targets
-- MIT LICENSE, CHANGELOG.md
+- Implemented `src/kanboard/resources/board.py` — `BoardResource` with `get_board(project_id: int) -> list[dict]`
+- Wired `self.board = BoardResource(self)` into `KanboardClient.__init__`
+- Exported `BoardResource` from `src/kanboard/__init__.py`
+- Added 10 unit tests in `tests/unit/resources/test_board.py` covering: success, multi-column, empty (False/None/[]), two error paths, client accessor, importability
+- All tests green (478 total), ruff clean, pre-commit hook passed
 - **Learnings for future iterations:**
-  - ruff ANN101/ANN102 rules removed in ≥0.15 — don't add them to ignore list
-  - pytest exit code 5 (no tests) fails pre-commit hook — always have at least one test
-  - hatchling src/ layout needs explicit `packages` list in pyproject.toml
-  - ruff per-file-ignores for tests/** should suppress ANN and D rules
-  - pydocstyle Google convention: ignore D203+D213 which conflict with D211+D212
+  - `BoardResource.get_board` returns raw `list[dict]` (not dataclass models) due to deep nesting complexity — this is intentional per PRD
+  - ruff N817 flags CamelCase-as-acronym imports in tests; use `import module; module.Symbol` pattern instead
+  - `from __future__ import annotations` + `TYPE_CHECKING` guard keeps circular import clean for all resource modules
 ---
 
-## 2026-03-22 - US-005
-Session: N/A
+## 2026-03-22T05:10:00Z - US-002
+Session: iter-0ff96d30
 Review Outcome: PASS
 Trajectory: ON_TRACK
 Trajectory Notes: N/A
 Corrective Plan: N/A
-- Created `src/kanboard/models.py` with private helpers `_parse_date`, `_int`, `_float` and 8 core dataclass models: Task, Project, Column, Swimlane, Comment, Subtask, User, Category
-- `_parse_date()` handles: None, "", "0", 0, numeric strings ("00"/"000" → int 0 → None), Unix timestamps (int/str), "YYYY-MM-DD HH:MM", "YYYY-MM-DD HH:MM:SS", "YYYY-MM-DD", datetime pass-through
-- `_int()` coerces string/int/None → int, returns 0 for invalid; `_float()` same for floats
-- All `from_api()` classmethods use `.get()` with sensible defaults (empty-dict tests verify defaults)
-- `Project.from_api()` handles `url` as both string and nested dict (extracts `"board"` key)
-- `User.from_api()` stores `avatar_path`, `timezone`, `language` as `str | None`
-- `Subtask.from_api()` uses `_float` for `time_estimated`/`time_spent`
-- Updated `src/kanboard/__init__.py` to re-export all 8 model classes in sorted `__all__`
-- Created `tests/unit/test_models.py`: 75 tests, **100% coverage** on models.py
+- Implemented `src/kanboard/resources/columns.py` — `ColumnsResource` with all 6 methods: `get_columns`, `get_column`, `change_column_position`, `update_column`, `add_column`, `remove_column`
+- Wired `self.columns = ColumnsResource(self)` into `KanboardClient.__init__`
+- Exported `ColumnsResource` from `src/kanboard/__init__.py`
+- Added 27 unit tests in `tests/unit/resources/test_columns.py` covering: all 6 methods, success + error + empty paths, not-found error attributes, importability, client accessor
+- All 505 tests green, ruff clean, pre-commit hook passed
 - **Learnings for future iterations:**
-  - `_parse_date("00")` hits the `if ts == 0: return None` branch (not `"0"` branch) — need explicit test to cover it
-  - `Project.url` can be a dict with "board"/"calendar"/"list" keys — always normalise to string
-  - `Subtask` time fields are floats (not ints) — need separate `_float` helper
-  - `User` nullable fields (`avatar_path`, `timezone`, `language`) must be `str | None`, not `str` — check for `None` before `str()` cast
-  - For `tags` field: use `list(data.get("tags") or [])` — handles both `None` and missing key cleanly
----
-
-## 2026-03-22 - US-006
-Session: iter-9d907e57
-Review Outcome: PASS
-Trajectory: ON_TRACK
-Trajectory Notes: N/A
-Corrective Plan: N/A
-- Added 8 extended dataclass models to `src/kanboard/models.py`: Tag, Link, TaskLink, ExternalTaskLink, Group, ProjectFile, TaskFile, Action
-- All models follow the `from_api(cls, data)` pattern with `_int()`, `_parse_date()`, and sensible `.get()` defaults
-- `Action.params` uses `dict(data.get("params") or {})` to handle None/missing/present uniformly
-- `ProjectFile` and `TaskFile` both carry `date`, `is_image`, `size`, `mime_type` fields
-- Updated `src/kanboard/__init__.py` to import and re-export all 8 new models in sorted `__all__`
-- Updated `tests/unit/test_models.py`: added 34 new tests (109 total in file, 213 total in suite)
-- All tests pass; ruff clean; pre-commit hooks pass
-- **Learnings for future iterations:**
-  - `dict(data.get("params") or {})` is the canonical pattern for arbitrary nested dict fields
-  - `Link` (relationship type label) and `TaskLink` (concrete task-to-task association) are distinct models
-  - File models share a consistent field set: `is_image` (bool via `_int`), `date` (Unix ts), `size` (int), `mime_type` (str)
-  - Docstrings for model classes with long endpoint names need line wrapping to stay under the 100-char ruff limit
----
-
-## 2026-03-22 - US-008
-Session: iter-d3fef94f
-Review Outcome: PASS
-Trajectory: ON_TRACK
-Trajectory Notes: N/A
-Corrective Plan: N/A
-- Created `src/kanboard/resources/projects.py` with `ProjectsResource` covering all 14 project API methods
-- Methods: `create_project`, `get_project_by_id`, `get_project_by_name`, `get_project_by_identifier`, `get_project_by_email`, `get_all_projects`, `update_project`, `remove_project`, `enable_project`, `disable_project`, `enable_project_public_access`, `disable_project_public_access`, `get_project_activity`, `get_project_activities`
-- Wired `ProjectsResource` into `KanboardClient.__init__` as `self.projects = ProjectsResource(self)`
-- Used `TYPE_CHECKING` guard in `projects.py` to import `KanboardClient` type without circular import
-- Updated `src/kanboard/__init__.py` to import and re-export `ProjectsResource` (sorted `__all__`)
-- Updated `KanboardClient` docstring to document the `.projects` resource accessor
-- Created `tests/unit/resources/test_projects.py`: 39 tests covering all methods, edge cases (False/None/kwargs), and the resource accessor
-- All 293 tests pass; ruff clean; 100% coverage on `src/kanboard/resources/`
-- **Learnings for future iterations:**
-  - `updateProject` uses `id=` (not `project_id=`) — same convention as `updateTask`; always check Kanboard API parameter naming for update methods
-  - Activity list methods (`get_project_activity`, `get_project_activities`) return `list[dict[str, Any]]` — no typed model needed for complex event payloads
-  - `get_project_by_*` lookup methods store the lookup value as `KanboardNotFoundError.identifier` for clear error messages
-  - `__all__` sort with `ProjectFile` before `ProjectsResource` because `ord('F') < ord('s')` (uppercase before lowercase)
----
-
-## 2026-03-22 - US-007
-Session: iter-64dd1319
-Review Outcome: PASS
-Trajectory: ON_TRACK
-Trajectory Notes: N/A
-Corrective Plan: N/A
-- Created `src/kanboard/resources/tasks.py` with `TasksResource` covering all 14 task API methods
-- Methods: `create_task`, `get_task`, `get_task_by_reference`, `get_all_tasks`, `get_overdue_tasks`, `get_overdue_tasks_by_project`, `update_task`, `open_task`, `close_task`, `remove_task`, `move_task_position`, `move_task_to_project`, `duplicate_task_to_project`, `search_tasks`
-- Wired `TasksResource` into `KanboardClient.__init__` as `self.tasks = TasksResource(self)`
-- Used `TYPE_CHECKING` guard in `tasks.py` to import `KanboardClient` type without circular import
-- Updated `src/kanboard/__init__.py` to import and re-export `TasksResource`
-- Updated `KanboardClient` docstring to document the `.tasks` resource accessor
-- Created `tests/unit/resources/test_tasks.py`: 41 tests covering all methods, edge cases (False/None/kwargs), and the resource accessor
-- All 254 tests pass; ruff clean; 100% coverage on `src/kanboard/resources/`
-- **Learnings for future iterations:**
-  - `TYPE_CHECKING` import guard is the correct pattern for resource→client type hints (avoids circular imports)
-  - `updateTask` Kanboard API takes `id` not `task_id` — must call `self._client.call("updateTask", id=task_id, ...)`
-  - Resource method contract: single-item getters raise `KanboardNotFoundError`; list getters return `[]`; create raises on False/0; update raises on False; state transitions return `bool(result)`
-  - `test_tasks_resource_accessible_on_client` is a useful sanity test confirming the accessor is wired — add equivalent for every future resource
----
-
-## 2026-03-22 - US-009
-Session: iter-480489ce
-Review Outcome: PASS
-Trajectory: ON_TRACK
-Trajectory Notes: N/A
-Corrective Plan: N/A
-- Created `src/kanboard_cli/main.py` with root Click group `cli` and 25 stub command groups
-- Global options: `--url` (envvar KANBOARD_URL), `--token` (envvar KANBOARD_TOKEN), `--profile` (envvar KANBOARD_PROFILE), `--output/-o` (Choice: table/json/csv/quiet, default: table), `--verbose/-v`
-- `AppContext` dataclass holds `config`, `client`, `output`, `verbose`; stored in `ctx.obj`
-- `KanboardConfig.resolve()` called with all CLI overrides; `KanboardConfigError` silently absorbed (config-less commands work)
-- `KanboardClient` instantiated from resolved config and stored in `ctx.obj`
-- All 25 stub groups registered: task, project, board, column, swimlane, category, comment, subtask, timer, user, me, tag, link, task-link, external-link, group, action, project-file, task-file, project-meta, task-meta, project-access, app, config (as `config_group`), workflow
-- Hyphenated names (task-link, external-link, project-file, task-file, project-meta, task-meta, project-access) use `name=` param on `@click.group()`; function name uses underscore
-- `config` group uses `config_group` as the function name to avoid shadowing Python built-in `config`; registered as `cli.add_command(config_group)` — CLI name is `config`
-- Created `tests/cli/test_main.py`: 43 tests covering all acceptance criteria; dynamic test commands registered/cleaned up inline
-- Fixed: D301 ruff error — `\b` in Click docstring requires `r"""` raw string prefix
-- Fixed: `--help` short-circuits option validation in Click — test `--output yaml` with a real subcommand to trigger validation
-- **Learnings for future iterations:**
-  - Click `--help` flag bypasses all option validation — to test invalid choice rejection, pass a real subcommand name after the bad option (e.g., `--output yaml task --help` exits non-zero from the group level)
-  - `\b` in Click docstrings (used to suppress paragraph wrapping) triggers ruff D301 — always use `r"""` raw docstring prefix when `\b` is present
-  - `@click.group(name="task-link")` sets the CLI command name; the decorated function can use underscores (`task_link`) to avoid Python syntax issues
-  - `config` is a Python built-in — name the Click group function `config_group` and register with `cli.add_command(config_group)` to display as `config` in `--help`
-  - Dynamic test commands added to `cli.commands` during tests need explicit cleanup (`cli.commands.pop(...)`) to prevent test pollution
+  - `KanboardNotFoundError` uses `resource=` and `identifier=` kwargs; `__str__` returns `"Not found: {resource} '{identifier}' does not exist"` — pytest `match=` patterns must use this format
+  - `update_column` raises `KanboardAPIError` on `False`; `remove_column` just returns `False` (no raise) — asymmetry intentional per PRD
+  - `add_column` uses `if not result` (catches `0` and `False`) to guard the int return
 ---
