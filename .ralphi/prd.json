@@ -1,12 +1,12 @@
 {
   "project": "kanboard-cli",
   "branchName": "ralph/milestone-2-core",
-  "description": "Core coverage (P1): board, columns, swimlanes, comments, categories, tags, subtasks, users, link types, and task links SDK resource modules + corresponding CLI command groups, and a comprehensive test pass targeting \u226590% coverage on src/kanboard/resources/.",
+  "description": "Core coverage (P1): board, columns, swimlanes, comments, categories, tags, subtasks, users, link types, and task links SDK resource modules + corresponding CLI command groups, and a comprehensive test pass targeting ≥90% coverage on src/kanboard/resources/.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Board resource \u2014 SDK",
-      "description": "Implement src/kanboard/resources/board.py with BoardResource covering the single getBoard method. Wire into KanboardClient as client.board. The board response is a complex nested structure (columns \u2192 swimlanes \u2192 tasks); return it as a list[dict] rather than a typed model.",
+      "title": "Board resource — SDK",
+      "description": "Implement src/kanboard/resources/board.py with BoardResource covering the single getBoard method. Wire into KanboardClient as client.board. The board response is a complex nested structure (columns → swimlanes → tasks); return it as a list[dict] rather than a typed model.",
       "acceptanceCriteria": [
         "BoardResource class with __init__(self, client) pattern",
         "get_board(project_id: int) -> list[dict]; returns [] on empty/falsy response",
@@ -27,7 +27,7 @@
     },
     {
       "id": "US-002",
-      "title": "Columns resource \u2014 SDK",
+      "title": "Columns resource — SDK",
       "description": "Implement src/kanboard/resources/columns.py with ColumnsResource covering all 6 column API methods. Wire into KanboardClient as client.columns. Use the Column model from models.py.",
       "acceptanceCriteria": [
         "ColumnsResource class with __init__(self, client) pattern",
@@ -53,7 +53,7 @@
     },
     {
       "id": "US-003",
-      "title": "Swimlanes resource \u2014 SDK",
+      "title": "Swimlanes resource — SDK",
       "description": "Implement src/kanboard/resources/swimlanes.py with SwimlanesResource covering all 11 swimlane API methods. Wire into KanboardClient as client.swimlanes. Use the Swimlane model from models.py.",
       "acceptanceCriteria": [
         "SwimlanesResource class with __init__(self, client) pattern",
@@ -84,7 +84,7 @@
     },
     {
       "id": "US-004",
-      "title": "Comments resource \u2014 SDK",
+      "title": "Comments resource — SDK",
       "description": "Implement src/kanboard/resources/comments.py with CommentsResource covering all 5 comment API methods. Wire into KanboardClient as client.comments. Use the Comment model from models.py.",
       "acceptanceCriteria": [
         "CommentsResource class with __init__(self, client) pattern",
@@ -109,7 +109,7 @@
     },
     {
       "id": "US-005",
-      "title": "Categories resource \u2014 SDK",
+      "title": "Categories resource — SDK",
       "description": "Implement src/kanboard/resources/categories.py with CategoriesResource covering all 5 category API methods. Wire into KanboardClient as client.categories. Use the Category model from models.py.",
       "acceptanceCriteria": [
         "CategoriesResource class with __init__(self, client) pattern",
@@ -134,7 +134,7 @@
     },
     {
       "id": "US-006",
-      "title": "Tags resource \u2014 SDK",
+      "title": "Tags resource — SDK",
       "description": "Implement src/kanboard/resources/tags.py with TagsResource covering all 7 tag API methods. Wire into KanboardClient as client.tags. Use the Tag model from models.py.",
       "acceptanceCriteria": [
         "TagsResource class with __init__(self, client) pattern",
@@ -161,7 +161,7 @@
     },
     {
       "id": "US-007",
-      "title": "Subtasks resource \u2014 SDK",
+      "title": "Subtasks resource — SDK",
       "description": "Implement src/kanboard/resources/subtasks.py with SubtasksResource covering all 5 subtask API methods. Wire into KanboardClient as client.subtasks. Use the Subtask model from models.py.",
       "acceptanceCriteria": [
         "SubtasksResource class with __init__(self, client) pattern",
@@ -186,7 +186,7 @@
     },
     {
       "id": "US-008",
-      "title": "Users resource \u2014 SDK",
+      "title": "Users resource — SDK",
       "description": "Implement src/kanboard/resources/users.py with UsersResource covering all 10 user API methods. Wire into KanboardClient as client.users. Use the User model from models.py.",
       "acceptanceCriteria": [
         "UsersResource class with __init__(self, client) pattern",
@@ -216,7 +216,7 @@
     },
     {
       "id": "US-009",
-      "title": "Link types resource \u2014 SDK",
+      "title": "Link types resource — SDK",
       "description": "Implement src/kanboard/resources/links.py with LinksResource covering all 7 link-type API methods. Wire into KanboardClient as client.links. Use the Link model from models.py.",
       "acceptanceCriteria": [
         "LinksResource class with __init__(self, client) pattern",
@@ -238,12 +238,12 @@
       "dependsOn": [],
       "notes": "",
       "startedAt": "2026-03-22T04:59:10.181Z",
-      "updatedAt": "2026-03-22T05:02:42.000Z",
-      "completedAt": "2026-03-22T05:02:42.000Z"
+      "updatedAt": "2026-03-22T05:03:53.443Z",
+      "completedAt": "2026-03-22T05:03:53.443Z"
     },
     {
       "id": "US-010",
-      "title": "Task links resource \u2014 SDK",
+      "title": "Task links resource — SDK",
       "description": "Implement src/kanboard/resources/task_links.py with TaskLinksResource covering all 5 internal task-link API methods. Wire into KanboardClient as client.task_links. Use the TaskLink model from models.py. Depends on LinksResource (US-009) existing in the codebase.",
       "acceptanceCriteria": [
         "TaskLinksResource class with __init__(self, client) pattern",
@@ -259,11 +259,14 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 10,
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-009"
       ],
-      "notes": "Logically depends on link types (US-009) being available to resolve link IDs."
+      "notes": "Logically depends on link types (US-009) being available to resolve link IDs.",
+      "startedAt": "2026-03-22T05:03:53.634Z",
+      "updatedAt": "2026-03-22T05:07:43.037Z",
+      "completedAt": "2026-03-22T05:07:43.037Z"
     },
     {
       "id": "US-011",
@@ -284,12 +287,15 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 11,
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-001",
         "US-002"
       ],
-      "notes": ""
+      "notes": "",
+      "startedAt": "2026-03-22T05:07:43.209Z",
+      "updatedAt": "2026-03-22T05:14:11.545Z",
+      "completedAt": "2026-03-22T05:14:11.545Z"
     },
     {
       "id": "US-012",
@@ -312,11 +318,14 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 12,
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-003"
       ],
-      "notes": ""
+      "notes": "",
+      "startedAt": "2026-03-22T05:14:11.738Z",
+      "updatedAt": "2026-03-22T09:00:00.000Z",
+      "completedAt": "2026-03-22T09:00:00.000Z"
     },
     {
       "id": "US-013",
@@ -454,9 +463,9 @@
     {
       "id": "US-018",
       "title": "Milestone 2 comprehensive test suite",
-      "description": "Ensure all Milestone 2 SDK resource modules and CLI command groups have thorough test coverage. Add missing error-path tests, cross-format CLI output tests, and any coverage gaps identified by running coverage. Target \u226590% on src/kanboard/resources/.",
+      "description": "Ensure all Milestone 2 SDK resource modules and CLI command groups have thorough test coverage. Add missing error-path tests, cross-format CLI output tests, and any coverage gaps identified by running coverage. Target ≥90% on src/kanboard/resources/.",
       "acceptanceCriteria": [
-        "pytest --cov=src/kanboard/resources reports \u226590% coverage",
+        "pytest --cov=src/kanboard/resources reports ≥90% coverage",
         "Error path tests exist for every resource: KanboardNotFoundError on null, KanboardAPIError on False, KanboardConnectionError on network failure",
         "CLI tests verify all 4 output formats (table, json, csv, quiet) for at least one command per group",
         "CLI tests verify --yes confirmation is required for all destructive commands in M2 command groups",

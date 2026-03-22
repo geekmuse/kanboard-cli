@@ -95,6 +95,46 @@ Corrective Plan: N/A
   - Kanboard API method names: `getAllLinks`, `getOppositeLinkId`, `getLinkByLabel`, `getLinkById`, `createLink`, `updateLink`, `removeLink`
 ---
 
+## 2026-03-22T05:10:00Z - US-010
+Session: iter-f0e3965e
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/task_links.py` — `TaskLinksResource` with all 5 methods: `create_task_link`, `update_task_link`, `get_task_link_by_id`, `get_all_task_links`, `remove_task_link`
+- Wired `self.task_links = TaskLinksResource(self)` into `KanboardClient.__init__`
+- Exported `TaskLinksResource` from `src/kanboard/__init__.py`
+- Added 24 unit tests in `tests/unit/resources/test_task_links.py` covering: all 5 methods, success + error + empty paths, not-found error attributes (resource="TaskLink", identifier=int), importability, client accessor
+- All 759 tests green, ruff clean, pre-commit hook passed (ruff format reformatted task_links.py)
+- **Learnings for future iterations:**
+  - `TaskLink` model fields: `id`, `task_id`, `opposite_task_id`, `link_id` — all int, all string-encoded in API response (cast via `_int()`)
+  - `get_task_link_by_id` uses `if not result` guard (catches both `False` and `None`) before raising `KanboardNotFoundError`
+  - `update_task_link` raises `KanboardAPIError` on False — consistent with "update = must succeed" pattern across all update_* methods
+  - `remove_task_link` returns `bool(result)` without raising — consistent with all `remove_*` methods
+  - `create_task_link` uses `if not result` (catches `False` and `0`) before raising `KanboardAPIError` — same as `create_link`
+  - Kanboard API method names: `createTaskLink`, `updateTaskLink`, `getTaskLinkById`, `getAllTaskLinks`, `removeTaskLink`
+  - `typing.Any` import not needed in task_links.py since no `**kwargs` methods; ruff F401 flagged it — remove unused imports
+---
+
+## 2026-03-22T09:00:00Z - US-012
+Session: iter-a036b011
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/swimlane.py` — `swimlane` group with all 9 subcommands: `list` (with `--all` flag), `get`, `get-by-name`, `add`, `update`, `remove`, `enable`, `disable`, `move`
+- Replaced stub `swimlane` `@click.group()` definition in `main.py` with real import from `kanboard_cli.commands.swimlane`
+- Added import in `main.py`: `from kanboard_cli.commands.swimlane import swimlane`
+- Added 40 tests in `tests/cli/test_swimlane.py` covering: all 9 subcommands, all 4 output formats (table/json/csv/quiet), --all flag behaviour, not-found errors, API errors, --yes confirmation flow (with_yes, without_yes aborts, interactive confirm), --help for all subcommands
+- All 835 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `swimlane list` uses `--all` flag (`show_all` Python param) to switch between `get_active_swimlanes` and `get_all_swimlanes` — `--all` is a boolean flag, not a mutually-exclusive option
+  - `swimlane update` returns `bool` without raising on False (unlike `column update` which raises `KanboardAPIError`) — always verify per-method raise vs return behaviour from the SDK source
+  - `swimlane remove` takes `project_id` AND `swimlane_id` as positional args (unlike `column remove` which only takes `column_id`) — swimlane operations consistently require project_id
+  - Stub group removal and import addition in `main.py` are separate steps — the old `@click.group()` block must be deleted AND the import line added; both are needed
+  - `format_success` message phrasing: "enabled", "disabled", "moved to position N", "removed", "updated", "added" — use past-tense verbs consistent with column/board patterns
+---
+
 ## Codebase Patterns
 - **KanboardNotFoundError signature**: uses `resource=` and `identifier=` kwargs (NOT `resource_type`/`resource_id`); `__str__` formats as `"Not found: {resource} '{identifier}' does not exist"` — match patterns in tests must reflect this.
 
@@ -180,4 +220,24 @@ Corrective Plan: N/A
   - `update_swimlane` returns `bool(result)` without raising on `False` (unlike `update_column` which raises) — always verify exact error-raise vs return-bool semantics in the PRD acceptance criteria per method
   - `get_swimlane_by_name` uses `identifier=name` (a string) in `KanboardNotFoundError`; ID-based lookups use `identifier=swimlane_id` (int) — match pattern in tests must use exact identifier value and type
   - `getAllSwimlanes` (not `getSwimlanes`) is the correct Kanboard API method name for the full list — check Kanboard API naming carefully; "All" prefix is used consistently for full list endpoints
+---
+
+## 2026-03-22T08:00:00Z - US-011
+Session: iter-e2c8dc05
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/board.py` — `board` group with `board show <project_id>` (renders top-level columns in table/CSV; full nested structure in JSON)
+- Implemented `src/kanboard_cli/commands/column.py` — `column` group with all 6 subcommands: `list`, `get`, `add`, `update`, `remove`, `move`
+- Replaced stub `board` and `column` `@click.group()` definitions in `main.py` with real imports from the new command modules
+- Added 7 tests in `tests/cli/test_board.py` covering: table/json/csv/quiet output, empty board, API error, --help
+- Added 29 tests in `tests/cli/test_column.py` covering: all 6 subcommands, all 4 output formats, not-found, API errors, --yes confirmation flow (with_yes, without_yes aborts, interactive confirm), --help for all subcommands
+- All 795 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - CLI command module imports must be added to `main.py` AND the corresponding stub `@click.group()` definitions removed — both steps required
+  - For `board show`, `format_output(board_data, app.output, columns=_BOARD_COLUMNS)` gives clean table output using only top-level column fields (excluding nested `swimlanes` key); JSON mode shows full nested structure automatically
+  - The `column_add` CLI passes `project_id` as `int` (Click `type=int`), so test assertions must use `int` not `str` for the positional arg
+  - For CLI `update` commands with a required `title` argument, no "no options" guard is needed — `title` is always present; kwargs guards only matter for fully-optional update commands (like `project update`)
+  - Rename loop variables to avoid confusion with `format_output`'s `columns=` kwarg — use `board_data`, `cols`, etc. instead of `columns`
 ---
