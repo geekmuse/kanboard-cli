@@ -22,6 +22,7 @@ from kanboard_cli.commands.column import column
 from kanboard_cli.commands.comment import comment
 from kanboard_cli.commands.link import link
 from kanboard_cli.commands.project import project
+from kanboard_cli.commands.project_access import project_access
 from kanboard_cli.commands.project_file import project_file
 from kanboard_cli.commands.project_meta import project_meta
 from kanboard_cli.commands.subtask import subtask
@@ -181,11 +182,6 @@ def group() -> None:
 @click.group()
 def action() -> None:
     """Manage automatic actions on projects."""
-
-
-@click.group(name="project-access")
-def project_access() -> None:
-    """Manage project user and group access."""
 
 
 @click.group()
