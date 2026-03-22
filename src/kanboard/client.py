@@ -15,6 +15,7 @@ from kanboard.exceptions import (
     KanboardConnectionError,
     KanboardResponseError,
 )
+from kanboard.resources.tasks import TasksResource
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +27,15 @@ class KanboardClient:
     """JSON-RPC 2.0 HTTP transport client for the Kanboard API.
 
     Handles authentication, request serialisation, response parsing, and
-    exception mapping for all Kanboard JSON-RPC calls.  Resource accessor
-    properties (e.g. ``client.tasks``) are wired in by later stories.
+    exception mapping for all Kanboard JSON-RPC calls.
+
+    Resource accessors are available as typed attributes:
+
+    - :attr:`tasks` — :class:`~kanboard.resources.tasks.TasksResource`
 
     Example:
         >>> with KanboardClient("https://kb.example.com/jsonrpc.php", "secret") as c:
-        ...     version = c.call("getVersion")
+        ...     task = c.tasks.get_task(42)
     """
 
     def __init__(self, url: str, token: str, timeout: float = 30.0) -> None:
@@ -51,6 +55,7 @@ class KanboardClient:
             auth=(_JSONRPC_USERNAME, token),
             timeout=timeout,
         )
+        self.tasks: TasksResource = TasksResource(self)
 
     # ------------------------------------------------------------------
     # Public API

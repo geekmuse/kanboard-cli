@@ -36,6 +36,7 @@ from kanboard.models import (
     TaskLink,
     User,
 )
+from kanboard.resources.tasks import TasksResource
 
 __all__ = [
     "CONFIG_DIR",
@@ -66,6 +67,7 @@ __all__ = [
     "Task",
     "TaskFile",
     "TaskLink",
+    "TasksResource",
     "User",
     "get_workflow_config",
 ]
