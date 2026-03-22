@@ -1,0 +1,341 @@
+{
+  "project": "kanboard-cli",
+  "branchName": "ralph/milestone-1-foundation",
+  "description": "Foundation layer (P0): project scaffolding, JSON-RPC transport, exceptions, config, models, task/project SDK resources, Click CLI skeleton, output formatters, and task/project CLI commands.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Project scaffolding and packaging setup",
+      "description": "Create the full project skeleton: pyproject.toml with hatchling build, src/ layout with kanboard/ and kanboard_cli/ packages, all __init__.py files per the target directory structure, Makefile with install/lint/test/coverage targets, MIT LICENSE file, and CHANGELOG.md.",
+      "acceptanceCriteria": [
+        "pyproject.toml exists with hatchling build backend, name='kanboard-cli', version='0.1.0', requires-python='>=3.11'",
+        "Dependencies: httpx>=0.27, click>=8.1, rich>=13.0, tomli-w>=1.0",
+        "Dev dependencies: pytest>=8.0, pytest-httpx>=0.30, ruff>=0.4, coverage>=7.0",
+        "Entry point: kanboard = kanboard_cli.main:cli",
+        "src/kanboard/ and src/kanboard_cli/ directories exist with __init__.py files",
+        "src/kanboard/resources/ directory exists with __init__.py",
+        "src/kanboard_cli/commands/ directory exists with __init__.py",
+        "src/kanboard_cli/workflows/ directory exists with __init__.py",
+        "tests/, tests/unit/, tests/unit/resources/, tests/cli/, tests/integration/ directories exist with __init__.py or conftest.py as appropriate",
+        "Makefile has install, lint, test, coverage targets",
+        "MIT LICENSE file exists",
+        "CHANGELOG.md exists",
+        "pip install -e '.[dev]' succeeds",
+        "ruff check . passes with no errors",
+        "pytest runs and discovers test directory (0 tests collected is OK)"
+      ],
+      "priority": 1,
+      "status": "done",
+      "dependsOn": [],
+      "notes": "",
+      "startedAt": "2026-03-22T02:55:46.195Z",
+      "updatedAt": "2026-03-22T03:03:15.076Z",
+      "completedAt": "2026-03-22T03:03:15.076Z"
+    },
+    {
+      "id": "US-002",
+      "title": "Exception hierarchy",
+      "description": "Create src/kanboard/exceptions.py with the typed exception hierarchy: KanboardError (base), KanboardConfigError, KanboardConnectionError, KanboardAuthError, KanboardAPIError (with KanboardNotFoundError and KanboardValidationError subclasses), and KanboardResponseError. Each exception carries structured context attributes and produces a human-readable str().",
+      "acceptanceCriteria": [
+        "KanboardError is the base exception class",
+        "KanboardConfigError accepts message and field attributes",
+        "KanboardConnectionError accepts message, url, and cause attributes",
+        "KanboardAuthError accepts message and http_status attributes",
+        "KanboardAPIError accepts message, method, and code attributes",
+        "KanboardNotFoundError is a subclass of KanboardAPIError with resource and identifier attributes",
+        "KanboardValidationError is a subclass of KanboardAPIError",
+        "KanboardResponseError accepts message and raw_body attributes",
+        "All exceptions are importable from kanboard (re-exported in __init__.py)",
+        "str() on each exception produces a human-readable message",
+        "Unit tests verify construction and string representation of every exception type",
+        "All public classes have docstrings",
+        "ruff check passes, pytest passes"
+      ],
+      "priority": 2,
+      "status": "done",
+      "dependsOn": [
+        "US-001"
+      ],
+      "notes": "",
+      "startedAt": "2026-03-22T03:03:15.127Z",
+      "updatedAt": "2026-03-22T03:15:00.000Z",
+      "completedAt": "2026-03-22T03:15:00.000Z"
+    },
+    {
+      "id": "US-003",
+      "title": "Configuration system",
+      "description": "Build src/kanboard/config.py with the KanboardConfig frozen dataclass and resolve() classmethod implementing layered config resolution: TOML config file → environment variables → CLI flags. Support named profiles, export path constants (CONFIG_DIR, CONFIG_FILE, WORKFLOW_DIR), and include get_workflow_config() for workflow plugin config.",
+      "acceptanceCriteria": [
+        "KanboardConfig is a frozen dataclass with url, token, profile, output_format fields",
+        "resolve() classmethod loads ~/.config/kanboard/config.toml via tomllib",
+        "Profile selection order: CLI flag > KANBOARD_PROFILE env var > settings.default_profile in config file",
+        "Field resolution order for each field: CLI arg > env var > config file value",
+        "Missing required url or token raises KanboardConfigError with actionable message",
+        "CONFIG_DIR, CONFIG_FILE, WORKFLOW_DIR constants are exported",
+        "get_workflow_config(name) loads [workflows.<name>] section from config file",
+        "Gracefully handles missing config file (falls back to env vars / CLI flags)",
+        "Unit tests cover: full resolution chain, each override layer, missing config file, missing required fields, profile selection, workflow config loading",
+        "All public methods have docstrings and full type hints",
+        "ruff check passes, pytest passes"
+      ],
+      "priority": 3,
+      "status": "open",
+      "dependsOn": [
+        "US-001",
+        "US-002"
+      ],
+      "notes": "Depends on US-002 because config raises KanboardConfigError."
+    },
+    {
+      "id": "US-004",
+      "title": "JSON-RPC transport layer",
+      "description": "Build src/kanboard/client.py with KanboardClient implementing JSON-RPC 2.0 transport over httpx. Includes call() for single requests, batch() for batch requests, context manager support, and proper exception mapping for HTTP and JSON-RPC errors. Resource accessors will be added by later stories.",
+      "acceptanceCriteria": [
+        "KanboardClient.__init__ accepts url, token, and optional timeout (default 30.0)",
+        "Uses httpx.Client with HTTP Basic Auth (username='jsonrpc', password=token)",
+        "call(method, **params) sends JSON-RPC 2.0 request and returns parsed 'result' value",
+        "batch(calls) sends array of JSON-RPC requests and returns list of results",
+        "JSON-RPC error responses raise KanboardAPIError with method and code",
+        "HTTP 401/403 raises KanboardAuthError with http_status",
+        "Connection failures (httpx.ConnectError, etc.) raise KanboardConnectionError",
+        "Malformed/non-JSON responses raise KanboardResponseError with raw_body",
+        "DEBUG-level logging for request method and response",
+        "Context manager (__enter__/__exit__) and close() properly clean up httpx client",
+        "Unit tests with pytest-httpx covering: successful call, successful batch, JSON-RPC error, HTTP 401, HTTP 403, connection error, malformed response, timeout",
+        "All public methods have docstrings and full type hints",
+        "ruff check passes, pytest passes"
+      ],
+      "priority": 4,
+      "status": "open",
+      "dependsOn": [
+        "US-001",
+        "US-002"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "SDK response models — core models and helpers",
+      "description": "Create src/kanboard/models.py with helper functions (_parse_date, _int) and the core dataclass models: Task, Project, Column, Swimlane, Comment, Subtask, User, Category. Each model has a from_api(data) classmethod that handles Kanboard's type inconsistencies.",
+      "acceptanceCriteria": [
+        "_parse_date() handles None, empty string, '0', 0, Unix timestamps (int/str), 'YYYY-MM-DD HH:MM', 'YYYY-MM-DD' formats and returns datetime | None",
+        "_int() coerces string/int/None values to int (handles Kanboard returning '0' as string)",
+        "Task dataclass covers all fields from getTask API response with from_api() classmethod",
+        "Project dataclass covers all fields from getProjectById API response with from_api()",
+        "Column dataclass with from_api()",
+        "Swimlane dataclass with from_api()",
+        "Comment dataclass with from_api()",
+        "Subtask dataclass with from_api()",
+        "User dataclass with from_api()",
+        "Category dataclass with from_api()",
+        "All from_api() methods use .get() with sensible defaults for missing keys",
+        "All models importable from kanboard (re-exported in __init__.py)",
+        "Unit tests with sample API payloads for each model and edge cases for helpers",
+        "All public classes and methods have docstrings",
+        "ruff check passes, pytest passes"
+      ],
+      "priority": 5,
+      "status": "open",
+      "dependsOn": [
+        "US-001"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "SDK response models — extended models",
+      "description": "Add remaining dataclass models to src/kanboard/models.py: Tag, Link, TaskLink, ExternalTaskLink, Group, ProjectFile, TaskFile, Action. Follow the same from_api() pattern established in US-005.",
+      "acceptanceCriteria": [
+        "Tag dataclass with from_api() covering getTagsByProject response fields",
+        "Link dataclass with from_api() covering getLinkById response fields",
+        "TaskLink dataclass with from_api() covering getTaskLinkById response fields",
+        "ExternalTaskLink dataclass with from_api() covering getExternalTaskLinkById response fields",
+        "Group dataclass with from_api() covering getGroup response fields",
+        "ProjectFile dataclass with from_api() covering getProjectFile response fields",
+        "TaskFile dataclass with from_api() covering getTaskFile response fields",
+        "Action dataclass with from_api() covering getActions response fields",
+        "All models importable from kanboard (added to __init__.py exports)",
+        "Unit tests with sample API payloads for each new model",
+        "All public classes and methods have docstrings",
+        "ruff check passes, pytest passes"
+      ],
+      "priority": 6,
+      "status": "open",
+      "dependsOn": [
+        "US-005"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Tasks resource module — SDK",
+      "description": "Implement src/kanboard/resources/tasks.py with TasksResource class covering all 14 task API methods. Wire into KanboardClient as client.tasks. This establishes the resource-module pattern all subsequent resources will follow.",
+      "acceptanceCriteria": [
+        "TasksResource class with __init__(self, client) pattern",
+        "create_task(title, project_id, **kwargs) -> int; raises KanboardAPIError on False",
+        "get_task(task_id) -> Task; raises KanboardNotFoundError on None",
+        "get_task_by_reference(project_id, reference) -> Task; raises KanboardNotFoundError on None",
+        "get_all_tasks(project_id, status_id=1) -> list[Task]; returns empty list on False/None",
+        "get_overdue_tasks() -> list[Task]",
+        "get_overdue_tasks_by_project(project_id) -> list[Task]",
+        "update_task(task_id, **kwargs) -> bool; raises KanboardAPIError on False",
+        "open_task(task_id) -> bool",
+        "close_task(task_id) -> bool",
+        "remove_task(task_id) -> bool",
+        "move_task_position(project_id, task_id, column_id, position, swimlane_id) -> bool",
+        "move_task_to_project(task_id, project_id, **kwargs) -> bool",
+        "duplicate_task_to_project(task_id, project_id, **kwargs) -> int",
+        "search_tasks(project_id, query) -> list[Task]",
+        "Wired into KanboardClient as self.tasks = TasksResource(self)",
+        "All methods fully type-hinted with typed returns",
+        "All public methods have docstrings",
+        "Unit tests for every method with pytest-httpx mocking",
+        "ruff check passes, pytest passes"
+      ],
+      "priority": 7,
+      "status": "open",
+      "dependsOn": [
+        "US-004",
+        "US-005"
+      ],
+      "notes": "US-002 (exceptions) is transitively required via US-004."
+    },
+    {
+      "id": "US-008",
+      "title": "Projects resource module — SDK",
+      "description": "Implement src/kanboard/resources/projects.py with ProjectsResource class covering all 14 project API methods. Wire into KanboardClient as client.projects. Follow the exact same pattern established in US-007.",
+      "acceptanceCriteria": [
+        "ProjectsResource class with __init__(self, client) pattern",
+        "create_project(name, **kwargs) -> int; raises KanboardAPIError on False",
+        "get_project_by_id(project_id) -> Project; raises KanboardNotFoundError on None",
+        "get_project_by_name(name) -> Project; raises KanboardNotFoundError on None",
+        "get_project_by_identifier(identifier) -> Project; raises KanboardNotFoundError on None",
+        "get_project_by_email(email) -> Project; raises KanboardNotFoundError on None",
+        "get_all_projects() -> list[Project]",
+        "update_project(project_id, **kwargs) -> bool; raises KanboardAPIError on False",
+        "remove_project(project_id) -> bool",
+        "enable_project(project_id) -> bool",
+        "disable_project(project_id) -> bool",
+        "enable_project_public_access(project_id) -> bool",
+        "disable_project_public_access(project_id) -> bool",
+        "get_project_activity(project_id) -> list[dict]",
+        "get_project_activities(project_ids) -> list[dict]",
+        "Wired into KanboardClient as self.projects = ProjectsResource(self)",
+        "All methods fully type-hinted with typed returns",
+        "All public methods have docstrings",
+        "Unit tests for every method with pytest-httpx mocking",
+        "ruff check passes, pytest passes"
+      ],
+      "priority": 8,
+      "status": "open",
+      "dependsOn": [
+        "US-004",
+        "US-005"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Click application skeleton and global options",
+      "description": "Build src/kanboard_cli/main.py with the root Click group, global options (--url, --token, --profile, --output, --verbose), config resolution wiring, and stub command group registrations for all resource categories.",
+      "acceptanceCriteria": [
+        "cli() is a click.group with global options: --url, --token, --profile, --output/-o (Choice: table/json/csv/quiet), --verbose/-v",
+        "Config is resolved via KanboardConfig.resolve() and stored in ctx.obj",
+        "KanboardClient is created from resolved config and stored in ctx.obj",
+        "Config-less commands (e.g., future 'config init') work by catching KanboardConfigError",
+        "Stub command groups registered for: task, project, board, column, swimlane, category, comment, subtask, timer, user, me, tag, link, task-link, external-link, group, action, project-file, task-file, project-meta, task-meta, project-access, app, config, workflow",
+        "kanboard --help shows all command groups and global options",
+        "All public functions have docstrings",
+        "ruff check passes, pytest passes"
+      ],
+      "priority": 9,
+      "status": "open",
+      "dependsOn": [
+        "US-001",
+        "US-003"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Output formatters",
+      "description": "Build src/kanboard_cli/formatters.py with format_output() supporting table (rich), JSON, CSV, and quiet (ID-only) output modes, plus format_success() for confirmation messages.",
+      "acceptanceCriteria": [
+        "format_output(data, format, columns) normalizes dataclasses to dicts via dataclasses.asdict",
+        "table format: rich.table.Table with colored headers and auto-width columns",
+        "json format: json.dumps with indent=2; single object for one result, array for many",
+        "csv format: csv.DictWriter with proper escaping",
+        "quiet format: prints only 'id' field, one per line",
+        "format_success(message, format) outputs {'status': 'ok', 'message': ...} in JSON mode, '✓ {message}' otherwise",
+        "Handles empty data gracefully (empty table, empty array, no output in quiet)",
+        "Unit tests verify each format produces correct output",
+        "All public functions have docstrings and full type hints",
+        "ruff check passes, pytest passes"
+      ],
+      "priority": 10,
+      "status": "open",
+      "dependsOn": [
+        "US-001"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Task CLI commands",
+      "description": "Implement src/kanboard_cli/commands/task.py with all 12 task subcommands: list, get, create, update, close, open, remove, search, move, move-to-project, duplicate, overdue. Wire into the CLI skeleton from US-009.",
+      "acceptanceCriteria": [
+        "kanboard task list <project_id> [--status active|inactive] lists tasks",
+        "kanboard task get <task_id> shows task details",
+        "kanboard task create <project_id> <title> with options: --owner-id, --column-id, --swimlane-id, --due, --description, --color, --category-id, --score, --priority, --reference, --tag (multiple)",
+        "kanboard task update <task_id> with options: --title, --color, --due, --description, --owner-id, --category-id, --score, --priority, --reference, --tag (multiple)",
+        "kanboard task close <task_id> closes a task",
+        "kanboard task open <task_id> reopens a task",
+        "kanboard task remove <task_id> requires --yes confirmation",
+        "kanboard task search <project_id> <query> searches tasks",
+        "kanboard task move <task_id> --project-id --column-id --position --swimlane-id moves task position",
+        "kanboard task move-to-project <task_id> <project_id> with optional --swimlane-id, --column-id, --category-id, --owner-id",
+        "kanboard task duplicate <task_id> <project_id> with optional --swimlane-id, --column-id",
+        "kanboard task overdue [--project-id] shows overdue tasks",
+        "All commands support --output table/json/csv/quiet via inherited global option",
+        "CLI tests with CliRunner verify core commands across output formats",
+        "All public functions have docstrings",
+        "ruff check passes, pytest passes"
+      ],
+      "priority": 11,
+      "status": "open",
+      "dependsOn": [
+        "US-007",
+        "US-009",
+        "US-010"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Project CLI commands",
+      "description": "Implement src/kanboard_cli/commands/project.py with all 8 project subcommands: list, get, create, update, remove, enable, disable, activity. Wire into the CLI skeleton from US-009.",
+      "acceptanceCriteria": [
+        "kanboard project list shows all projects",
+        "kanboard project get <project_id> shows project details",
+        "kanboard project create <name> with options: --description, --owner-id, --identifier, --start-date, --end-date",
+        "kanboard project update <project_id> with options: --name, --description, --owner-id, --identifier",
+        "kanboard project remove <project_id> requires --yes confirmation",
+        "kanboard project enable <project_id> enables a project",
+        "kanboard project disable <project_id> disables a project",
+        "kanboard project activity <project_id> shows project activity feed",
+        "All commands support --output table/json/csv/quiet via inherited global option",
+        "CLI tests with CliRunner verify core commands across output formats",
+        "All public functions have docstrings",
+        "ruff check passes, pytest passes"
+      ],
+      "priority": 12,
+      "status": "open",
+      "dependsOn": [
+        "US-008",
+        "US-009",
+        "US-010"
+      ],
+      "notes": ""
+    }
+  ]
+}

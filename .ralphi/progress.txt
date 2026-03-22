@@ -1,0 +1,54 @@
+## Codebase Patterns
+- **ruff ANN101/ANN102 removed**: These rules no longer exist in ruff ≥0.15; remove from ignore list to avoid warnings.
+- **pytest exit code 5**: "no tests collected" is exit 5 — pre-commit hook fails. Add a `tests/test_smoke.py` with import tests to get exit 0.
+- **src/ layout + hatchling**: Wheel packages must be explicitly listed in `[tool.hatch.build.targets.wheel]` as `packages = ["src/kanboard", "src/kanboard_cli"]`.
+- **strict ruff convention=google**: pydocstyle convention is Google-style (D2xx). Ignore D203+D213 (conflict with D211+D212).
+- **per-file-ignores F401**: Add `"src/**/__init__.py" = ["F401"]` to allow re-export patterns in `__init__.py`.
+---
+
+## 2026-03-22 - US-002
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `src/kanboard/exceptions.py` with 8-class exception hierarchy
+- KanboardError (base) → KanboardConfigError, KanboardConnectionError, KanboardAuthError, KanboardAPIError, KanboardResponseError
+- KanboardAPIError → KanboardNotFoundError (resource+identifier attrs), KanboardValidationError
+- Each exception: structured context attributes + human-readable str()
+- Re-exported all 8 classes in `src/kanboard/__init__.py` with `__all__`
+- Created `tests/unit/test_exceptions.py`: 47 tests covering construction, str(), subclass hierarchy, raise/catch at each level
+- ruff import-sort fix applied (pytest import needed blank-line separator)
+- **Learnings for future iterations:**
+  - `from __future__ import annotations` allows `BaseException | None` union types in Python 3.11 without issues
+  - ruff I001 fires on test files too — isort requires stdlib before third-party (pytest before local imports)
+  - KanboardNotFoundError overrides `__str__` completely (doesn't call super) since the context format differs from KanboardAPIError
+  - Raw bytes body in KanboardResponseError needs `.decode("utf-8", errors="replace")` for safe stringification
+---
+
+## PRD Run Context
+PRD Branch: ralph/milestone-1-foundation
+Started: 2026-03-22T02:55:46.144Z
+---
+
+## 2026-03-22 - US-001
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created full project skeleton with hatchling build backend in src/ layout
+- pyproject.toml: name=kanboard-cli, version=0.1.0, requires-python=>=3.11, all deps, strict ruff rules (D, ANN, B, C4, UP, RUF, N, I, E, W, F)
+- src/kanboard/__init__.py, src/kanboard/resources/__init__.py
+- src/kanboard_cli/__init__.py, src/kanboard_cli/commands/__init__.py, src/kanboard_cli/workflows/__init__.py
+- tests/conftest.py, tests/unit/__init__.py, tests/unit/resources/__init__.py, tests/cli/__init__.py, tests/integration/__init__.py
+- tests/test_smoke.py: smoke import test to ensure pytest exits 0 (pre-commit hook requires exit 0)
+- Makefile: install, lint, format, test, coverage, clean, test-integration targets
+- MIT LICENSE, CHANGELOG.md
+- **Learnings for future iterations:**
+  - ruff ANN101/ANN102 rules removed in ≥0.15 — don't add them to ignore list
+  - pytest exit code 5 (no tests) fails pre-commit hook — always have at least one test
+  - hatchling src/ layout needs explicit `packages` list in pyproject.toml
+  - ruff per-file-ignores for tests/** should suppress ANN and D rules
+  - pydocstyle Google convention: ignore D203+D213 which conflict with D211+D212
+---
