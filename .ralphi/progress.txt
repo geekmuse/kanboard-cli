@@ -277,3 +277,25 @@ Corrective Plan: N/A
   - The `colors` command formats dict values using `str(v)` since colour definitions can be nested dicts - keeps the definition column as a string representation.
   - Stub groups in main.py must be removed when importing the real command group, otherwise Click raises a duplicate command name error.
 ---
+
+## 2026-03-22 - US-014
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/workflows/base.py` with `BaseWorkflow` ABC (abstract properties `name` and `description`, abstract method `register_commands`, concrete `get_config` method).
+- Implemented `src/kanboard_cli/workflow_loader.py` with `discover_workflows()` function scanning `~/.config/kanboard/workflows/` for `.py` files and packages using `importlib.util`.
+- Updated `src/kanboard_cli/workflows/__init__.py` to export `BaseWorkflow`.
+- Replaced stub `workflow` group in `main.py` with real workflow list command and plugin registration loop.
+- `kanboard workflow list` shows name and description of all discovered workflows.
+- Graceful handling: missing directory returns empty list, broken files log warning and skip.
+- Added 14 unit tests for workflow loader, 5 unit tests for BaseWorkflow ABC, and 7 CLI tests for workflow list (26 total); all pass.
+- Files changed: `src/kanboard_cli/workflows/base.py`, `src/kanboard_cli/workflow_loader.py`, `src/kanboard_cli/workflows/__init__.py`, `src/kanboard_cli/main.py`, `tests/unit/test_workflow_loader.py`, `tests/unit/test_base_workflow.py`, `tests/cli/test_workflow.py`.
+- **Learnings for future iterations:**
+  - `importlib.util.spec_from_file_location` can return `None` for invalid paths - always check before calling `exec_module`.
+  - `inspect.isabstract(obj)` reliably filters out ABC subclasses that haven't implemented all abstract methods - no need for manual checking.
+  - Workflow loader must register modules in `sys.modules` before `exec_module` to avoid circular import issues.
+  - Sorting discovered workflows by `wf.name` ensures deterministic ordering across platforms.
+  - The `workflow list` command uses deferred `discover_workflows()` import in the command handler (not at module load time) to avoid issues with test patching.
+---
