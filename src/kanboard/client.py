@@ -15,6 +15,7 @@ from kanboard.exceptions import (
     KanboardConnectionError,
     KanboardResponseError,
 )
+from kanboard.resources.board import BoardResource
 from kanboard.resources.projects import ProjectsResource
 from kanboard.resources.tasks import TasksResource
 
@@ -32,8 +33,9 @@ class KanboardClient:
 
     Resource accessors are available as typed attributes:
 
-    - :attr:`tasks` — :class:`~kanboard.resources.tasks.TasksResource`
+    - :attr:`board` — :class:`~kanboard.resources.board.BoardResource`
     - :attr:`projects` — :class:`~kanboard.resources.projects.ProjectsResource`
+    - :attr:`tasks` — :class:`~kanboard.resources.tasks.TasksResource`
 
     Example:
         >>> with KanboardClient("https://kb.example.com/jsonrpc.php", "secret") as c:
@@ -57,6 +59,7 @@ class KanboardClient:
             auth=(_JSONRPC_USERNAME, token),
             timeout=timeout,
         )
+        self.board: BoardResource = BoardResource(self)
         self.tasks: TasksResource = TasksResource(self)
         self.projects: ProjectsResource = ProjectsResource(self)
 

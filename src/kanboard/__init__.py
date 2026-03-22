@@ -36,6 +36,7 @@ from kanboard.models import (
     TaskLink,
     User,
 )
+from kanboard.resources.board import BoardResource
 from kanboard.resources.projects import ProjectsResource
 from kanboard.resources.tasks import TasksResource
 
@@ -44,6 +45,7 @@ __all__ = [
     "CONFIG_FILE",
     "WORKFLOW_DIR",
     "Action",
+    "BoardResource",
     "Category",
     "Column",
     "Comment",
