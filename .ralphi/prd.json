@@ -205,15 +205,15 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 7,
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-004",
         "US-005"
       ],
       "notes": "US-002 (exceptions) is transitively required via US-004.",
       "startedAt": "2026-03-22T03:30:58.050Z",
-      "updatedAt": "2026-03-22T03:30:58.050Z",
-      "completedAt": null
+      "updatedAt": "2026-03-22T04:10:00.000Z",
+      "completedAt": "2026-03-22T04:10:00.000Z"
     },
     {
       "id": "US-008",

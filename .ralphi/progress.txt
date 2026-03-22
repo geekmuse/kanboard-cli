@@ -1,4 +1,10 @@
 ## Codebase Patterns
+- **`TasksResource` (and future resources) use `TYPE_CHECKING` import guard**: `from kanboard.client import KanboardClient` is placed under `if TYPE_CHECKING:` to avoid circular imports. The client imports the resource; the resource type-hints the client. This pattern must be followed for every resource module.
+- **Resource accessor wired in `KanboardClient.__init__`**: `self.tasks = TasksResource(self)` added directly in `__init__`, annotated as `self.tasks: TasksResource`. The client owns the resource instances.
+- **`update_task` uses `id=` not `task_id=`**: Kanboard's `updateTask` JSON-RPC method takes `id` (not `task_id`) as the task identifier param. All other task methods use `task_id`. Map with `self._client.call("updateTask", id=task_id, **kwargs)`.
+- **Resource method return patterns**: `create_task` raises on False/0; `get_*` single raises `KanboardNotFoundError` on None; `get_all_*` / `search_*` return `[]` on falsy; `update_task` raises on False; `open/close/remove/move_*` methods just `return bool(result)` without raising.
+
+
 - **Extended models follow the same from_api() pattern**: `_int()` for all integer fields, `_parse_date()` for date fields, `.get()` with sensible defaults. `params` dicts use `dict(data.get("params") or {})` — handles None, missing, and present cases.
 - **`Action.params` is `dict[str, Any]`**: Kanboard returns arbitrary key/value pairs for action parameters. Always wrap with `dict(...or {})` to normalise None/missing.
 - **File models (`ProjectFile`, `TaskFile`) share `date` (Unix timestamp), `is_image` (bool via `_int`), `size` (int), `mime_type` (str)** — consistent pattern for both resource types.
@@ -153,4 +159,25 @@ Corrective Plan: N/A
   - `Link` (relationship type label) and `TaskLink` (concrete task-to-task association) are distinct models
   - File models share a consistent field set: `is_image` (bool via `_int`), `date` (Unix ts), `size` (int), `mime_type` (str)
   - Docstrings for model classes with long endpoint names need line wrapping to stay under the 100-char ruff limit
+---
+
+## 2026-03-22 - US-007
+Session: iter-64dd1319
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `src/kanboard/resources/tasks.py` with `TasksResource` covering all 14 task API methods
+- Methods: `create_task`, `get_task`, `get_task_by_reference`, `get_all_tasks`, `get_overdue_tasks`, `get_overdue_tasks_by_project`, `update_task`, `open_task`, `close_task`, `remove_task`, `move_task_position`, `move_task_to_project`, `duplicate_task_to_project`, `search_tasks`
+- Wired `TasksResource` into `KanboardClient.__init__` as `self.tasks = TasksResource(self)`
+- Used `TYPE_CHECKING` guard in `tasks.py` to import `KanboardClient` type without circular import
+- Updated `src/kanboard/__init__.py` to import and re-export `TasksResource`
+- Updated `KanboardClient` docstring to document the `.tasks` resource accessor
+- Created `tests/unit/resources/test_tasks.py`: 41 tests covering all methods, edge cases (False/None/kwargs), and the resource accessor
+- All 254 tests pass; ruff clean; 100% coverage on `src/kanboard/resources/`
+- **Learnings for future iterations:**
+  - `TYPE_CHECKING` import guard is the correct pattern for resource→client type hints (avoids circular imports)
+  - `updateTask` Kanboard API takes `id` not `task_id` — must call `self._client.call("updateTask", id=task_id, ...)`
+  - Resource method contract: single-item getters raise `KanboardNotFoundError`; list getters return `[]`; create raises on False/0; update raises on False; state transitions return `bool(result)`
+  - `test_tasks_resource_accessible_on_client` is a useful sanity test confirming the accessor is wired — add equivalent for every future resource
 ---
