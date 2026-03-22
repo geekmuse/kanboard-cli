@@ -295,3 +295,35 @@ def cleanup_group_ids(
             kanboard_client.groups.remove_group(group_id)
         except Exception:
             pass
+
+
+@pytest.fixture()
+def cleanup_link_ids(
+    kanboard_client: KanboardClient,
+) -> Generator[list[int], None, None]:
+    """Yield a mutable list; remove every link type ID added to it after the test.
+
+    Tests that create link types (via
+    :meth:`~kanboard.resources.links.LinksResource.create_link`) should append
+    the resulting link ID(s) to this list.  When a link has a distinct opposite,
+    both IDs should be appended.  Teardown calls
+    :meth:`~kanboard.resources.links.LinksResource.remove_link` for each ID,
+    ignoring errors so other cleanup can continue.
+
+    Args:
+        kanboard_client: The shared :class:`~kanboard.client.KanboardClient`.
+
+    Yields:
+        An initially empty list of integer link type IDs.
+    """
+    ids: list[int] = []
+    yield ids
+    seen: set[int] = set()
+    for link_id in ids:
+        if link_id in seen:
+            continue
+        seen.add(link_id)
+        try:
+            kanboard_client.links.remove_link(link_id)
+        except Exception:
+            pass
