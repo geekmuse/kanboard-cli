@@ -198,7 +198,7 @@ class ProjectsResource:
         Raises:
             KanboardAPIError: The API returned ``False`` (update failed).
         """
-        result = self._client.call("updateProject", id=project_id, **kwargs)
+        result = self._client.call("updateProject", project_id=project_id, **kwargs)
         if result is False:
             raise KanboardAPIError(
                 "updateProject returned False — project update failed",
