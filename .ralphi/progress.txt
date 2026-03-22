@@ -95,3 +95,26 @@ Corrective Plan: N/A
   - `importlib.metadata.version("kanboard-cli")` uses the installed package name (matching `[project].name` in pyproject.toml, not the import name); wrap in try/except `PackageNotFoundError` for editable installs in CI before package is distributed
   - ruff I001 (unsorted imports) fires when stdlib imports (importlib.metadata) are interleaved with third-party imports (click) without proper isort grouping; `ruff check --fix` auto-resolves this
 ---
+
+## 2026-03-22 - US-005
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `tests/cli/test_output_snapshots.py` — 118 tests providing systematic cross-cutting format coverage across all major CLI command groups
+- **Format coverage** — for 12 command groups (project, task, column, swimlane, comment, user, category, subtask, tag, group, link, task-link): list command tested in all 4 formats (table, json, csv, quiet); get command tested in json (object) and table
+- **JSON structure tests** — every `list` → JSON array, every `get` → JSON object (not array); verified with `isinstance()` checks
+- **CSV tests** — header row present, values present; used `csv.DictReader` to re-parse and verify structural validity
+- **Quiet tests** — IDs only, one per line, no headers, no field values; separate test verifies exactly one ID per line for multiple items
+- **Error type tests** — `KanboardNotFoundError`, `KanboardAPIError`, `KanboardAuthError` each produce non-zero exit code + "Error" in output; tested across table, json, csv, and quiet output modes
+- **Empty result tests** — all 12 list commands × table + 6 commands × additional formats; empty JSON list produces `[]`; empty quiet produces zero lines
+- **Edge case tests** — 300-char field values (table + json), `None` optional fields (json: `null`, table: no "None" string), CSV commas/double-quotes/embedded-newlines all verified with `csv.DictReader`, Unicode + HTML entities in JSON, datetime ISO-8601 serialization (contains "T" separator)
+- Fixed: `swimlane list` uses `get_active_swimlanes` (not `get_swimlanes`) — corrected mock in format + empty tests
+- 1951 total tests pass; ruff check + format clean
+- Files changed: `tests/cli/test_output_snapshots.py` (new)
+- **Learnings for future iterations:**
+  - `CliRunner(mix_stderr=False)` is not supported in this Click version — use plain `CliRunner()`
+  - Swimlane list uses `get_active_swimlanes` by default; `--all` flag triggers `get_all_swimlanes` — always check command source before setting mock `return_value`
+  - For CSV edge case tests, re-parse with `csv.DictReader(io.StringIO(...))` to verify structural validity, not just string presence
+---
