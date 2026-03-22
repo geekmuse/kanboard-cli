@@ -149,3 +149,27 @@ Corrective Plan: N/A
   - Cleanup fixtures should be function-scoped (default) not session-scoped for per-test isolation
   - `KANBOARD_NO_DOCKER_TEARDOWN=1` env var allows inspecting the database after test runs
 ---
+
+## 2026-03-22 - US-007
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `tests/integration/test_core_resources.py` with 23 integration tests covering all 5 core resource lifecycles
+- **Project lifecycle** (5 tests): create → get, update, enable/disable, activity, remove; all verified against Docker Kanboard
+- **Task lifecycle** (7 tests): create/get, update, search, open/close, move_task_position (to second column), duplicate_task_to_project, remove
+- **Board** (1 test): get_board returns non-empty list of dicts with columns structure; verified with a task present
+- **Column lifecycle** (4 tests): add, get, update (title + task_limit), change_position (to pos 1), remove (verified via get_columns list)
+- **Swimlane lifecycle** (6 tests): add/get, get_by_name, update, enable/disable (verified via get_all/get_active), change_position (two swimlanes → reorder), remove
+- Fixed SDK bug discovered by integration tests: `ProjectsResource.update_project()` was passing `id=project_id` but Kanboard API `updateProject` expects `project_id` parameter name
+- Added `integration_project` function-scoped fixture (creates project + registers in cleanup_project_ids) for tests that need a project context without managing it inline
+- Files changed: `tests/integration/test_core_resources.py` (new), `src/kanboard/resources/projects.py` (updateProject param fix)
+- 1980 tests pass (unit + integration); ruff clean
+- **Learnings for future iterations:**
+  - Kanboard returns HTTP 403 (not null/404) when querying a deleted project/task/column by ID — verify deletion via list endpoint (`get_all_projects`, `get_all_tasks`, `get_columns`) rather than by re-fetching the deleted ID
+  - `updateProject` in Kanboard API uses `project_id` as parameter name (not `id`) — the SDK had a wrong mapping; the real API confirms the true parameter names
+  - Cleanup via project removal cascades all child resources (tasks, columns, swimlanes) — no need for separate column/swimlane cleanup fixtures
+  - `change_swimlane_position` requires at least 2 user-created swimlanes to test meaningfully; the default swimlane (id=0) does not count
+  - `move_task_position` with `swimlane_id=0` targets the default swimlane successfully
+---
