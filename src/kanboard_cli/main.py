@@ -24,6 +24,7 @@ from kanboard_cli.commands.comment import comment
 from kanboard_cli.commands.external_link import external_link
 from kanboard_cli.commands.group import group
 from kanboard_cli.commands.link import link
+from kanboard_cli.commands.me import me
 from kanboard_cli.commands.project import project
 from kanboard_cli.commands.project_access import project_access
 from kanboard_cli.commands.project_file import project_file
@@ -161,11 +162,6 @@ def cli(
 # Stub command groups
 # (Populated with real sub-commands in later user stories)
 # ---------------------------------------------------------------------------
-
-
-@click.group()
-def me() -> None:
-    """Commands for the authenticated user."""
 
 
 @click.group()
