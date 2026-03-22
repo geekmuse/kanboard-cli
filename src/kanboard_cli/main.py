@@ -17,10 +17,12 @@ from kanboard.client import KanboardClient
 from kanboard.config import KanboardConfig
 from kanboard.exceptions import KanboardConfigError
 from kanboard_cli.commands.board import board
+from kanboard_cli.commands.category import category
 from kanboard_cli.commands.column import column
 from kanboard_cli.commands.comment import comment
 from kanboard_cli.commands.project import project
 from kanboard_cli.commands.swimlane import swimlane
+from kanboard_cli.commands.tag import tag
 from kanboard_cli.commands.task import task
 
 logger = logging.getLogger(__name__)
@@ -149,11 +151,6 @@ def cli(
 
 
 @click.group()
-def category() -> None:
-    """Manage task categories."""
-
-
-@click.group()
 def subtask() -> None:
     """Manage task subtasks."""
 
@@ -171,11 +168,6 @@ def user() -> None:
 @click.group()
 def me() -> None:
     """Commands for the authenticated user."""
-
-
-@click.group()
-def tag() -> None:
-    """Manage task tags."""
 
 
 @click.group()
