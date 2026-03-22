@@ -95,7 +95,7 @@ def main(argv: list[str] | None = None) -> None:  # noqa: D103
     text = PYPROJECT.read_text(encoding="utf-8")
     patched, n = _VERSION_LINE_RE.subn(rf"\g<1>{new}\g<3>", text, count=1)
     if n != 1:
-        _die("could not locate version = \"...\" line in pyproject.toml")
+        _die('could not locate version = "..." line in pyproject.toml')
 
     PYPROJECT.write_text(patched, encoding="utf-8")
     print("  updated pyproject.toml")

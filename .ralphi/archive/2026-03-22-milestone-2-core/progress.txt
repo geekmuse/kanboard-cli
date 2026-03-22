@@ -1,0 +1,357 @@
+## 2026-03-22T05:15:00Z - US-007
+Session: iter-c9eb2576
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/subtasks.py` — `SubtasksResource` with all 5 methods: `create_subtask`, `get_subtask`, `get_all_subtasks`, `update_subtask`, `remove_subtask`
+- Wired `self.subtasks = SubtasksResource(self)` into `KanboardClient.__init__`
+- Exported `SubtasksResource` from `src/kanboard/__init__.py`
+- Added 24 unit tests in `tests/unit/resources/test_subtasks.py` covering: all 5 methods, success + error + empty paths, not-found error attributes, importability, client accessor, kwargs forwarding
+- All 658 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `KanboardNotFoundError` requires a positional message argument as its first param (e.g. `KanboardNotFoundError(f"Subtask {id} not found", resource=..., identifier=...)`) — `resource=` and `identifier=` are kwargs, not the first arg
+  - `update_subtask` raises `KanboardAPIError` on False (same "update = must succeed" pattern as `update_column`, `update_comment`, `update_category`, `update_tag`)
+  - `remove_subtask` returns `bool(result)` without raising on False — consistent with all other `remove_*` methods
+  - `get_all_subtasks` guards with `if not result: return []` (handles False, None, and `[]` from the API)
+  - `Subtask.from_api` maps: `id`, `title`, `task_id`, `user_id`, `status`, `time_estimated` (float), `time_spent` (float), `position`, `username`, `name` — all string-encoded in the API response
+---
+
+## 2026-03-22T06:10:00Z - US-005
+Session: iter-30e30e5e
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/categories.py` — `CategoriesResource` with all 5 methods: `create_category`, `get_category`, `get_all_categories`, `update_category`, `remove_category`
+- Wired `self.categories = CategoriesResource(self)` into `KanboardClient.__init__`
+- Exported `CategoriesResource` from `src/kanboard/__init__.py`
+- Added 25 unit tests in `tests/unit/resources/test_categories.py` covering: all 5 methods, success + error + empty paths, not-found error attributes, importability, client accessor, kwargs forwarding
+- All 599 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `update_category` raises `KanboardAPIError` on False (same "update = must succeed" pattern as `update_column` and `update_comment`)
+  - `remove_category` returns `bool(result)` without raising on False — consistent with other remove_* methods
+  - `get_all_categories` uses `if not result: return []` which correctly handles False, None, and `[]` from the API
+  - `Category.from_api` maps: `id`, `name`, `project_id`, `color_id` — all string-encoded in the API response, cast via `_int()` and `str()`
+---
+
+## 2026-03-22T05:05:00Z - US-006
+Session: iter-5edc326d
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/tags.py` — `TagsResource` with all 7 methods: `get_all_tags`, `get_tags_by_project`, `create_tag`, `update_tag`, `remove_tag`, `set_task_tags`, `get_task_tags`
+- Wired `self.tags = TagsResource(self)` into `KanboardClient.__init__`
+- Exported `TagsResource` from `src/kanboard/__init__.py`
+- Added 35 unit tests in `tests/unit/resources/test_tags.py` covering: all 7 methods, success + error + empty paths, importability, client accessor, kwargs forwarding
+- All 634 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `get_all_tags()` takes NO arguments — it's a project-agnostic endpoint returning all tags globally
+  - `get_task_tags()` returns a `dict` (tag_id → tag_name), not a list of Tag models — unique return type in this resource group
+  - `set_task_tags()` returns `bool` without raising on False — consistent with other `set_*` methods; replaces all existing tag assignments
+  - `update_tag` raises `KanboardAPIError` on False (same "update = must succeed" pattern as `update_column`, `update_comment`, `update_category`)
+  - `remove_tag` returns `bool(result)` without raising on False — consistent with all other `remove_*` methods
+---
+
+## 2026-03-22T05:10:00Z - US-008
+Session: iter-e31f1bc8
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/users.py` — `UsersResource` with all 10 methods: `create_user`, `create_ldap_user`, `get_user`, `get_user_by_name`, `get_all_users`, `update_user`, `remove_user`, `disable_user`, `enable_user`, `is_active_user`
+- Wired `self.users = UsersResource(self)` into `KanboardClient.__init__`
+- Exported `UsersResource` from `src/kanboard/__init__.py`
+- Added 42 unit tests in `tests/unit/resources/test_users.py` covering: all 10 methods, success + error + empty paths, field mapping (including optional None fields), not-found error attributes, importability, client accessor, kwargs forwarding
+- All 700 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `User.from_api` maps optional fields (`avatar_path`, `timezone`, `language`) as `str | None` — check for `None` before casting to `str`; other fields are all string-encoded in API response
+  - `create_ldap_user` only takes `username` (no password) — it reads from LDAP; maps to `createLdapUser` API method
+  - `get_user_by_name` uses `identifier=username` (a string) in `KanboardNotFoundError`, unlike `get_user` which uses `identifier=user_id` (int)
+  - `is_active_user` returns `bool` and does NOT raise on False — it is a query, not a command; `False` means the user is inactive
+  - `disable_user` and `enable_user` also return `bool(result)` without raising — same passive-return pattern as `remove_*` methods
+  - `update_user` raises `KanboardAPIError` on False — consistent with "update = must succeed" pattern seen in `update_column`, `update_comment`, `update_category`, `update_tag`, `update_subtask`
+---
+
+## 2026-03-22T07:30:00Z - US-009
+Session: iter-89ebb119
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/links.py` — `LinksResource` with all 7 methods: `get_all_links`, `get_opposite_link_id`, `get_link_by_label`, `get_link_by_id`, `create_link`, `update_link`, `remove_link`
+- Wired `self.links = LinksResource(self)` into `KanboardClient.__init__`
+- Exported `LinksResource` from `src/kanboard/__init__.py`
+- Added 35 unit tests in `tests/unit/resources/test_links.py` covering: all 7 methods, success + error + empty paths, both False/None not-found paths, zero-result guard for `get_opposite_link_id` and `create_link`, error attributes, importability, client accessor, kwargs forwarding
+- All 735 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `Link` model fields: `id`, `label`, `opposite_id` — note the field is `opposite_id` (not `opposite_link_id`) in the model, though the API method parameter is named `opposite_link_id`
+  - `get_link_by_label` and `get_link_by_id` both use `if not result` to guard (catches both `False` and `None`) before raising `KanboardNotFoundError`
+  - `get_opposite_link_id` and `create_link` also use `if not result` (catches `False` and `0`) before raising `KanboardAPIError`
+  - `get_link_by_label` uses `identifier=label` (string) in `KanboardNotFoundError`; `get_link_by_id` uses `identifier=link_id` (int)
+  - `update_link` raises `KanboardAPIError` on False — consistent with "update = must succeed" pattern
+  - `remove_link` returns `bool(result)` without raising — consistent with all other `remove_*` methods
+  - Kanboard API method names: `getAllLinks`, `getOppositeLinkId`, `getLinkByLabel`, `getLinkById`, `createLink`, `updateLink`, `removeLink`
+---
+
+## 2026-03-22T05:10:00Z - US-010
+Session: iter-f0e3965e
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/task_links.py` — `TaskLinksResource` with all 5 methods: `create_task_link`, `update_task_link`, `get_task_link_by_id`, `get_all_task_links`, `remove_task_link`
+- Wired `self.task_links = TaskLinksResource(self)` into `KanboardClient.__init__`
+- Exported `TaskLinksResource` from `src/kanboard/__init__.py`
+- Added 24 unit tests in `tests/unit/resources/test_task_links.py` covering: all 5 methods, success + error + empty paths, not-found error attributes (resource="TaskLink", identifier=int), importability, client accessor
+- All 759 tests green, ruff clean, pre-commit hook passed (ruff format reformatted task_links.py)
+- **Learnings for future iterations:**
+  - `TaskLink` model fields: `id`, `task_id`, `opposite_task_id`, `link_id` — all int, all string-encoded in API response (cast via `_int()`)
+  - `get_task_link_by_id` uses `if not result` guard (catches both `False` and `None`) before raising `KanboardNotFoundError`
+  - `update_task_link` raises `KanboardAPIError` on False — consistent with "update = must succeed" pattern across all update_* methods
+  - `remove_task_link` returns `bool(result)` without raising — consistent with all `remove_*` methods
+  - `create_task_link` uses `if not result` (catches `False` and `0`) before raising `KanboardAPIError` — same as `create_link`
+  - Kanboard API method names: `createTaskLink`, `updateTaskLink`, `getTaskLinkById`, `getAllTaskLinks`, `removeTaskLink`
+  - `typing.Any` import not needed in task_links.py since no `**kwargs` methods; ruff F401 flagged it — remove unused imports
+---
+
+## 2026-03-22T09:00:00Z - US-012
+Session: iter-a036b011
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/swimlane.py` — `swimlane` group with all 9 subcommands: `list` (with `--all` flag), `get`, `get-by-name`, `add`, `update`, `remove`, `enable`, `disable`, `move`
+- Replaced stub `swimlane` `@click.group()` definition in `main.py` with real import from `kanboard_cli.commands.swimlane`
+- Added import in `main.py`: `from kanboard_cli.commands.swimlane import swimlane`
+- Added 40 tests in `tests/cli/test_swimlane.py` covering: all 9 subcommands, all 4 output formats (table/json/csv/quiet), --all flag behaviour, not-found errors, API errors, --yes confirmation flow (with_yes, without_yes aborts, interactive confirm), --help for all subcommands
+- All 835 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `swimlane list` uses `--all` flag (`show_all` Python param) to switch between `get_active_swimlanes` and `get_all_swimlanes` — `--all` is a boolean flag, not a mutually-exclusive option
+  - `swimlane update` returns `bool` without raising on False (unlike `column update` which raises `KanboardAPIError`) — always verify per-method raise vs return behaviour from the SDK source
+  - `swimlane remove` takes `project_id` AND `swimlane_id` as positional args (unlike `column remove` which only takes `column_id`) — swimlane operations consistently require project_id
+  - Stub group removal and import addition in `main.py` are separate steps — the old `@click.group()` block must be deleted AND the import line added; both are needed
+  - `format_success` message phrasing: "enabled", "disabled", "moved to position N", "removed", "updated", "added" — use past-tense verbs consistent with column/board patterns
+---
+
+## 2026-03-22T10:00:00Z - US-013
+Session: iter-ed13cae1
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/comment.py` — `comment` group with all 5 subcommands: `list`, `get`, `add`, `update`, `remove`
+- Replaced stub `comment` `@click.group()` definition in `main.py` with real import from `kanboard_cli.commands.comment`
+- Added 22 tests in `tests/cli/test_comment.py` covering: all 5 subcommands, all 4 output formats (table/json/csv/quiet), not-found errors, API errors, missing --user-id required option, --yes confirmation flow (with_yes, without_yes aborts, interactive confirm), --help for all subcommands
+- All 857 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `comment add` uses `--user-id` as a required option (not a positional arg) — tests must pass `["--user-id", "1"]` as flags not positional
+  - Table output wraps long comment text across multiple lines — test assertions for table output should check short fields like `username` or `id`, not the full comment body
+  - `comment get` calls `format_output(c, app.output)` with no `columns=` kwarg so all model fields render in table (including date fields); use a stable short field like `jdoe` for table assertion
+  - `comment update` maps to `update_comment(comment_id, content)` — the SDK uses positional `id` param (not `comment_id`), called as `update_comment(comment_id, content)` with the int ID
+---
+
+## 2026-03-22T11:00:00Z - US-014
+Session: iter-49554ba4
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/category.py` — `category` group with all 5 subcommands: `list`, `get`, `create`, `update`, `remove`
+- Implemented `src/kanboard_cli/commands/tag.py` — `tag` group with all 6 subcommands: `list` (with `--project-id` filter), `get`, `create`, `update`, `remove`, `set`
+- Replaced stub `category` and `tag` `@click.group()` definitions in `main.py` with real imports from the new command modules
+- Added 23 tests in `tests/cli/test_category.py` covering: all 5 subcommands, all 4 output formats (table/json/csv/quiet), not-found error, API error, --color-id option, --yes confirmation flow (with_yes, without_yes aborts, interactive confirm), --help for all subcommands
+- Added 28 tests in `tests/cli/test_tag.py` covering: all 6 subcommands, all 4 output formats, --project-id flag switching (get_all_tags vs get_tags_by_project), tag get returns dict, variadic tag args for set, --yes confirmation flow, required tags arg, --help for all subcommands
+- All 908 tests green, ruff clean, pre-commit hook passed (ruff format reformatted 2 files)
+- **Learnings for future iterations:**
+  - `tag list` uses `--project-id` as an optional option (not a flag) — when provided calls `get_tags_by_project(project_id)`, otherwise calls `get_all_tags()` — test both branches
+  - `tag get <task_id>` returns a `dict` (tag_id → tag_name) not a list of Tag models — `format_output` handles dict via `_normalize` by wrapping it as a single dict row; JSON output renders it as a plain object (not an array)
+  - `tag set` uses `nargs=-1, required=True` for variadic `<tags>...` argument — Click enforces at least one value; pass `list(tags)` to SDK since it expects `list[str]`
+  - `tag create` argument is named `tag_name` in Click (not `tag`) to avoid shadowing the Click group name; SDK call uses `create_tag(project_id, tag_name)` positionally
+  - `category update` SDK signature is `update_category(id, name, **kwargs)` with `id` as first param — CLI passes `category_id` (int) as the first positional; must NOT use keyword `id=` to avoid Python builtin shadowing
+  - Stub group removal in `main.py` must delete the entire `@click.group() def name():` block (3 lines) plus the trailing blank line — use exact text match including the empty line
+---
+
+## 2026-03-22T12:00:00Z - US-015
+Session: iter-d908e306
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/subtask.py` — `subtask` group with all 5 subcommands: `list`, `get`, `create`, `update`, `remove`
+- Replaced stub `subtask` `@click.group()` definition in `main.py` with real import from `kanboard_cli.commands.subtask`
+- Added import in `main.py`: `from kanboard_cli.commands.subtask import subtask`
+- Added 26 tests in `tests/cli/test_subtask.py` covering: all 5 subcommands, all 4 output formats (table/json/csv/quiet), not-found error, API error, --user-id/--time-estimated/--status/--time-spent optional flags, --yes confirmation flow (with_yes, without_yes aborts, interactive confirm), --help for all subcommands
+- All 934 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `subtask update` SDK signature is `update_subtask(id, task_id, **kwargs)` — CLI exposes both `subtask_id` and `task_id` as required positional arguments; all other fields (title, user_id, time_estimated, time_spent, status) are optional `--option` flags
+  - Table output wraps long titles (e.g. "Write unit tests" → "Write unit\ntests") — test assertions for table output should use stable short fields like `id` or `username`, not the full title
+  - `subtask create` optional flags: `--user-id`, `--time-estimated`, `--status`; `subtask update` optional flags: `--title`, `--user-id`, `--time-estimated`, `--time-spent`, `--status`
+  - Import sort order matters: ruff I001 flagged unsorted imports in `main.py` — fix with `ruff check --fix` before committing; imports must be alphabetically sorted within each isort section
+---
+
+## 2026-03-22T13:00:00Z - US-016
+Session: iter-3c236310
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/user.py` — `user` group with all 9 subcommands: `list`, `get`, `get-by-name`, `create`, `update`, `remove`, `enable`, `disable`, `is-active`
+- Replaced stub `user` `@click.group()` definition in `main.py` with real import from `kanboard_cli.commands.user`
+- Added import in `main.py`: `from kanboard_cli.commands.user import user`
+- Added 35 tests in `tests/cli/test_user.py` covering: all 9 subcommands, all 4 output formats (table/json/csv/quiet), not-found errors, API errors, `--yes` confirmation flow (with_yes, without_yes aborts, interactive confirm), password prompt via `input=`, `--help` for all subcommands
+- All 969 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `click.prompt("Password", hide_input=True, confirmation_prompt=True)` prompts for password + confirmation; in tests supply `input="s3cret\ns3cret\n"` (twice — once for prompt, once for confirmation) via CliRunner's `input=` parameter
+  - `user update` SDK signature is `update_user(id, **kwargs)` — CLI passes `user_id` (int) as first positional; do NOT use keyword `id=` to avoid shadowing the Python builtin; pass it positionally as the first arg
+  - `user is-active` returns a boolean and does NOT raise on False — it's a query, not a command; CLI renders "active"/"inactive" status message via `format_success`
+  - `enable_user` and `disable_user` return `bool(result)` without raising — same passive-return pattern as `remove_*` methods; CLI renders success message regardless
+  - Import sort order matters when adding new command imports to `main.py` — ruff I001 flagged unsorted imports in previous stories; `from kanboard_cli.commands.user import user` must be placed in alphabetical order with other `kanboard_cli.commands.*` imports
+---
+
+## 2026-03-22T14:00:00Z - US-017
+Session: iter-63370753
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/link.py` — `link` group with all 6 subcommands: `list`, `get`, `get-by-label`, `create`, `update`, `remove`
+- Implemented `src/kanboard_cli/commands/task_link.py` — `task_link` group (registered as `task-link`) with all 5 subcommands: `list`, `get`, `create`, `update`, `remove`
+- Replaced stub `link` and `task_link` `@click.group()` definitions in `main.py` with real imports from the new command modules
+- Added imports: `from kanboard_cli.commands.link import link` and `from kanboard_cli.commands.task_link import task_link` in alphabetical order
+- Added 26 tests in `tests/cli/test_link.py` covering: all 6 subcommands, all 4 output formats (table/json/csv/quiet), not-found errors, API errors, `--opposite-label` option, `--yes` confirmation flow (with_yes, without_yes aborts, interactive confirm), `--help` for all subcommands
+- Added 21 tests in `tests/cli/test_task_link.py` covering: all 5 subcommands, all 4 output formats (table/json/csv/quiet), not-found errors, API errors, `--yes` confirmation flow (with_yes, without_yes aborts, interactive confirm), `--help` for all subcommands
+- All 1016 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `link update` takes 3 positional args: `link_id`, `opposite_link_id`, `label` — all three are required; no optional kwargs unlike most update commands
+  - `task_link` Click group must specify `name="task-link"` to match the CLI command name (with hyphen), since the Python function name uses underscores
+  - `task-link update` takes 4 positional args: `task_link_id`, `task_id`, `opposite_task_id`, `link_id` — same signature as the SDK `update_task_link(task_link_id, task_id, opposite_task_id, link_id)`
+  - `link create` uses `--opposite-label` (hyphenated) as the Click option; Click maps it to `opposite_label` (underscored) as the Python parameter
+  - Both `remove_link` and `remove_task_link` return `bool` without raising on False — consistent with all other `remove_*` methods across the codebase
+---
+
+## 2026-03-22T15:00:00Z - US-018
+Session: iter-2cba6f8e
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Audited all Milestone 2 resource test files for missing acceptance criteria coverage
+- All 10 M2 resource test files (board, columns, swimlanes, comments, categories, tags, subtasks, users, links, task_links) already had: KanboardNotFoundError on null, KanboardAPIError on False, empty-list returns, 100% line coverage
+- Created `tests/unit/resources/test_network_failures.py` — 21 tests adding explicit KanboardConnectionError (network failure) tests for all 10 M2 resources (using httpx.ConnectError, httpx.ReadTimeout, httpx.ConnectTimeout variants)
+- All CLI groups (board, column, swimlane, comment, category, tag, subtask, user, link, task-link) confirmed to have: all 4 output formats, --yes destructive confirmation, and empty-list rendering tests
+- Final coverage: 100% on src/kanboard/resources/ (474 stmts, 0 miss); 1037 tests total, all green
+- All commits passed ruff + pytest pre-commit hook
+- **Learnings for future iterations:**
+  - `KanboardConnectionError` propagates from `client.call()` through any resource method — transport-level tests via `httpx_mock.add_exception(httpx.ConnectError(...))` are lightweight and need no JSON response mocking
+  - One consolidated `test_network_failures.py` file is a clean pattern for cross-cutting transport error coverage across all resources
+  - Coverage goal: 100% was already achieved before US-018; the remaining work was purely about explicit error-path documentation per acceptance criteria
+---
+
+## Codebase Patterns
+- **KanboardNotFoundError signature**: uses `resource=` and `identifier=` kwargs (NOT `resource_type`/`resource_id`); `__str__` formats as `"Not found: {resource} '{identifier}' does not exist"` — match patterns in tests must reflect this.
+
+- **Resource class pattern**: `__init__(self, client: KanboardClient)` stores `self._client = client`; methods call `self._client.call("CamelCaseMethod", **kwargs)`.
+- **Falsy guard**: use `if not result: return []` for list-returning methods; `if result is None: raise KanboardNotFoundError(...)` for single-item lookups.
+- **Error responses**: JSON-RPC `error` objects are raised as `KanboardAPIError` by `client.call()` automatically — no manual check needed in resource methods.
+- **Type hints**: all resource public methods use `from __future__ import annotations` + `TYPE_CHECKING` guard for `KanboardClient` to avoid circular imports.
+- **Tests**: use `_rpc_ok(result)` / `_rpc_err(code, message)` helpers; `httpx_mock.add_response(json=...)` pattern with `KanboardClient` as context manager.
+- **ruff noqa**: avoid `as ACRONYM` aliases in tests (N817); prefer `import module` + `module.Symbol` for import-verification tests.
+- **update vs add semantics**: `update_*` methods may return `bool` without raising on False (swimlane pattern) OR raise `KanboardAPIError` on False (column pattern) — always check the PRD acceptance criteria per method for the exact behavior.
+- **Kanboard list endpoint naming**: "All" prefix = full list (e.g. `getAllSwimlanes`, `getActiveSwimlanes` = filtered list); check Kanboard API docs carefully when naming resource methods.
+---
+
+## 2026-03-22T05:55:00Z - US-004
+Session: iter-9bda9d20
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/comments.py` — `CommentsResource` with all 5 methods: `create_comment`, `get_comment`, `get_all_comments`, `update_comment`, `remove_comment`
+- Wired `self.comments = CommentsResource(self)` into `KanboardClient.__init__`
+- Exported `CommentsResource` from `src/kanboard/__init__.py`
+- Added 24 unit tests in `tests/unit/resources/test_comments.py` covering: all 5 methods, success + error + empty paths, not-found error attributes, importability, client accessor
+- All 574 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `update_comment` raises `KanboardAPIError` on False (like `update_column`), consistent with "update = must succeed" pattern
+  - `remove_comment` returns `bool(result)` without raising on False — same pattern as `remove_swimlane`, `remove_column`
+  - `get_all_comments` guards with `if not result` (handles both False and None from API) to return []
+  - Comment model has `comment` field (same name as class) holding the text body — use `c.comment` to access it in tests
+---
+
+## PRD Run Context
+PRD Branch: ralph/milestone-2-core
+Started: 2026-03-22T04:28:03.409Z
+---
+
+## 2026-03-22T04:45:00Z - US-001
+Session: iter-1fc84caf
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/board.py` — `BoardResource` with `get_board(project_id: int) -> list[dict]`
+- Wired `self.board = BoardResource(self)` into `KanboardClient.__init__`
+- Exported `BoardResource` from `src/kanboard/__init__.py`
+- Added 10 unit tests in `tests/unit/resources/test_board.py` covering: success, multi-column, empty (False/None/[]), two error paths, client accessor, importability
+- All tests green (478 total), ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `BoardResource.get_board` returns raw `list[dict]` (not dataclass models) due to deep nesting complexity — this is intentional per PRD
+  - ruff N817 flags CamelCase-as-acronym imports in tests; use `import module; module.Symbol` pattern instead
+  - `from __future__ import annotations` + `TYPE_CHECKING` guard keeps circular import clean for all resource modules
+---
+
+## 2026-03-22T05:10:00Z - US-002
+Session: iter-0ff96d30
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/columns.py` — `ColumnsResource` with all 6 methods: `get_columns`, `get_column`, `change_column_position`, `update_column`, `add_column`, `remove_column`
+- Wired `self.columns = ColumnsResource(self)` into `KanboardClient.__init__`
+- Exported `ColumnsResource` from `src/kanboard/__init__.py`
+- Added 27 unit tests in `tests/unit/resources/test_columns.py` covering: all 6 methods, success + error + empty paths, not-found error attributes, importability, client accessor
+- All 505 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `KanboardNotFoundError` uses `resource=` and `identifier=` kwargs; `__str__` returns `"Not found: {resource} '{identifier}' does not exist"` — pytest `match=` patterns must use this format
+  - `update_column` raises `KanboardAPIError` on `False`; `remove_column` just returns `False` (no raise) — asymmetry intentional per PRD
+  - `add_column` uses `if not result` (catches `0` and `False`) to guard the int return
+---
+
+## 2026-03-22T05:30:00Z - US-003
+Session: iter-6c45c004
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/swimlanes.py` — `SwimlanesResource` with all 11 methods: `get_active_swimlanes`, `get_all_swimlanes`, `get_swimlane`, `get_swimlane_by_id`, `get_swimlane_by_name`, `change_swimlane_position`, `update_swimlane`, `add_swimlane`, `remove_swimlane`, `disable_swimlane`, `enable_swimlane`
+- Wired `self.swimlanes = SwimlanesResource(self)` into `KanboardClient.__init__`
+- Exported `SwimlanesResource` from `src/kanboard/__init__.py`
+- Added 45 unit tests in `tests/unit/resources/test_swimlanes.py` covering: all 11 methods, success + error + empty paths, not-found error attributes, importability, client accessor
+- All 550 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - `update_swimlane` returns `bool(result)` without raising on `False` (unlike `update_column` which raises) — always verify exact error-raise vs return-bool semantics in the PRD acceptance criteria per method
+  - `get_swimlane_by_name` uses `identifier=name` (a string) in `KanboardNotFoundError`; ID-based lookups use `identifier=swimlane_id` (int) — match pattern in tests must use exact identifier value and type
+  - `getAllSwimlanes` (not `getSwimlanes`) is the correct Kanboard API method name for the full list — check Kanboard API naming carefully; "All" prefix is used consistently for full list endpoints
+---
+
+## 2026-03-22T08:00:00Z - US-011
+Session: iter-e2c8dc05
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/board.py` — `board` group with `board show <project_id>` (renders top-level columns in table/CSV; full nested structure in JSON)
+- Implemented `src/kanboard_cli/commands/column.py` — `column` group with all 6 subcommands: `list`, `get`, `add`, `update`, `remove`, `move`
+- Replaced stub `board` and `column` `@click.group()` definitions in `main.py` with real imports from the new command modules
+- Added 7 tests in `tests/cli/test_board.py` covering: table/json/csv/quiet output, empty board, API error, --help
+- Added 29 tests in `tests/cli/test_column.py` covering: all 6 subcommands, all 4 output formats, not-found, API errors, --yes confirmation flow (with_yes, without_yes aborts, interactive confirm), --help for all subcommands
+- All 795 tests green, ruff clean, pre-commit hook passed
+- **Learnings for future iterations:**
+  - CLI command module imports must be added to `main.py` AND the corresponding stub `@click.group()` definitions removed — both steps required
+  - For `board show`, `format_output(board_data, app.output, columns=_BOARD_COLUMNS)` gives clean table output using only top-level column fields (excluding nested `swimlanes` key); JSON mode shows full nested structure automatically
+  - The `column_add` CLI passes `project_id` as `int` (Click `type=int`), so test assertions must use `int` not `str` for the positional arg
+  - For CLI `update` commands with a required `title` argument, no "no options" guard is needed — `title` is always present; kwargs guards only matter for fully-optional update commands (like `project update`)
+  - Rename loop variables to avoid confusion with `format_output`'s `columns=` kwarg — use `board_data`, `cols`, etc. instead of `columns`
+---

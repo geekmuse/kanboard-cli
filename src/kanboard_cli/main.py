@@ -27,6 +27,7 @@ from kanboard_cli.commands.subtask import subtask
 from kanboard_cli.commands.swimlane import swimlane
 from kanboard_cli.commands.tag import tag
 from kanboard_cli.commands.task import task
+from kanboard_cli.commands.task_file import task_file
 from kanboard_cli.commands.task_link import task_link
 from kanboard_cli.commands.user import user
 
@@ -178,11 +179,6 @@ def group() -> None:
 @click.group()
 def action() -> None:
     """Manage automatic actions on projects."""
-
-
-@click.group(name="task-file")
-def task_file() -> None:
-    """Manage files attached to tasks."""
 
 
 @click.group(name="project-meta")

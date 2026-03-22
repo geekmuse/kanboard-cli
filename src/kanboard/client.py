@@ -25,6 +25,7 @@ from kanboard.resources.projects import ProjectsResource
 from kanboard.resources.subtasks import SubtasksResource
 from kanboard.resources.swimlanes import SwimlanesResource
 from kanboard.resources.tags import TagsResource
+from kanboard.resources.task_files import TaskFilesResource
 from kanboard.resources.task_links import TaskLinksResource
 from kanboard.resources.tasks import TasksResource
 from kanboard.resources.users import UsersResource
@@ -49,6 +50,7 @@ class KanboardClient:
     - :attr:`comments` — :class:`~kanboard.resources.comments.CommentsResource`
     - :attr:`links` — :class:`~kanboard.resources.links.LinksResource`
     - :attr:`project_files` — :class:`~kanboard.resources.project_files.ProjectFilesResource`
+    - :attr:`task_files` — :class:`~kanboard.resources.task_files.TaskFilesResource`
     - :attr:`task_links` — :class:`~kanboard.resources.task_links.TaskLinksResource`
     - :attr:`projects` — :class:`~kanboard.resources.projects.ProjectsResource`
     - :attr:`subtasks` — :class:`~kanboard.resources.subtasks.SubtasksResource`
@@ -85,6 +87,7 @@ class KanboardClient:
         self.comments: CommentsResource = CommentsResource(self)
         self.links: LinksResource = LinksResource(self)
         self.project_files: ProjectFilesResource = ProjectFilesResource(self)
+        self.task_files: TaskFilesResource = TaskFilesResource(self)
         self.task_links: TaskLinksResource = TaskLinksResource(self)
         self.subtasks: SubtasksResource = SubtasksResource(self)
         self.swimlanes: SwimlanesResource = SwimlanesResource(self)

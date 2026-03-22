@@ -34,8 +34,8 @@
       "dependsOn": [],
       "notes": "M1/M2 foundations (transport, models, formatters, main.py) already on main.",
       "startedAt": "2026-03-22T06:06:13.662Z",
-      "updatedAt": "2026-03-22T06:10:00.000Z",
-      "completedAt": "2026-03-22T06:10:00.000Z"
+      "updatedAt": "2026-03-22T06:14:47.058Z",
+      "completedAt": "2026-03-22T06:14:47.058Z"
     },
     {
       "id": "US-002",
@@ -64,9 +64,12 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 2,
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
-      "notes": ""
+      "notes": "",
+      "startedAt": "2026-03-22T06:14:47.768Z",
+      "updatedAt": "2026-03-22T06:14:47.768Z",
+      "completedAt": null
     },
     {
       "id": "US-003",

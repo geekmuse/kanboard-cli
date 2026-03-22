@@ -423,9 +423,7 @@ def test_project_file_remove_all_with_yes(
 ) -> None:
     """``project-file remove-all --yes`` removes all without prompting."""
     mock_client.project_files.remove_all_project_files.return_value = True
-    result = _invoke(
-        runner, mock_config, mock_client, ["project-file", "remove-all", "1", "--yes"]
-    )
+    result = _invoke(runner, mock_config, mock_client, ["project-file", "remove-all", "1", "--yes"])
     assert result.exit_code == 0
     assert "1" in result.output
     mock_client.project_files.remove_all_project_files.assert_called_once_with(1)
