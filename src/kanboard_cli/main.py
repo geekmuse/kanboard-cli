@@ -18,6 +18,7 @@ from kanboard.config import KanboardConfig
 from kanboard.exceptions import KanboardConfigError
 from kanboard_cli.commands.board import board
 from kanboard_cli.commands.column import column
+from kanboard_cli.commands.comment import comment
 from kanboard_cli.commands.project import project
 from kanboard_cli.commands.swimlane import swimlane
 from kanboard_cli.commands.task import task
@@ -150,11 +151,6 @@ def cli(
 @click.group()
 def category() -> None:
     """Manage task categories."""
-
-
-@click.group()
-def comment() -> None:
-    """Manage task comments."""
 
 
 @click.group()
