@@ -904,6 +904,8 @@ The `kanboard.orchestration` subpackage provides portfolio management, cross-pro
 
 **The orchestration classes are opt-in and not wired into `KanboardClient`.** Callers instantiate them separately, passing a `KanboardClient` as a constructor argument.
 
+> **Note:** The orchestration classes work with any standard Kanboard instance — no server-side plugin is required for core functionality. For additional server-side features (UI dashboards, interactive dependency graphs, Gantt timelines, and board-level blocking indicators), see the [Kanboard Portfolio plugin](https://github.com/geekmuse/kanboard-plugin-portfolio-management).
+
 ```python
 from kanboard import KanboardClient
 from kanboard.orchestration import (
@@ -993,7 +995,7 @@ store.remove_milestone("Platform Launch", "Beta Release")
 
 ### PortfolioManager
 
-`PortfolioManager` aggregates task data across multiple projects and computes milestone progress. It makes N+1 API calls by design (one per project/task) — acceptable for Phase 0; a server-side plugin will solve this in Phase 1.
+`PortfolioManager` aggregates task data across multiple projects and computes milestone progress. It makes N+1 API calls by design (one per project/task) — acceptable for Phase 0; the [Kanboard Portfolio plugin](https://github.com/geekmuse/kanboard-plugin-portfolio-management) will solve this at scale in Phase 1.
 
 ```python
 from kanboard import KanboardClient

@@ -286,7 +286,7 @@ The solution is split across two projects:
 
 | Layer | Project | Language | Responsibility |
 |-------|---------|----------|----------------|
-| **Server-side plugin** | `kanboard-plugin-portfolio` (separate repo) | PHP | Database tables, JSON-RPC API endpoints, Kanboard UI views (dashboards, graphs, board indicators), event listeners, automatic actions |
+| **Server-side plugin** | [`kanboard-plugin-portfolio-management`](https://github.com/geekmuse/kanboard-plugin-portfolio-management) | PHP | Database tables, JSON-RPC API endpoints, Kanboard UI views (dashboards, graphs, board indicators), event listeners, automatic actions |
 | **CLI/SDK client** | `kanboard-cli` (this repo) | Python | CLI-side orchestration (Phase 0 — no plugin), typed SDK resource modules for the plugin API (Phase 1+), CLI commands for portfolio/milestone/dependency workflows |
 
 **Key principle:** The CLI provides cross-project orchestration value **independently** of the plugin (Phase 0), and gains additional capabilities when the plugin is installed (Phase 1+). The plugin is an external dependency, not something built or maintained within this project.
@@ -348,9 +348,7 @@ A product company managing multiple software products and a marketing/site proje
 
 The Kanboard Portfolio plugin is a **separate PHP project** maintained in its own repository. It is not built, tested, or shipped as part of `kanboard-cli`.
 
-> **Plugin specification:** See `/tmp/kanboard-portfolio-plugin-spec.md` for the complete
-> implementation specification (2,400+ lines covering data model, all 28 API endpoints,
-> controllers, templates, events, security, and testing strategy).
+> **Plugin repository:** [https://github.com/geekmuse/kanboard-plugin-portfolio-management](https://github.com/geekmuse/kanboard-plugin-portfolio-management)
 
 #### What the Plugin Provides
 
@@ -368,8 +366,8 @@ The Kanboard Portfolio plugin is a **separate PHP project** maintained in its ow
 
 | Concern | Who Owns It |
 |---------|------------|
-| Plugin PHP code, schema, templates, JS assets | `kanboard-plugin-portfolio` repo |
-| Plugin installation, packaging, Kanboard directory listing | `kanboard-plugin-portfolio` repo |
+| Plugin PHP code, schema, templates, JS assets | [`kanboard-plugin-portfolio-management`](https://github.com/geekmuse/kanboard-plugin-portfolio-management) |
+| Plugin installation, packaging, Kanboard directory listing | [`kanboard-plugin-portfolio-management`](https://github.com/geekmuse/kanboard-plugin-portfolio-management) |
 | Python SDK resource modules that call the plugin's API | **This project** (`kanboard-cli`) |
 | CLI commands that wrap the plugin's API | **This project** (`kanboard-cli`) |
 | CLI-only orchestration (Phase 0, no plugin) | **This project** (`kanboard-cli`) |

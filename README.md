@@ -95,6 +95,12 @@ with KanboardClient(url=URL, token=TOKEN) as kb:
     critical = analyzer.get_critical_path(tasks)
 ```
 
+### Server-side visualization (optional)
+
+For in-browser Kanboard UI features — including interactive dependency graphs, multi-project Gantt timelines, portfolio dashboards, and board-level blocking indicators — see the companion **[Kanboard Portfolio plugin](https://github.com/geekmuse/kanboard-plugin-portfolio-management)**.
+
+The CLI's `portfolio` and `milestone` commands work independently of the plugin, but the plugin provides the visual layer within Kanboard's web interface.
+
 See **[docs/sdk-guide.md#cross-project-orchestration](docs/sdk-guide.md#cross-project-orchestration)** and **[docs/cli-reference.md#portfolio](docs/cli-reference.md#portfolio)** for full reference documentation.
 
 ## Prerequisites
