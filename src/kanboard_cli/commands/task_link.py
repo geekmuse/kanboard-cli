@@ -5,6 +5,7 @@ Subcommands: list, get, create, update, remove.
 
 from __future__ import annotations
 
+import dataclasses
 from typing import TYPE_CHECKING
 
 import click
@@ -17,6 +18,8 @@ if TYPE_CHECKING:
 
 # Default fields rendered in list / table output.
 _LIST_COLUMNS = ["id", "task_id", "opposite_task_id", "link_id"]
+# Fields rendered when --with-project is active.
+_LIST_COLUMNS_WITH_PROJECT = [*_LIST_COLUMNS, "opposite_project"]
 
 
 # ---------------------------------------------------------------------------
@@ -36,13 +39,27 @@ def task_link() -> None:
 
 @task_link.command("list")
 @click.argument("task_id", type=int)
+@click.option(
+    "--with-project",
+    is_flag=True,
+    default=False,
+    help=(
+        "Enrich each link with the opposite task's project name. "
+        "Slower for tasks with many links (one extra API call per link)."
+    ),
+)
 @click.pass_context
-def task_link_list(ctx: click.Context, task_id: int) -> None:
+def task_link_list(ctx: click.Context, task_id: int, with_project: bool) -> None:
     r"""List all task links for TASK_ID.
+
+    Use ``--with-project`` to include the opposite task's project name in the
+    output.  This requires one additional ``getTask`` API call per link, so it
+    may be slower for tasks with many links.
 
     \b
     Examples:
         kanboard task-link list 42
+        kanboard task-link list 42 --with-project
         kanboard --output json task-link list 42
     """
     app: AppContext = ctx.obj
@@ -50,7 +67,22 @@ def task_link_list(ctx: click.Context, task_id: int) -> None:
         links = app.client.task_links.get_all_task_links(task_id)
     except KanboardAPIError as exc:
         raise click.ClickException(str(exc)) from exc
-    format_output(links, app.output, columns=_LIST_COLUMNS)
+
+    if with_project:
+        project_cache: dict[int, str] = {}
+        rows: list[dict] = []
+        for link in links:
+            row = dataclasses.asdict(link)
+            opp_task = app.client.tasks.get_task(link.opposite_task_id)
+            pid = opp_task.project_id
+            if pid not in project_cache:
+                proj = app.client.projects.get_project_by_id(pid)
+                project_cache[pid] = proj.name
+            row["opposite_project"] = project_cache[pid]
+            rows.append(row)
+        format_output(rows, app.output, columns=_LIST_COLUMNS_WITH_PROJECT)
+    else:
+        format_output(links, app.output, columns=_LIST_COLUMNS)
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +127,9 @@ def task_link_create(
 ) -> None:
     r"""Create a task link from TASK_ID to OPPOSITE_TASK_ID using LINK_ID.
 
+    After a successful creation, if the two tasks belong to different projects,
+    an informational cross-project dependency message is displayed.
+
     \b
     Examples:
         kanboard task-link create 10 20 1
@@ -105,6 +140,21 @@ def task_link_create(
     except KanboardAPIError as exc:
         raise click.ClickException(str(exc)) from exc
     format_success(f"Task link #{new_id} created.", app.output)
+
+    # Cross-project context enrichment — only on success, best-effort.
+    # Fetching tasks here avoids latency on any error path above.
+    try:
+        task = app.client.tasks.get_task(task_id)
+        opp_task = app.client.tasks.get_task(opposite_task_id)
+        if task.project_id != opp_task.project_id:
+            task_proj = app.client.projects.get_project_by_id(task.project_id)
+            opp_proj = app.client.projects.get_project_by_id(opp_task.project_id)
+            click.echo(
+                f"\u2139 Cross-project dependency: Task #{task_id} ({task_proj.name})"
+                f" is blocked by Task #{opposite_task_id} ({opp_proj.name})"
+            )
+    except Exception:
+        pass  # Best-effort — enrichment failure must not obscure the success
 
 
 # ---------------------------------------------------------------------------

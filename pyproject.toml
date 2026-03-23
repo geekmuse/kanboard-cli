@@ -93,6 +93,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+addopts = "-m 'not integration'"
 markers = [
     "integration: mark test as requiring a live Docker-backed Kanboard instance",
 ]
