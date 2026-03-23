@@ -36,6 +36,12 @@ The `kanboard` package provides a full-featured Python SDK for the
 - [Batch API](#batch-api)
 - [Low-Level `call()`](#low-level-call)
 - [Response Models](#response-models)
+- [Cross-Project Orchestration](#cross-project-orchestration)
+  - [Overview](#overview)
+  - [LocalPortfolioStore](#localportfoliostore)
+  - [PortfolioManager](#portfoliomanager)
+  - [DependencyAnalyzer](#dependencyanalyzer)
+  - [Orchestration Models](#orchestration-models)
 
 ---
 
@@ -887,3 +893,216 @@ with KanboardClient(url=URL, token=TOKEN) as kb:
     task_dict = dataclasses.asdict(task)
     print(task_dict["title"])
 ```
+
+---
+
+## Cross-Project Orchestration
+
+### Overview
+
+The `kanboard.orchestration` subpackage provides portfolio management, cross-project milestones, dependency analysis, and critical-path computation **without requiring any server-side plugin**. It uses the existing Kanboard task link and metadata APIs as a persistence layer.
+
+**The orchestration classes are opt-in and not wired into `KanboardClient`.** Callers instantiate them separately, passing a `KanboardClient` as a constructor argument.
+
+```python
+from kanboard import KanboardClient
+from kanboard.orchestration import (
+    DependencyAnalyzer,
+    LocalPortfolioStore,
+    PortfolioManager,
+)
+
+# All three are also re-exported from the top-level package:
+from kanboard import DependencyAnalyzer, LocalPortfolioStore, PortfolioManager
+```
+
+---
+
+### LocalPortfolioStore
+
+`LocalPortfolioStore` provides JSON-backed CRUD for portfolios and milestones. By default it persists to `~/.config/kanboard/portfolios.json`.
+
+```python
+from pathlib import Path
+from kanboard.orchestration import LocalPortfolioStore
+
+# Default path: ~/.config/kanboard/portfolios.json
+store = LocalPortfolioStore()
+
+# Custom path (useful for testing)
+store = LocalPortfolioStore(path=Path("/tmp/my-portfolios.json"))
+```
+
+#### Portfolio CRUD
+
+```python
+# Create
+store.create_portfolio(
+    name="Platform Launch",
+    description="Q3 release programme",
+    project_ids=[1, 2, 3],
+)
+
+# Read
+portfolio = store.get_portfolio("Platform Launch")  # raises KanboardConfigError if not found
+all_portfolios = store.load()                        # returns list[Portfolio]
+
+# Update fields
+store.update_portfolio("Platform Launch", description="Q3+Q4 release")
+
+# Project membership
+store.add_project("Platform Launch", project_id=4)
+store.remove_project("Platform Launch", project_id=1)
+
+# Delete
+removed = store.remove_portfolio("Platform Launch")  # returns True/False
+```
+
+#### Milestone CRUD
+
+```python
+from datetime import datetime
+
+# Add milestone to a portfolio
+store.add_milestone(
+    portfolio_name="Platform Launch",
+    milestone_name="Beta Release",
+    target_date=datetime(2026, 6, 30),
+)
+
+# Update milestone fields
+store.update_milestone(
+    "Platform Launch", "Beta Release",
+    target_date=datetime(2026, 7, 15),
+)
+
+# Task membership
+store.add_task_to_milestone(
+    portfolio_name="Platform Launch",
+    milestone_name="Beta Release",
+    task_id=42,
+    critical=True,            # adds to both task_ids and critical_task_ids
+)
+store.remove_task_from_milestone("Platform Launch", "Beta Release", task_id=42)
+
+# Delete milestone
+store.remove_milestone("Platform Launch", "Beta Release")
+```
+
+---
+
+### PortfolioManager
+
+`PortfolioManager` aggregates task data across multiple projects and computes milestone progress. It makes N+1 API calls by design (one per project/task) — acceptable for Phase 0; a server-side plugin will solve this in Phase 1.
+
+```python
+from kanboard import KanboardClient
+from kanboard.orchestration import LocalPortfolioStore, PortfolioManager
+
+with KanboardClient(url=URL, token=TOKEN) as kb:
+    store = LocalPortfolioStore()
+    manager = PortfolioManager(kb, store)
+
+    # Fetch all projects in the portfolio (skips deleted projects with a warning)
+    projects = manager.get_portfolio_projects("Platform Launch")
+
+    # Aggregate tasks across all portfolio projects
+    tasks = manager.get_portfolio_tasks("Platform Launch")
+
+    # Filter by status (1=active, 0=closed), assignee, or specific project
+    active_tasks = manager.get_portfolio_tasks(
+        "Platform Launch",
+        status=1,
+        assignee_id=7,
+        project_id=2,
+    )
+
+    # Milestone progress
+    progress = manager.get_milestone_progress("Platform Launch", "Beta Release")
+    print(f"{progress.milestone_name}: {progress.percent:.0f}%")
+    print(f"At risk: {progress.is_at_risk}, Overdue: {progress.is_overdue}")
+    print(f"Blocked tasks: {progress.blocked_task_ids}")
+
+    # All milestones at once
+    all_progress = manager.get_all_milestone_progress("Platform Launch")
+    for p in all_progress:
+        status = "🔴 OVERDUE" if p.is_overdue else ("⚠ AT RISK" if p.is_at_risk else "✓")
+        print(f"  {status}  {p.milestone_name}: {p.percent:.0f}%")
+
+    # Sync portfolio/milestone membership to Kanboard metadata
+    result = manager.sync_metadata("Platform Launch")
+    print(f"Synced {result['projects_synced']} projects, {result['tasks_synced']} tasks")
+```
+
+**Milestone progress thresholds:**
+
+| Condition | Logic |
+|---|---|
+| `is_at_risk` | `target_date` within 7 days **and** completion < 80% |
+| `is_overdue` | `target_date` in the past **and** completion < 100% |
+| `blocked_task_ids` | Tasks with at least one unresolved `is blocked by` link to an open task |
+
+---
+
+### DependencyAnalyzer
+
+`DependencyAnalyzer` builds directed dependency graphs from Kanboard task links (`blocks`/`is blocked by`). It uses topological sort (Kahn's algorithm) for critical-path computation and deduplicates bidirectional edges.
+
+```python
+from kanboard import KanboardClient
+from kanboard.orchestration import DependencyAnalyzer
+
+with KanboardClient(url=URL, token=TOKEN) as kb:
+    analyzer = DependencyAnalyzer(kb)
+
+    # Fetch tasks first (e.g. from PortfolioManager or a single project)
+    tasks = kb.tasks.get_all_tasks(project_id=1, status_id=1)
+
+    # Get all dependency edges
+    edges = analyzer.get_dependency_edges(tasks)
+
+    # Cross-project edges only
+    xp_edges = analyzer.get_dependency_edges(tasks, cross_project_only=True)
+
+    # Tasks with unresolved blockers
+    blocked = analyzer.get_blocked_tasks(tasks)
+    for task, blocking_edges in blocked:
+        print(f"#{task.id} {task.title} is blocked by:")
+        for edge in blocking_edges:
+            print(f"  #{edge.opposite_task_id} {edge.opposite_task_title}")
+
+    # Open tasks that are blocking others
+    blocking = analyzer.get_blocking_tasks(tasks)
+
+    # Critical path (longest dependency chain)
+    critical = analyzer.get_critical_path(tasks)
+    for i, task in enumerate(critical, start=1):
+        print(f"  {i}. #{task.id} {task.title}")
+
+    # Full dependency graph (for custom rendering or export)
+    graph = analyzer.get_dependency_graph(tasks, cross_project_only=False)
+    # graph = {"nodes": [{"id": ..., "title": ..., ...}], "edges": [...]}
+```
+
+**Edge deduplication:** Kanboard returns links from both sides of a relationship. `DependencyAnalyzer` normalises all edges to the canonical `(blocker_id, blocked_id)` direction and deduplicates, so processing both Task A and Task B produces exactly one edge for each `A blocks B` relationship.
+
+**Cycle detection:** If a dependency cycle is detected, a warning is logged and a partial result is returned. Cycles should not occur with standard `blocks`/`is blocked by` usage.
+
+---
+
+### Orchestration Models
+
+The four orchestration models are defined in `kanboard.models` and exported from the top-level `kanboard` package. Unlike resource models, they have **no `from_api()` classmethod** — they are composed client-side from multiple API responses.
+
+```python
+from kanboard import Portfolio, Milestone, MilestoneProgress, DependencyEdge
+```
+
+| Model | Key Fields |
+|---|---|
+| `Portfolio` | `name`, `description`, `project_ids: list[int]`, `milestones: list[Milestone]`, `created_at`, `updated_at` |
+| `Milestone` | `name`, `portfolio_name`, `target_date`, `task_ids: list[int]`, `critical_task_ids: list[int]` |
+| `MilestoneProgress` | `milestone_name`, `portfolio_name`, `target_date`, `total`, `completed`, `percent: float`, `is_at_risk`, `is_overdue`, `blocked_task_ids` |
+| `DependencyEdge` | `task_id`, `task_title`, `task_project_id`, `task_project_name`, `opposite_task_id`, `opposite_task_title`, `opposite_task_project_id`, `opposite_task_project_name`, `link_label`, `is_cross_project`, `is_resolved` |
+
+All four models are **mutable** (no `frozen=True`) to support in-place editing before saving to the store.

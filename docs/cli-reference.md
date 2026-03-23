@@ -31,6 +31,8 @@ Complete reference for the `kanboard` command-line tool.
   - [config](#config)
   - [completion](#completion)
   - [workflow](#workflow)
+  - [portfolio](#portfolio)
+  - [milestone](#milestone)
 
 ---
 
@@ -1095,3 +1097,253 @@ kanboard my-workflow           # Run a custom workflow
 ```
 
 See the main [README](../README.md) for workflow plugin development details.
+
+---
+
+### portfolio
+
+Cross-project portfolio management, task aggregation, dependency analysis, and critical-path computation.
+Portfolio state is stored locally in `~/.config/kanboard/portfolios.json` — no server-side plugin is required.
+
+```
+kanboard portfolio SUBCOMMAND [ARGS]...
+```
+
+| Subcommand | Description |
+|---|---|
+| `portfolio list` | List all portfolios (name, description, project count, milestone count) |
+| `portfolio show NAME` | Portfolio dashboard: summary, milestone progress bars, at-risk items |
+| `portfolio create NAME [--description TEXT]` | Create a new portfolio in the local store |
+| `portfolio remove NAME --yes` | Delete a portfolio from the local store (best-effort metadata cleanup) |
+| `portfolio add-project NAME PROJECT_ID` | Add a project to a portfolio (validates project exists via API) |
+| `portfolio remove-project NAME PROJECT_ID --yes` | Remove a project from a portfolio |
+| `portfolio tasks NAME [--status active\|closed] [--project ID] [--assignee ID]` | List all tasks across all portfolio projects |
+| `portfolio sync NAME` | Push portfolio/milestone metadata to Kanboard project and task metadata |
+| `portfolio dependencies NAME [--cross-project-only] [--format graph\|table\|json]` | Visualise task dependency graph |
+| `portfolio blocked NAME` | List cross-project tasks blocked by unresolved dependencies |
+| `portfolio blocking NAME` | List cross-project open tasks that are blocking others |
+| `portfolio critical-path NAME` | Numbered list of the longest dependency chain; marks the bottleneck task |
+
+#### Portfolio list
+
+```bash
+kanboard portfolio list
+kanboard --output json portfolio list
+```
+
+#### Portfolio show
+
+Displays a portfolio dashboard combining local store data with live API data. Falls back to cached store data with a warning if the API is unreachable.
+
+```bash
+kanboard portfolio show "Platform Launch"
+```
+
+#### Portfolio create / remove
+
+```bash
+kanboard portfolio create "Platform Launch" --description "Q3 release programme"
+kanboard portfolio remove "Platform Launch" --yes
+```
+
+#### Portfolio add-project / remove-project
+
+```bash
+# Add projects (validates project exists via API first)
+kanboard portfolio add-project "Platform Launch" 1
+kanboard portfolio add-project "Platform Launch" 2
+
+kanboard portfolio remove-project "Platform Launch" 2 --yes
+```
+
+#### Portfolio tasks
+
+Lists all tasks across every project in the portfolio. Columns: `id`, `title`, `project_name`, `column_title`, `owner_username`, `date_due`, `priority`.
+
+```bash
+kanboard portfolio tasks "Platform Launch"
+kanboard portfolio tasks "Platform Launch" --status closed
+kanboard portfolio tasks "Platform Launch" --project 1
+kanboard --output json portfolio tasks "Platform Launch"
+```
+
+#### Portfolio sync
+
+Pushes portfolio and milestone membership into Kanboard project/task metadata using the `kanboard_cli:` key prefix.
+
+```bash
+kanboard portfolio sync "Platform Launch"
+# Synced 2 projects, 47 tasks
+```
+
+#### Portfolio dependencies
+
+Visualises task dependency relationships across all portfolio projects.
+
+```bash
+# ASCII dependency graph (default)
+kanboard portfolio dependencies "Platform Launch"
+
+# Cross-project dependencies only
+kanboard portfolio dependencies "Platform Launch" --cross-project-only
+
+# Flat table of edges
+kanboard portfolio dependencies "Platform Launch" --format table
+
+# Structured JSON (nodes + edges)
+kanboard portfolio dependencies "Platform Launch" --format json
+```
+
+Example ASCII output:
+
+```
+── Project: Product Alpha ─────────────────────────────────────────
+  ● #42 Implement OAuth login
+      → blocks #99 (Marketing Site)
+  ✓ #38 Write API docs
+
+── Project: Marketing Site ────────────────────────────────────────
+  ● #99 Launch landing page
+      ← blocked by #42 (Product Alpha)
+```
+
+#### Portfolio blocked / blocking
+
+Lists tasks with unresolved cross-project blockers (or tasks that are blocking others). All four output formats supported.
+
+```bash
+kanboard portfolio blocked "Platform Launch"
+kanboard portfolio blocking "Platform Launch"
+kanboard --output json portfolio blocked "Platform Launch"
+```
+
+#### Portfolio critical-path
+
+Computes the longest dependency chain (topological sort). The task whose completion unblocks the most downstream tasks is labelled `← BOTTLENECK`.
+
+```bash
+kanboard portfolio critical-path "Platform Launch"
+```
+
+Example output:
+
+```
+Critical path (4 tasks):
+  1. ● #42 Implement OAuth login  ← BOTTLENECK
+  2. ● #99 Launch landing page
+  3. ● #12 Write release notes
+  4. ● #7  Publish to app store
+```
+
+#### Common workflows
+
+```bash
+# Create a portfolio from scratch
+kanboard portfolio create "Platform Launch" --description "Q3 release"
+kanboard portfolio add-project "Platform Launch" 1
+kanboard portfolio add-project "Platform Launch" 2
+
+# Daily stand-up view
+kanboard portfolio show "Platform Launch"
+kanboard portfolio blocked "Platform Launch"
+
+# Sprint planning
+kanboard portfolio dependencies "Platform Launch" --cross-project-only
+kanboard portfolio critical-path "Platform Launch"
+
+# Sync to Kanboard metadata (for external tool integration)
+kanboard portfolio sync "Platform Launch"
+```
+
+---
+
+### milestone
+
+Cross-project milestone management. Milestones group tasks from multiple projects and track completion, at-risk status, and overdue state.
+
+```
+kanboard milestone SUBCOMMAND [ARGS]...
+```
+
+| Subcommand | Description |
+|---|---|
+| `milestone list PORTFOLIO_NAME` | List milestones for a portfolio (name, target date, task count, critical count) |
+| `milestone show PORTFOLIO_NAME MILESTONE_NAME` | Progress bar + task list with status indicators and blocker info |
+| `milestone create PORTFOLIO_NAME MILESTONE_NAME [--target-date YYYY-MM-DD]` | Create a new milestone |
+| `milestone remove PORTFOLIO_NAME MILESTONE_NAME --yes` | Delete a milestone + clean task metadata |
+| `milestone add-task PORTFOLIO_NAME MILESTONE_NAME TASK_ID [--critical]` | Add a task to a milestone (validates task belongs to a portfolio project) |
+| `milestone remove-task PORTFOLIO_NAME MILESTONE_NAME TASK_ID --yes` | Remove a task from a milestone |
+| `milestone progress PORTFOLIO_NAME [MILESTONE_NAME]` | Show progress bars — single milestone or all milestones in the portfolio |
+
+#### Milestone list
+
+```bash
+kanboard milestone list "Platform Launch"
+kanboard --output json milestone list "Platform Launch"
+```
+
+#### Milestone show
+
+Displays a live progress bar (requires API), task counts, and blocked task IDs. Falls back to cached store data with a warning if the API is unreachable.
+
+```bash
+kanboard milestone show "Platform Launch" "Beta Release"
+```
+
+Example output:
+
+```
+Milestone: Beta Release
+Portfolio: Platform Launch
+Target:    2026-06-30
+
+Progress: ██████████░░░░░░░░░░  50.0%   ⚠ AT RISK
+Tasks: 6 total, 3 completed, 2 blocked
+```
+
+#### Milestone create / remove
+
+```bash
+kanboard milestone create "Platform Launch" "Beta Release" --target-date 2026-06-30
+kanboard milestone remove "Platform Launch" "Beta Release" --yes
+```
+
+#### Milestone add-task / remove-task
+
+Validates that the task's project is a member of the portfolio before adding.
+
+```bash
+# Add a task (must belong to a portfolio project)
+kanboard milestone add-task "Platform Launch" "Beta Release" 42
+
+# Mark as critical (appears in critical_task_ids and milestone progress)
+kanboard milestone add-task "Platform Launch" "Beta Release" 99 --critical
+
+kanboard milestone remove-task "Platform Launch" "Beta Release" 42 --yes
+```
+
+#### Milestone progress
+
+```bash
+# All milestones in portfolio
+kanboard milestone progress "Platform Launch"
+
+# Single milestone detail
+kanboard milestone progress "Platform Launch" "Beta Release"
+```
+
+Example output (all milestones):
+
+```
+Platform Launch milestones:
+  ██████████████░░░░░░  70.0%  Alpha Release         → 2026-05-15
+  ⚠ ██████████░░░░░░░░░░  50.0%  Beta Release       → 2026-06-30
+  🔴 ░░░░░░░░░░░░░░░░░░░░   0.0%  GA Release         → 2026-03-01
+```
+
+Progress bar indicators:
+
+| Symbol | Meaning |
+|---|---|
+| `⚠` | At risk — target date within 7 days and completion < 80% |
+| `🔴` | Overdue — target date has passed and completion < 100% |

@@ -50,20 +50,29 @@ class FooResource:
 ```
 src/
 ├── kanboard/                # SDK package (import kanboard)
-│   ├── __init__.py          # Public API: KanboardClient, exceptions, models
+│   ├── __init__.py          # Public API: KanboardClient, exceptions, models, orchestration
 │   ├── client.py            # JSON-RPC transport (call, batch)
 │   ├── config.py            # Layered config resolution
 │   ├── exceptions.py        # Typed exception hierarchy
-│   ├── models.py            # Dataclass models with from_api()
-│   └── resources/           # 24 modules, one per API category
+│   ├── models.py            # Dataclass models (resources use from_api(); orchestration models do not)
+│   ├── resources/           # 24 modules, one per API category
+│   └── orchestration/       # Cross-project orchestration (opt-in subpackage, NOT a resource)
+│       ├── __init__.py      # Exports: DependencyAnalyzer, LocalPortfolioStore, PortfolioManager
+│       ├── portfolio.py     # PortfolioManager — multi-project aggregation, milestone progress
+│       ├── dependencies.py  # DependencyAnalyzer — graph traversal, critical path
+│       └── store.py         # LocalPortfolioStore — JSON persistence
 └── kanboard_cli/            # CLI package
     ├── main.py              # Click root group, global options
     ├── formatters.py        # table/json/csv/quiet renderers
+    ├── renderers.py         # ASCII dependency graph, progress bars, portfolio summary
     ├── workflow_loader.py   # Plugin discovery
     ├── commands/            # One module per CLI command group
-    └── workflows/base.py   # BaseWorkflow ABC
+    │   ├── portfolio.py     # 12 subcommands for portfolio + dependency analysis
+    │   └── milestone.py     # 7 subcommands for cross-project milestone management
+    └── workflows/base.py    # BaseWorkflow ABC
 tests/
 ├── unit/                    # Mocked httpx tests
+│   └── orchestration/       # Orchestration unit tests (conftest + test_store, test_portfolio, test_dependencies)
 ├── cli/                     # CliRunner output tests
 └── integration/             # Docker lifecycle tests
 ```
@@ -77,7 +86,10 @@ tests/
 
 ## Key References
 
-- `docs/plan/01-architecture.md` — ADRs, directory structure, config schema
+- `docs/plan/01-architecture.md` — ADRs 1–15, directory structure, config schema
 - `docs/plan/02-api-reference.md` — All 158 JSON-RPC method signatures
 - `docs/plan/03-milestone-1-foundation.md` through `06-milestone-4-ship.md` — Implementation tasks
-- `CLAUDE.md` — Concise AI context (tech stack, gotchas, commands)
+- `docs/design/cross-project-orchestration.md` — Orchestration research, architecture, Phase 0/1 roadmap
+- `docs/design/phase-0-cross-project-orchestration.md` — Phase 0 detailed design
+- `docs/tasks/` — Per-task implementation notes for the orchestration phase
+- `CLAUDE.md` — Concise AI context (tech stack, gotchas, commands, orchestration metadata keys)

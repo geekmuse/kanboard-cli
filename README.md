@@ -34,6 +34,68 @@ Both are distributed as a single `kanboard-cli` package installable from PyPI.
 - **Layered configuration** — Config file → environment variables → CLI flags
 - **Workflow plugins** — Drop `.py` files into `~/.config/kanboard/workflows/` to add custom CLI commands
 - **Context manager support** — `KanboardClient` works with `with` statements for clean resource management
+- **Cross-project orchestration** — Portfolio management, cross-project milestones, dependency analysis, and critical-path computation as a client-side meta-construct (no server plugin required)
+
+## Cross-Project Orchestration
+
+kanboard-cli ships a **Phase 0 orchestration layer** that treats multiple Kanboard projects as a unified portfolio — using only the existing Kanboard API (task links, metadata) as a persistence layer with no server-side plugin required.
+
+### What it enables
+
+| Capability | Description |
+|---|---|
+| **Portfolio management** | Group multiple projects into a named portfolio stored locally in `~/.config/kanboard/portfolios.json` |
+| **Cross-project milestones** | Define milestones that span tasks from multiple projects; track percent-complete and at-risk status |
+| **Dependency analysis** | Discover cross-project `blocks`/`is blocked by` relationships; detect blocked and blocking tasks |
+| **Critical path** | Compute the longest dependency chain (topological sort) across all portfolio tasks |
+| **Metadata sync** | Push portfolio and milestone membership into Kanboard project/task metadata using the `kanboard_cli:` key prefix |
+
+### Quick example
+
+```bash
+# Create a portfolio grouping two projects
+kanboard portfolio create "Platform Launch" --description "Q3 release"
+kanboard portfolio add-project "Platform Launch" 1
+kanboard portfolio add-project "Platform Launch" 2
+
+# Create a milestone spanning both projects
+kanboard milestone create "Platform Launch" "Beta Release" --target-date 2026-06-30
+kanboard milestone add-task "Platform Launch" "Beta Release" 42
+kanboard milestone add-task "Platform Launch" "Beta Release" 99 --critical
+
+# Check progress and risks
+kanboard milestone progress "Platform Launch"
+kanboard portfolio show "Platform Launch"
+
+# Visualise cross-project dependencies
+kanboard portfolio dependencies "Platform Launch"
+kanboard portfolio blocked "Platform Launch"
+kanboard portfolio critical-path "Platform Launch"
+```
+
+### SDK example
+
+```python
+from kanboard import KanboardClient
+from kanboard.orchestration import PortfolioManager, DependencyAnalyzer, LocalPortfolioStore
+
+with KanboardClient(url=URL, token=TOKEN) as kb:
+    store = LocalPortfolioStore()
+    manager = PortfolioManager(kb, store)
+    analyzer = DependencyAnalyzer(kb)
+
+    # Aggregate tasks across all portfolio projects
+    tasks = manager.get_portfolio_tasks("Platform Launch")
+
+    # Find blocked cross-project tasks
+    edges = analyzer.get_dependency_edges(tasks, cross_project_only=True)
+    blocked = analyzer.get_blocked_tasks(tasks)
+
+    # Compute critical path
+    critical = analyzer.get_critical_path(tasks)
+```
+
+See **[docs/sdk-guide.md#cross-project-orchestration](docs/sdk-guide.md#cross-project-orchestration)** and **[docs/cli-reference.md#portfolio](docs/cli-reference.md#portfolio)** for full reference documentation.
 
 ## Prerequisites
 
@@ -206,6 +268,8 @@ Every Kanboard resource has a corresponding command group:
 | `kanboard config`    | Configuration management                 |
 | `kanboard workflow`  | List discovered workflow plugins         |
 | `kanboard completion`| Shell completion (bash/zsh/fish)         |
+| `kanboard portfolio` | Portfolio management + dependency analysis (cross-project orchestration) |
+| `kanboard milestone` | Cross-project milestone tracking         |
 
 Use `kanboard <command> --help` for detailed usage of any command.
 
@@ -289,20 +353,29 @@ kanboard-cli/
 │   │   ├── config.py               # Layered configuration resolution
 │   │   ├── exceptions.py           # Typed exception hierarchy
 │   │   ├── models.py               # Dataclass response models
-│   │   └── resources/              # One module per API category (24 modules)
+│   │   ├── resources/              # One module per API category (24 modules)
+│   │   └── orchestration/          # Cross-project orchestration (opt-in)
+│   │       ├── __init__.py         # Exports: PortfolioManager, DependencyAnalyzer, LocalPortfolioStore
+│   │       ├── portfolio.py        # PortfolioManager — multi-project aggregation
+│   │       ├── dependencies.py     # DependencyAnalyzer — graph traversal, critical path
+│   │       └── store.py            # LocalPortfolioStore — JSON persistence
 │   └── kanboard_cli/               # CLI package
 │       ├── main.py                 # Click app root, global options
 │       ├── formatters.py           # Table / JSON / CSV / quiet renderers
+│       ├── renderers.py            # ASCII dependency graph, progress bar renderers
 │       ├── workflow_loader.py      # Plugin discovery and loading
 │       ├── commands/               # One module per CLI command group
 │       └── workflows/
 │           └── base.py             # BaseWorkflow ABC
 ├── tests/
 │   ├── unit/                       # Mocked httpx tests
+│   │   └── orchestration/          # Orchestration unit tests
 │   ├── integration/                # Docker-based lifecycle tests
 │   └── cli/                        # CliRunner output tests
 ├── docs/
-│   └── plan/                       # Architecture and build plan
+│   ├── plan/                       # Architecture and build plan
+│   ├── design/                     # Design documents and research
+│   └── tasks/                      # Per-task implementation notes
 ├── pyproject.toml
 ├── Makefile
 ├── LICENSE

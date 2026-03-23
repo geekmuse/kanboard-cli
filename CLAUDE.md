@@ -23,33 +23,45 @@ Python SDK (`import kanboard`) and Click-based CLI (`kanboard`) providing comple
 - **Resource methods** call `self._client.call("methodName", **params)` and return typed dataclass models
 - **Return conventions:** `False` from API → raise `KanboardAPIError`; `None` → raise `KanboardNotFoundError`; lists handle `False`/`None` as empty `[]`
 - **Models** — Dataclasses in `models.py` with `@classmethod from_api(cls, data: dict)` factory; use `.get()` with defaults to handle Kanboard's inconsistent types
+- **Orchestration models** (`Portfolio`, `Milestone`, `MilestoneProgress`, `DependencyEdge`) have **no** `from_api()` — composed client-side from multiple API responses
 - **Config resolution order:** config file (`~/.config/kanboard/config.toml`) → env vars (`KANBOARD_*`) → CLI flags
 - **Named profiles** in config (`[profiles.default]`, `[profiles.dev]`)
 - **Four output formats:** `table` (rich), `json`, `csv`, `quiet` (ID-only) — every CLI command supports all four
 - **Workflow plugins:** User `.py` files in `~/.config/kanboard/workflows/` auto-discovered via `importlib.util`; must subclass `BaseWorkflow` ABC
 - **Auth:** Application API only (username `jsonrpc`, global token). User API auth (for `getMe*` etc.) deferred — raise `KanboardAuthError` until implemented
 - **JSON-RPC 2.0:** Single endpoint, HTTP Basic Auth, supports batch calls
-- See `docs/plan/01-architecture.md` for all ADRs and directory structure
+- **ADR-16: Orchestration is NOT a resource** — `kanboard.orchestration` is a separate subpackage; orchestration classes are NOT attached to `KanboardClient`. Callers instantiate `PortfolioManager(client, store)`, `DependencyAnalyzer(client)`, `LocalPortfolioStore()` directly.
+- See `docs/plan/01-architecture.md` for ADRs 1–15 and directory structure
+- See `docs/design/cross-project-orchestration.md` for the orchestration research, architecture, and Phase 0/1 roadmap
 
 ## File/Folder Structure
 
 ```
 src/kanboard/                    # SDK (importable library)
-  __init__.py                    # Public API: KanboardClient, exceptions, models
+  __init__.py                    # Public API: KanboardClient, exceptions, models, orchestration
   client.py                      # JSON-RPC transport (call, batch, context manager)
   config.py                      # KanboardConfig dataclass with resolve() classmethod
   exceptions.py                  # Typed hierarchy (see below)
   models.py                      # Dataclasses: Task, Project, Column, Swimlane, etc.
   resources/                     # 24 modules, one per API category
+  orchestration/                 # Cross-project orchestration subpackage (opt-in, NOT a resource)
+    __init__.py                  # Exports: DependencyAnalyzer, LocalPortfolioStore, PortfolioManager
+    portfolio.py                 # PortfolioManager — multi-project aggregation, milestone progress
+    dependencies.py              # DependencyAnalyzer — graph traversal, critical path (Kahn's algo)
+    store.py                     # LocalPortfolioStore — JSON persistence (~/.config/kanboard/portfolios.json)
 
 src/kanboard_cli/                # CLI (Click application)
   main.py                        # Root click.Group, global options, config wiring
   formatters.py                  # format_output() and format_success()
+  renderers.py                   # ASCII dependency graph, progress bars, portfolio summary
   workflow_loader.py             # Plugin discovery from ~/.config/kanboard/workflows/
   commands/                      # One module per CLI command group
+    portfolio.py                 # 12 subcommands: list, show, create, remove, add-project, remove-project, tasks, sync, dependencies, blocked, blocking, critical-path
+    milestone.py                 # 7 subcommands: list, show, create, remove, add-task, remove-task, progress
   workflows/base.py              # BaseWorkflow ABC
 
 tests/unit/                      # Mocked httpx tests
+  orchestration/                 # Orchestration unit tests (store, portfolio, dependencies)
 tests/cli/                       # CliRunner output tests
 tests/integration/               # Docker lifecycle tests
 ```
@@ -103,7 +115,18 @@ ruff format src/ tests/    # Format
 
 - Config file: `~/.config/kanboard/config.toml`
 - Workflow plugins: `~/.config/kanboard/workflows/`
+- **Portfolio store:** `~/.config/kanboard/portfolios.json` (managed by `LocalPortfolioStore`)
 - Constants exported from `kanboard.config`: `CONFIG_DIR`, `CONFIG_FILE`, `WORKFLOW_DIR`
+
+## Orchestration Metadata Keys
+
+When `PortfolioManager.sync_metadata()` is called it writes Kanboard key-value metadata using the `kanboard_cli:` prefix:
+
+| Key | Scope | Value |
+|---|---|---|
+| `kanboard_cli:portfolio` | Project metadata | JSON object with portfolio name and membership info |
+| `kanboard_cli:milestones` | Task metadata | JSON array of milestone names the task belongs to |
+| `kanboard_cli:milestone_critical` | Task metadata | JSON array of milestone names where the task is marked critical |
 
 ## Build Plan Reference
 
