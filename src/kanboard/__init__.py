@@ -40,6 +40,11 @@ from kanboard.models import (
     TaskLink,
     User,
 )
+from kanboard.orchestration import (
+    DependencyAnalyzer,
+    LocalPortfolioStore,
+    PortfolioManager,
+)
 from kanboard.resources.actions import ActionsResource
 from kanboard.resources.application import ApplicationResource
 from kanboard.resources.board import BoardResource
@@ -79,6 +84,7 @@ __all__ = [
     "ColumnsResource",
     "Comment",
     "CommentsResource",
+    "DependencyAnalyzer",
     "DependencyEdge",
     "ExternalTaskLink",
     "ExternalTaskLinksResource",
@@ -97,10 +103,12 @@ __all__ = [
     "KanboardValidationError",
     "Link",
     "LinksResource",
+    "LocalPortfolioStore",
     "MeResource",
     "Milestone",
     "MilestoneProgress",
     "Portfolio",
+    "PortfolioManager",
     "Project",
     "ProjectFile",
     "ProjectFilesResource",
