@@ -24,7 +24,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: pip install -e '.[dev]' hatch
+        run: |
+          pip install -e sdk/
+          pip install -e '.[dev]' hatch
 
       - name: Lint
         run: ruff check .
@@ -32,5 +34,8 @@ jobs:
       - name: Test
         run: pytest
 
-      - name: Build
+      - name: Build SDK
+        run: cd sdk && hatch build
+
+      - name: Build CLI
         run: hatch build

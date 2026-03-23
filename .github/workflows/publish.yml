@@ -3,15 +3,17 @@ name: Publish to PyPI
 on:
   push:
     tags:
-      - "v*"
+      - "v*"           # CLI release: v1.2.0
+      - "sdk-v*"       # SDK release: sdk-v1.2.0
 
 jobs:
-  publish:
-    name: Build and publish to PyPI
+  publish-sdk:
+    name: Publish kanboard-sdk to PyPI
+    if: startsWith(github.ref, 'refs/tags/sdk-v')
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
-      id-token: write  # required for OIDC trusted publisher
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
@@ -24,7 +26,34 @@ jobs:
       - name: Install hatch
         run: pip install hatch
 
-      - name: Build distributions
+      - name: Build SDK
+        run: cd sdk && hatch build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: sdk/dist/
+
+  publish-cli:
+    name: Publish kanboard-cli to PyPI
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install hatch
+        run: pip install hatch
+
+      - name: Build CLI
         run: hatch build
 
       - name: Publish to PyPI
