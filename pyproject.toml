@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kanboard-cli"
-version = "1.1.0"
+version = "1.1.1"
 requires-python = ">=3.11"
 description = "Python SDK and CLI for the Kanboard JSON-RPC API"
 readme = "README.md"
