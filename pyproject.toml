@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "kanboard-sdk>=1.1.0",
+    "kanboard-sdk>=1.1.1",
     "click>=8.1",
     "rich>=13.0",
     "tomli-w>=1.0",
