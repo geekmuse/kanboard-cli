@@ -29,10 +29,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/bcampbelloss/kanboard-cli"
-Repository = "https://github.com/bcampbelloss/kanboard-cli"
-Changelog = "https://github.com/bcampbelloss/kanboard-cli/blob/main/CHANGELOG.md"
-Documentation = "https://github.com/bcampbelloss/kanboard-cli#readme"
+Homepage = "https://github.com/geekmuse/kanboard-cli"
+Repository = "https://github.com/geekmuse/kanboard-cli"
+Changelog = "https://github.com/geekmuse/kanboard-cli/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/geekmuse/kanboard-cli#readme"
 
 [project.optional-dependencies]
 dev = [
