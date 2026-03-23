@@ -76,6 +76,27 @@ Corrective Plan: N/A
   - Fixture docstrings with `::` code blocks render nicely in pytest --fixtures output
   - All 4 required fixture names exactly match the US-010 AC: mock_link_types, mock_task_links, mock_tasks, sample_portfolio
 
+## 2026-03-23 - US-014
+Session: iter-77f055fb
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Updated `README.md`: added 'Cross-Project Orchestration' section (before Key Features table) with capability table, quick CLI example, SDK example, and links to full reference docs; added portfolio and milestone rows to the CLI command reference table; updated project structure tree with orchestration/, renderers.py, docs/design/, docs/tasks/
+- Updated `docs/cli-reference.md`: added ToC entries for `portfolio` and `milestone`; appended full portfolio section (12 subcommands + usage examples for each including ASCII graph example and common workflows) and full milestone section (7 subcommands + show example with progress bar and indicators legend)
+- Updated `docs/sdk-guide.md`: added ToC entry for Cross-Project Orchestration; appended full section with Overview, LocalPortfolioStore (portfolio CRUD + milestone CRUD + task membership), PortfolioManager (aggregation, progress, sync, threshold table), DependencyAnalyzer (edges, blocked, blocking, critical path, graph), Orchestration Models table
+- Updated `CLAUDE.md`: file/folder structure updated with orchestration/ subpackage + renderers.py + commands/portfolio.py + commands/milestone.py + tests/unit/orchestration/; Architecture section updated with orchestration model note (no from_api()), ADR-16 note ("Orchestration is NOT a resource"), design doc reference; Key Config Paths updated with portfolio store path; new Orchestration Metadata Keys table (kanboard_cli: prefix for project and task metadata)
+- Updated `AGENTS.md`: directory structure updated with orchestration/, renderers.py, commands/portfolio.py + milestone.py, tests/unit/orchestration/; Key References updated with docs/design/ entries, docs/tasks/, and CLAUDE.md description update
+- Plugin URL: not available — no placeholder URLs added anywhere; design doc already has TODO comment
+- 2259 tests pass (108 integration deselected); ruff check + format clean; commit 5639ac9
+- Files changed: `README.md`, `docs/cli-reference.md`, `docs/sdk-guide.md`, `CLAUDE.md`, `AGENTS.md`
+- **Learnings for future iterations:**
+  - Documentation-only iterations: ruff and pytest still pass trivially — use them to confirm nothing was accidentally broken
+  - When updating directory structure trees, update them in ALL doc files that contain a copy (README.md, CLAUDE.md, AGENTS.md all had independent copies)
+  - "Plugin URL not yet provided" → omit plugin URL entirely from all docs; only the design doc (cross-project-orchestration.md) may have a TODO comment — this keeps all other docs clean
+  - Progress bar symbol table in CLI reference is useful for end-users: ⚠ = at risk, 🔴 = overdue
+---
+
 ## Codebase Patterns
 - **`_has_open_blocker` early-return optimization**: When `blocked_by_link_ids` is empty (getAllLinks returned no link types), `_has_open_blocker` returns `False` immediately — NO `getAllTaskLinks` HTTP call is made. Tests must account for this: mock responses should NOT include `getAllTaskLinks` responses when the `getAllLinks` mock returns empty.
 - **`list or default` vs `is not None`**: In test helpers with list defaults, use `param if param is not None else default` instead of `param or default` — the latter treats `[]` as falsy and substitutes the default.
@@ -334,4 +355,28 @@ Corrective Plan: N/A
   - `blocked`/`blocking` cross-project filter is done at the row-building loop level (not at get_blocked_tasks call) since get_blocked_tasks returns all edges; filtering in the loop avoids an extra analyzer method call
   - `--format` option uses `"fmt"` as the Python parameter name to avoid shadowing the built-in `format`
   - `click.Choice(["graph","table","json"], case_sensitive=False)` allows `--format TABLE` etc.
+---
+
+## 2026-03-23 - US-013
+Session: iter-0af56124
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Added 3 orchestration class imports to `src/kanboard/__init__.py`: `DependencyAnalyzer`, `LocalPortfolioStore`, `PortfolioManager` (from `kanboard.orchestration`)
+- Added all 3 to `__all__` in correct RUF022 alphabetical order:
+  - `DependencyAnalyzer` before `DependencyEdge` (A < E)
+  - `LocalPortfolioStore` between `LinksResource` and `MeResource` (Lo > Li, L < M)
+  - `PortfolioManager` between `Portfolio` and `Project` (Portfolio is prefix of PortfolioManager)
+- Verified `from kanboard import PortfolioManager, DependencyAnalyzer, LocalPortfolioStore` succeeds
+- `kanboard portfolio --help` confirms all 12 subcommands: list, show, create, remove, add-project, remove-project, tasks, sync, dependencies, blocked, blocking, critical-path
+- `kanboard milestone --help` confirms all 7 subcommands: list, show, create, remove, add-task, remove-task, progress
+- `src/kanboard_cli/main.py` already had portfolio + milestone imported and registered (done in US-007/US-008)
+- 2259 tests pass; ruff check + format clean; commit 16b9c8e
+- Files changed: `src/kanboard/__init__.py` (3 new imports + 3 `__all__` entries)
+- **Learnings for future iterations:**
+  - When a "wiring" story is the final story, most work is already done by prior stories — the key task is just auditing what's missing and filling gaps
+  - `from kanboard.orchestration import X` works because `orchestration/__init__.py` already re-exports the 3 classes — `kanboard/__init__.py` just needs to forward them
+  - RUF022 alphabetical sort with capitalized names: sort is pure lexicographic on the string (capitals before lowercase in ASCII), so "DependencyAnalyzer" < "DependencyEdge" since 'A' < 'E'
+  - "Portfolio" < "PortfolioManager" because when comparing equal prefix strings, the shorter string comes first lexicographically
 ---
