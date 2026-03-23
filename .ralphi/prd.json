@@ -314,8 +314,8 @@
       ],
       "notes": "Mock KanboardClient at the AppContext level and mock LocalPortfolioStore separately. Use same patching patterns as existing CLI tests in tests/cli/.",
       "startedAt": "2026-03-22T21:34:55.887Z",
-      "updatedAt": "2026-03-22T21:43:24.000Z",
-      "completedAt": "2026-03-22T21:43:24.000Z"
+      "updatedAt": "2026-03-22T21:49:34.170Z",
+      "completedAt": "2026-03-22T21:49:34.170Z"
     },
     {
       "id": "US-012",
@@ -332,12 +332,15 @@
         "pytest passes"
       ],
       "priority": 12,
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-004",
         "US-005"
       ],
-      "notes": "Cross-project detection: call client.tasks.get_task() for both task_id and opposite_task_id after the link is created, compare project_id fields. Only on success to avoid adding latency to error paths."
+      "notes": "Cross-project detection: call client.tasks.get_task() for both task_id and opposite_task_id after the link is created, compare project_id fields. Only on success to avoid adding latency to error paths.",
+      "startedAt": "2026-03-22T21:49:34.902Z",
+      "updatedAt": "2026-03-23T01:34:36.201439Z",
+      "completedAt": "2026-03-23T01:34:36.201439Z"
     },
     {
       "id": "US-013",

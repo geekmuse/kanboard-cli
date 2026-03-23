@@ -1,3 +1,33 @@
+## 2026-03-22 - US-012
+Session: iter-49c6b106
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Enhanced `src/kanboard_cli/commands/task_link.py` with two new features:
+  1. `task-link create` cross-project info message: after successful creation, fetches both tasks; if `task.project_id != opposite_task.project_id`, fetches project names via `get_project_by_id()` and prints "ℹ Cross-project dependency: Task #N (Project) is blocked by Task #N (Project)". Wrapped in bare `except Exception: pass` so enrichment failure never obscures the success message.
+  2. `task-link list --with-project`: new flag enriches each link row with `opposite_project` column (project name of the opposite task). Uses `get_task(opposite_task_id)` per link + cached `get_project_by_id()` per unique project_id. Help text documents the performance caveat.
+- Added `_LIST_COLUMNS_WITH_PROJECT` constant and `import dataclasses` for `dataclasses.asdict()` conversion.
+- 9 new CLI tests in `tests/cli/test_task_link.py`:
+  - `test_task_link_create_cross_project_message`: different project_ids → message shown
+  - `test_task_link_create_same_project_no_message`: same project_id → no message
+  - `test_task_link_create_enrichment_error_ignored`: enrichment raise → exit 0, success message only
+  - `test_task_link_create_no_enrichment_on_api_error`: create fails → `get_task` never called
+  - `test_task_link_list_with_project_table`: `--with-project` adds project name to table
+  - `test_task_link_list_with_project_json`: `--with-project` adds key to JSON output
+  - `test_task_link_list_with_project_caches_project_lookup`: 2 links same project → 1 `get_project_by_id` call
+  - `test_task_link_list_with_project_empty`: no links → no `get_task` calls
+  - `test_task_link_list_help_mentions_with_project`: `--help` documents the flag
+- Also fixed `pyproject.toml`: added `addopts = "-m 'not integration'"` to exclude the 108 Docker-backed integration tests from default `pytest` run. Reduced test suite runtime from ~5 min to ~68 s. Integration tests still runnable via `pytest -m integration`.
+- 2259 tests pass (108 integration deselected); ruff clean; commit 16782ed
+- Files changed: `src/kanboard_cli/commands/task_link.py`, `tests/cli/test_task_link.py`, `pyproject.toml`
+- **Learnings for future iterations:**
+  - Integration tests marked with `@pytest.mark.integration` but no `addopts` exclusion — always add `addopts = "-m 'not integration'"` to keep CI fast; Docker tests are opt-in
+  - `dataclasses.asdict(link)` converts a TaskLink to a plain dict, allowing arbitrary extra keys (`opposite_project`) before passing to `format_output`
+  - Bare `except Exception: pass` is correct for best-effort post-success enrichment — ruff does not flag it without BLE001 enabled in this project's config
+  - Project name caching pattern: `project_cache: dict[int, str] = {}` populated lazily inside the link loop — one `get_project_by_id` call per unique project_id
+---
+
 ## 2026-03-22 - US-011
 Session: iter-0078062a
 Review Outcome: PASS
@@ -70,6 +100,8 @@ Corrective Plan: N/A
 - **Bottleneck detection in critical path**: count unresolved outbound edges per task within the path (`edge.task_id in task_ids AND edge.opposite_task_id in task_ids AND not edge.is_resolved`); task with max count is marked `← BOTTLENECK`. Returns `None` when all edges are resolved or no edges exist.
 - **Progress bar rounding**: `round(percent / 5)` — Python's banker's rounding means 52% → `round(10.4)` = 10 blocks; 55% → `round(11.0)` = 11 blocks. Clamp to `[0, 20]` to prevent overflow.
 - **`cross_project_only` in dependency graph**: filter both edges AND nodes (keep only tasks whose IDs appear in cross-project edge endpoints); otherwise isolated same-project tasks appear under cross-project project headers.
+- **Integration tests excluded from default `pytest`**: `addopts = "-m 'not integration'"` in `pyproject.toml` prevents Docker-backed tests from running on every `pytest` invocation. Run explicitly with `pytest -m integration` when needed.
+- **Enriching dataclass rows with extra columns**: `dataclasses.asdict(obj)` converts to a plain `dict`; add arbitrary keys then pass the list of dicts to `format_output()` with an explicit `columns=` list that includes the new key.
 ---
 
 ## 2026-03-22 - US-006
