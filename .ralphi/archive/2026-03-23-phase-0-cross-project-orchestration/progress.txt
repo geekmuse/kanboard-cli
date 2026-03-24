@@ -1,0 +1,382 @@
+## 2026-03-22 - US-012
+Session: iter-49c6b106
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Enhanced `src/kanboard_cli/commands/task_link.py` with two new features:
+  1. `task-link create` cross-project info message: after successful creation, fetches both tasks; if `task.project_id != opposite_task.project_id`, fetches project names via `get_project_by_id()` and prints "ℹ Cross-project dependency: Task #N (Project) is blocked by Task #N (Project)". Wrapped in bare `except Exception: pass` so enrichment failure never obscures the success message.
+  2. `task-link list --with-project`: new flag enriches each link row with `opposite_project` column (project name of the opposite task). Uses `get_task(opposite_task_id)` per link + cached `get_project_by_id()` per unique project_id. Help text documents the performance caveat.
+- Added `_LIST_COLUMNS_WITH_PROJECT` constant and `import dataclasses` for `dataclasses.asdict()` conversion.
+- 9 new CLI tests in `tests/cli/test_task_link.py`:
+  - `test_task_link_create_cross_project_message`: different project_ids → message shown
+  - `test_task_link_create_same_project_no_message`: same project_id → no message
+  - `test_task_link_create_enrichment_error_ignored`: enrichment raise → exit 0, success message only
+  - `test_task_link_create_no_enrichment_on_api_error`: create fails → `get_task` never called
+  - `test_task_link_list_with_project_table`: `--with-project` adds project name to table
+  - `test_task_link_list_with_project_json`: `--with-project` adds key to JSON output
+  - `test_task_link_list_with_project_caches_project_lookup`: 2 links same project → 1 `get_project_by_id` call
+  - `test_task_link_list_with_project_empty`: no links → no `get_task` calls
+  - `test_task_link_list_help_mentions_with_project`: `--help` documents the flag
+- Also fixed `pyproject.toml`: added `addopts = "-m 'not integration'"` to exclude the 108 Docker-backed integration tests from default `pytest` run. Reduced test suite runtime from ~5 min to ~68 s. Integration tests still runnable via `pytest -m integration`.
+- 2259 tests pass (108 integration deselected); ruff clean; commit 16782ed
+- Files changed: `src/kanboard_cli/commands/task_link.py`, `tests/cli/test_task_link.py`, `pyproject.toml`
+- **Learnings for future iterations:**
+  - Integration tests marked with `@pytest.mark.integration` but no `addopts` exclusion — always add `addopts = "-m 'not integration'"` to keep CI fast; Docker tests are opt-in
+  - `dataclasses.asdict(link)` converts a TaskLink to a plain dict, allowing arbitrary extra keys (`opposite_project`) before passing to `format_output`
+  - Bare `except Exception: pass` is correct for best-effort post-success enrichment — ruff does not flag it without BLE001 enabled in this project's config
+  - Project name caching pattern: `project_cache: dict[int, str] = {}` populated lazily inside the link loop — one `get_project_by_id` call per unique project_id
+---
+
+## 2026-03-22 - US-011
+Session: iter-0078062a
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- US-011 acceptance criteria fully satisfied by tests already created in US-007, US-008, US-009
+- tests/cli/test_portfolio.py: 51 tests covering all 8 CRUD subcommands + 4 dependency subcommands (success + error case each)
+- tests/cli/test_milestone.py: 35 tests covering all 7 milestone subcommands (success + error case each)
+- All 4 output formats (table/json/csv/quiet) verified for: portfolio list, portfolio tasks, milestone list
+- Error cases verified: portfolio not found, project does not exist (add-project), milestone not found, task not in portfolio project (add-task)
+- Destructive command --yes guards verified (portfolio remove, remove-project, milestone remove, milestone remove-task): invoking without --yes returns non-zero exit code
+- portfolio show: milestone progress bars confirmed present (test_portfolio_show_with_milestone_progress)
+- portfolio dependencies: ASCII graph output verified to contain task/project references
+- portfolio blocked/blocking: JSON output verified to contain correct columns (task_id, title, project, blocked_by_task/blocks_task, blocked_by_project/blocks_project)
+- CliRunner(mix_stderr=False) AC: Not applicable — Click 8.3.1 removed the mix_stderr parameter entirely. In Click 8, CliRunner() already separates stdout/stderr (result.output=stdout+stderr, result.stderr=stderr-only). Tests are written correctly for Click 8.x.
+- 86 CLI tests pass (51 portfolio + 35 milestone); full suite 2358 tests green; ruff clean
+- Files changed: .ralphi/prd.json (US-011 marked done), .ralphi/progress.txt (this entry)
+- **Learnings for future iterations:**
+  - Click 8.x removed mix_stderr from CliRunner; result.output contains mixed stdout+stderr; result.stderr has stderr-only
+  - ClickExceptions appear in both result.output and result.stderr in Click 8.x
+  - All test assertions against result.output work correctly because ClickException error messages appear there
+  - US-011 "verification story" pattern: when implementation tests are created incrementally per feature story, the aggregate verification story only needs to confirm all ACs are met — no new code if prior stories were thorough
+
+---
+
+## 2026-03-22 - US-010
+Session: iter-629c311d
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `tests/unit/orchestration/conftest.py` with 5 shared pytest fixtures:
+  - `mock_link_types`: standard Kanboard link types (getAllLinks response shape)
+  - `mock_task_links`: cross-project blocking chain task 1→4→7 (getAllTaskLinks shape)
+  - `mock_tasks`: 10 Task model instances across 3 projects (project 1: tasks 1,2,3,10[closed]; project 2: tasks 4,5,6; project 3: tasks 7,8,9)
+  - `sample_portfolio`: Portfolio "MyPortfolio" with project_ids=[1,2,3] and 2 milestones (Sprint 1: tasks 1,4,7 critical=[1]; Sprint 2: tasks 2,5,8)
+  - `seeded_store`: LocalPortfolioStore backed by tmp_path pre-seeded with sample_portfolio
+- Existing test files (test_store.py 75 tests, test_portfolio.py 38 tests, test_dependencies.py 33 tests) were complete from prior stories — no changes needed
+- Coverage results: store.py 97% (≥95% ✓), portfolio.py 96% (≥90% ✓), dependencies.py 97% (≥90% ✓), TOTAL 97%
+- 146 orchestration unit tests pass; full suite (2358 tests) green; ruff clean
+- Files changed: `tests/unit/orchestration/conftest.py` (new)
+- **Learnings for future iterations:**
+  - conftest.py fixtures are available to all test files in the same directory tree — tests don't need to import them explicitly
+  - `seeded_store` fixture composes `tmp_path` (built-in) + `sample_portfolio` (custom) — pytest resolves fixture dependencies automatically
+  - Fixture docstrings with `::` code blocks render nicely in pytest --fixtures output
+  - All 4 required fixture names exactly match the US-010 AC: mock_link_types, mock_task_links, mock_tasks, sample_portfolio
+
+## 2026-03-23 - US-014
+Session: iter-77f055fb
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Updated `README.md`: added 'Cross-Project Orchestration' section (before Key Features table) with capability table, quick CLI example, SDK example, and links to full reference docs; added portfolio and milestone rows to the CLI command reference table; updated project structure tree with orchestration/, renderers.py, docs/design/, docs/tasks/
+- Updated `docs/cli-reference.md`: added ToC entries for `portfolio` and `milestone`; appended full portfolio section (12 subcommands + usage examples for each including ASCII graph example and common workflows) and full milestone section (7 subcommands + show example with progress bar and indicators legend)
+- Updated `docs/sdk-guide.md`: added ToC entry for Cross-Project Orchestration; appended full section with Overview, LocalPortfolioStore (portfolio CRUD + milestone CRUD + task membership), PortfolioManager (aggregation, progress, sync, threshold table), DependencyAnalyzer (edges, blocked, blocking, critical path, graph), Orchestration Models table
+- Updated `CLAUDE.md`: file/folder structure updated with orchestration/ subpackage + renderers.py + commands/portfolio.py + commands/milestone.py + tests/unit/orchestration/; Architecture section updated with orchestration model note (no from_api()), ADR-16 note ("Orchestration is NOT a resource"), design doc reference; Key Config Paths updated with portfolio store path; new Orchestration Metadata Keys table (kanboard_cli: prefix for project and task metadata)
+- Updated `AGENTS.md`: directory structure updated with orchestration/, renderers.py, commands/portfolio.py + milestone.py, tests/unit/orchestration/; Key References updated with docs/design/ entries, docs/tasks/, and CLAUDE.md description update
+- Plugin URL: not available — no placeholder URLs added anywhere; design doc already has TODO comment
+- 2259 tests pass (108 integration deselected); ruff check + format clean; commit 5639ac9
+- Files changed: `README.md`, `docs/cli-reference.md`, `docs/sdk-guide.md`, `CLAUDE.md`, `AGENTS.md`
+- **Learnings for future iterations:**
+  - Documentation-only iterations: ruff and pytest still pass trivially — use them to confirm nothing was accidentally broken
+  - When updating directory structure trees, update them in ALL doc files that contain a copy (README.md, CLAUDE.md, AGENTS.md all had independent copies)
+  - "Plugin URL not yet provided" → omit plugin URL entirely from all docs; only the design doc (cross-project-orchestration.md) may have a TODO comment — this keeps all other docs clean
+  - Progress bar symbol table in CLI reference is useful for end-users: ⚠ = at risk, 🔴 = overdue
+---
+
+## Codebase Patterns
+- **`_has_open_blocker` early-return optimization**: When `blocked_by_link_ids` is empty (getAllLinks returned no link types), `_has_open_blocker` returns `False` immediately — NO `getAllTaskLinks` HTTP call is made. Tests must account for this: mock responses should NOT include `getAllTaskLinks` responses when the `getAllLinks` mock returns empty.
+- **`list or default` vs `is not None`**: In test helpers with list defaults, use `param if param is not None else default` instead of `param or default` — the latter treats `[]` as falsy and substitutes the default.
+- **`pytest-httpx` response ordering**: Responses are consumed in FIFO order; extra mocked responses not consumed cause teardown failures. Always count exact expected HTTP calls per test.
+- Add reusable, project-wide implementation patterns here.
+- **Orchestration is opt-in**: `PortfolioManager`, `DependencyAnalyzer`, `LocalPortfolioStore` are NOT KanboardClient attributes — callers instantiate them with a client arg.
+- **Resource pattern**: resource classes take `KanboardClient` in `__init__`, store as `self._client`. Use `TYPE_CHECKING` guard for client import to avoid circular imports.
+- **ruff strict**: `__all__` must be alphabetically sorted (capitals before lowercase) — RUF022.
+- **Orchestration models have no from_api()**: `Portfolio`, `Milestone`, `MilestoneProgress`, `DependencyEdge` are composed client-side from multiple API responses — never deserialize from a single JSON-RPC dict.
+- **Mutable list fields use `dataclasses.field(default_factory=list)`**: required for any dataclass with list defaults to prevent shared-state bugs between instances.
+- **Milestone defined before Portfolio in models.py**: `Portfolio.milestones: list[Milestone]` requires `Milestone` to be defined first (even with `from __future__ import annotations`, ordering matters for clarity).
+- **LocalPortfolioStore atomic writes**: use `tempfile.mkstemp(dir=same_dir)` + `os.replace()` for atomic JSON writes; never write directly to the target path.
+- **Store schema version**: JSON store file always has `{"version": 1, "portfolios": [...]}`. Raise `KanboardConfigError` on malformed JSON or version mismatch.
+- **Store CRUD pattern**: load() → mutate in-memory → save() — each write method loads current state, modifies, and persists atomically. No in-memory cache — always reads from disk.
+- **Store datetime serialization**: `datetime.isoformat()` for write, `datetime.fromisoformat()` for read. `None` dates stored as JSON `null`.
+- **ruff I001**: import block must be isort-sorted in tests — run `ruff check --fix` before committing.
+- **pytest-httpx response ordering for DependencyAnalyzer**: `getProjectById` is called *during inner-loop edge processing* (while iterating `getAllTaskLinks` results), not after the outer task loop finishes. Correct mock order is: `getAllLinks` → `getAllTaskLinks(A)` → `getProjectById(proj)` → `getAllTaskLinks(B)` → ... — NOT `getAllTaskLinks` for all tasks first, then project calls.
+- **DependencyEdge deduplication key**: canonical form is `(blocker_id, blocked_id)` — blocks direction always. An "A blocks B" entry from A's links AND "B is blocked by A" from B's links both normalize to key `(A.id, B.id)` and are deduplicated.
+- **get_critical_path calls get_dependency_edges(tasks) with ALL tasks** (including inactive ones) — this is intentional so resolved edges are still discoverable. The open-task filter only applies when building the active_edges list for Kahn's algorithm.
+- **`render_dependency_graph` project name fallback**: `Task` has `project_id` but NOT `project_name`. Project names are inferred from `DependencyEdge` fields. For nodes with no edges, fall back to `"Project #N"`.
+- **Rich Console to StringIO**: use `Console(file=buf, force_terminal=use_color, no_color=not use_color, highlight=False)` — `force_terminal=True` emits ANSI codes even into a StringIO, `no_color=True` strips markup tags entirely.
+- **Bottleneck detection in critical path**: count unresolved outbound edges per task within the path (`edge.task_id in task_ids AND edge.opposite_task_id in task_ids AND not edge.is_resolved`); task with max count is marked `← BOTTLENECK`. Returns `None` when all edges are resolved or no edges exist.
+- **Progress bar rounding**: `round(percent / 5)` — Python's banker's rounding means 52% → `round(10.4)` = 10 blocks; 55% → `round(11.0)` = 11 blocks. Clamp to `[0, 20]` to prevent overflow.
+- **`cross_project_only` in dependency graph**: filter both edges AND nodes (keep only tasks whose IDs appear in cross-project edge endpoints); otherwise isolated same-project tasks appear under cross-project project headers.
+- **Integration tests excluded from default `pytest`**: `addopts = "-m 'not integration'"` in `pyproject.toml` prevents Docker-backed tests from running on every `pytest` invocation. Run explicitly with `pytest -m integration` when needed.
+- **Enriching dataclass rows with extra columns**: `dataclasses.asdict(obj)` converts to a plain `dict`; add arbitrary keys then pass the list of dicts to `format_output()` with an explicit `columns=` list that includes the new key.
+---
+
+## 2026-03-22 - US-006
+Session: iter-bc2be917
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/renderers.py` with 4 public render functions
+- `render_dependency_graph`: groups Task nodes by project (names from DependencyEdge), shows `→ blocks`/`← blocked by` arrows with color coding (green=resolved, red=blocked, yellow=open); `cross_project_only` filters both edges and nodes
+- `render_critical_path`: numbered list with `✓`/`●` status icons; marks bottleneck task with `← BOTTLENECK` (most unresolved outbound edges to other path tasks)
+- `render_milestone_progress`: 20-char Unicode progress bar (█/░); fill = `round(percent/5)` clamped to [0,20]; `⚠` at-risk prefix; `🔴` overdue suffix; target date shown; color via Rich Console
+- `render_portfolio_summary`: portfolio name, description, metrics line (Projects | Milestones | Tasks | Blocked); at-risk/overdue line shown only when non-zero
+- All renderers accept `use_color: bool = True`; `use_color=False` uses `Console(no_color=True)` for plain text (no ANSI codes)
+- 46 unit tests in `tests/unit/test_renderers.py`: content/marker assertions only (not character-by-character); run with `use_color=False` for clean substring matching
+- `ruff check` + `ruff format` + `pytest` (2272 tests) all green
+- Files changed: `src/kanboard_cli/renderers.py` (new), `tests/unit/test_renderers.py` (new)
+- **Learnings for future iterations:**
+  - `Task.project_id` is available but `Task` has no `project_name` — derive names from `DependencyEdge`; fallback to `"Project #N"` for isolated nodes
+  - Rich Console with `force_terminal=True` emits ANSI codes even into StringIO — enables color capture for string-returning renderers
+  - `_strip_ansi()` helper included in renderers.py for test use if needed (not used by tests — tests just use `use_color=False`)
+  - Progress bar rounding: banker's rounding at x.5 boundaries — test exact counts with known percent values to avoid off-by-one surprises
+---
+
+## 2026-03-22 - US-007
+Session: iter-971896e0
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/portfolio.py` with 8 Click subcommands: list, show, create, remove, add-project, remove-project, tasks, sync
+- Registered `portfolio` command group in `src/kanboard_cli/main.py` (sorted import position)
+- `portfolio list`: renders table with name, description, project_count, milestone_count from LocalPortfolioStore; all 4 output formats
+- `portfolio show`: renders portfolio summary + milestone progress bars via renderers; graceful fallback to cached store data with `⚠ Warning:` message on API unreachable
+- `portfolio create`: positional NAME arg + optional `--description` flag; raises ClickException on duplicate
+- `portfolio remove`: requires `--yes`; best-effort metadata cleanup via sync_metadata() before store removal; uses `remove_portfolio()` return value to detect not-found
+- `portfolio add-project`: validates project via API before adding to store; raises ClickException if project not found or portfolio not found
+- `portfolio remove-project`: requires `--yes`; raises ClickException if portfolio not found
+- `portfolio tasks`: fetches tasks via PortfolioManager with status/project/assignee filters; enriches with project_name via cached `get_project_by_id()` calls; all 4 output formats; columns: id, title, project_name, column_title, owner_username, date_due, priority
+- `portfolio sync`: calls sync_metadata(), prints "Synced N projects, N tasks"
+- Internal helpers: `_get_store()` (lazy LocalPortfolioStore), `_get_manager()` (lazy PortfolioManager with client check)
+- 34 CLI tests in `tests/cli/test_portfolio.py` using MagicMock for store and PortfolioManager
+- 2306 tests pass; ruff check + format clean; commit c61f9fb
+- Files changed: `src/kanboard_cli/commands/portfolio.py` (new), `src/kanboard_cli/main.py` (portfolio import + registration), `tests/cli/test_portfolio.py` (new)
+- **Learnings for future iterations:**
+  - `CliRunner(mix_stderr=False)` not supported in this Click version — use `CliRunner()` without kwargs
+  - Rich table word-wraps long strings (e.g. "Alpha Project" → "Alpha\nProject") — assert on partial match or use JSON output in tests for exact value checks
+  - Patch `kanboard_cli.commands.portfolio._get_store` to inject mock store without touching real filesystem
+  - Patch `kanboard.orchestration.portfolio.PortfolioManager` for manager-dependent commands (lazy import inside `_get_manager` picks up the patched class)
+  - `PortfolioManager.sync_metadata()` returns `{"projects_synced": N, "tasks_synced": N}` — use `.get()` defensively in case keys are absent
+  - `store.remove_portfolio()` returns True/False — use return value for not-found detection (not an exception)
+---
+
+## PRD Run Context
+PRD Branch: ralph/phase-0-cross-project-orchestration
+Started: 2026-03-22T18:00:30.169Z
+---
+
+## 2026-03-22 - US-001
+Session: iter-c0668612
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `src/kanboard/orchestration/` subpackage with `__init__.py`, `portfolio.py`, `dependencies.py`, `store.py`
+- Each stub class has a constructor accepting `KanboardClient` (portfolio.py, dependencies.py) or optional `Path` (store.py)
+- `__init__.py` exports `DependencyAnalyzer`, `LocalPortfolioStore`, `PortfolioManager` in alphabetical order
+- Updated `tests/test_smoke.py` with `test_orchestration_importable` and `test_orchestration_classes_not_on_client`
+- Created `tests/unit/orchestration/__init__.py` (empty, marks test directory)
+- Files changed: `src/kanboard/orchestration/__init__.py`, `src/kanboard/orchestration/portfolio.py`, `src/kanboard/orchestration/dependencies.py`, `src/kanboard/orchestration/store.py`, `tests/test_smoke.py`, `tests/unit/orchestration/__init__.py`
+- **Learnings for future iterations:**
+  - Use `TYPE_CHECKING` guard for `KanboardClient` import in orchestration modules to prevent circular imports
+  - `store.py` lazy-imports `CONFIG_DIR` inside `__init__` to defer filesystem access until instantiation
+  - `__all__` in orchestration package follows alphabetical sort: `DependencyAnalyzer`, `LocalPortfolioStore`, `PortfolioManager`
+  - Pre-commit hook runs lint + test + build + format — all must pass before commit is accepted
+---
+
+## 2026-03-22 - US-002
+Session: iter-ac853eff
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Added 4 orchestration dataclasses to `src/kanboard/models.py`: `Milestone`, `Portfolio`, `MilestoneProgress`, `DependencyEdge`
+- All 4 models are mutable (no `frozen=True`); none have `from_api()` classmethods
+- Mutable list fields use `dataclasses.field(default_factory=list)` to prevent shared-state bugs
+- `Milestone` defined before `Portfolio` (Portfolio.milestones references Milestone type)
+- Updated `src/kanboard/__init__.py` imports and `__all__` with 4 new names in sorted position: `DependencyEdge` (after `CommentsResource`), `Milestone`, `MilestoneProgress`, `Portfolio` (between `MeResource` and `Project`)
+- Added test classes for all 4 models in `tests/unit/test_models.py`: construction, mutability, instance isolation of list fields, absence of `from_api()`
+- Updated `TestReExports` to verify the 4 new names are in `kanboard.__all__`
+- Fixed ruff RUF002 (EN DASH in docstring — replaced `–` with `-`)
+- Files changed: `src/kanboard/models.py`, `src/kanboard/__init__.py`, `tests/unit/test_models.py`
+- **Learnings for future iterations:**
+  - Watch for EN DASH (`–`) vs HYPHEN-MINUS (`-`) in docstrings — ruff RUF002 flags it
+  - `__all__` insertion order: D (DependencyEdge) after CommentsResource; M (Milestone, MilestoneProgress) after MeResource; P (Portfolio) after MilestoneProgress and before Project
+  - Test `no_from_api_classmethod` with `assert not hasattr(Cls, "from_api")` — simple and unambiguous
+---
+
+## 2026-03-22 - US-003
+Session: iter-2ecf1019
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented full `LocalPortfolioStore` in `src/kanboard/orchestration/store.py`
+- Serialisation helpers: `_dt_to_str` / `_str_to_dt` (ISO-8601), `_milestone_to_dict` / `_milestone_from_dict`, `_portfolio_to_dict` / `_portfolio_from_dict`
+- Atomic writes via `tempfile.mkstemp(dir=same_dir)` + `os.replace()` with cleanup on failure
+- Full CRUD: `create_portfolio`, `get_portfolio`, `update_portfolio`, `remove_portfolio`
+- Project membership: `add_project` (idempotent), `remove_project` (idempotent)
+- Milestone CRUD: `add_milestone`, `update_milestone`, `remove_milestone`
+- Task membership: `add_task_to_milestone` (idempotent, optional `critical=True`), `remove_task_from_milestone` (removes from both `task_ids` and `critical_task_ids`)
+- Parent dirs created automatically on first write via `Path.mkdir(parents=True, exist_ok=True)`
+- `load()` returns `[]` on missing file; raises `KanboardConfigError` on bad JSON or schema version mismatch
+- `get_portfolio()` raises `KanboardConfigError` (not `KeyError`) when not found
+- `create_portfolio()` raises `ValueError` on duplicate name; `add_milestone()` raises `ValueError` on duplicate within portfolio
+- Written 75 tests in `tests/unit/orchestration/test_store.py` using `tmp_path` fixture only (zero real filesystem access)
+- Coverage: 97% on `store.py` (≥95% required); uncovered lines are defensive error-path cleanup in `save()`
+- Fixed ruff I001 (unsorted imports) in test file before commit
+- Files changed: `src/kanboard/orchestration/store.py`, `tests/unit/orchestration/test_store.py`
+- **Learnings for future iterations:**
+  - `tempfile.mkstemp()` returns `(fd, str_path)` — wrap `fd` with `os.fdopen()` and use `os.replace(str_path, target)` for atomic rename
+  - `Path.unlink(missing_ok=True)` available Python 3.8+ — use it for cleanup
+  - Import private helpers (`_dt_to_str`, etc.) in tests to get full serialiser coverage without needing integration tests
+  - `monkeypatch.setattr(cfg_module, "CONFIG_DIR", fake_path)` is the correct pattern to test default path without touching real filesystem — avoids a `LocalPortfolioStore()` call that would hit `~/.config/kanboard/`
+  - Pre-commit hook runs full 2155-test suite (takes ~4 min) — be patient; do not use `--no-verify`
+---
+
+## 2026-03-22 - US-004
+Session: iter-32d06577
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented full `PortfolioManager` in `src/kanboard/orchestration/portfolio.py`
+- `get_portfolio_projects(portfolio_name)` → fetches each project by ID, skips deleted with warning
+- `get_portfolio_tasks(portfolio_name, status, assignee_id, project_id)` → multi-project aggregation with optional filters
+- `get_milestone_progress(portfolio_name, milestone_name)` → full progress computation: percent, is_overdue, is_at_risk, blocked_task_ids
+- `get_all_milestone_progress(portfolio_name)` → delegates to get_milestone_progress for each milestone
+- `sync_metadata(portfolio_name)` → writes kanboard_cli:portfolio to projects, kanboard_cli:milestones + kanboard_cli:milestone_critical to tasks; returns {projects_synced, tasks_synced}
+- `_get_link_label_map()` → fetches all link types once, builds {link_id: label} cache for blocker detection
+- `_has_open_blocker()` → checks task links for "is blocked by" relationships pointing to active tasks; returns False immediately when no "is blocked by" link types exist (no HTTP call)
+- Missing projects/tasks handled gracefully: logged warning, skipped (total count adjusted for tasks)
+- Module-level constants: `_METADATA_KEY_PORTFOLIO`, `_METADATA_KEY_MILESTONES`, `_METADATA_KEY_MILESTONE_CRITICAL`, `_LINK_LABEL_BLOCKED_BY`, `_AT_RISK_DAYS`, `_AT_RISK_PERCENT_THRESHOLD`
+- Written 38 tests in `tests/unit/orchestration/test_portfolio.py` using pytest-httpx for HTTP mocking and real LocalPortfolioStore with tmp_path
+- Coverage: 96% on portfolio.py (≥90% required); uncovered lines are defensive exception paths in _get_link_label_map and _has_open_blocker
+- Files changed: `src/kanboard/orchestration/portfolio.py`, `tests/unit/orchestration/test_portfolio.py`
+- **Learnings for future iterations:**
+  - `_has_open_blocker` short-circuits when `blocked_by_link_ids` is empty — tests must NOT mock `getAllTaskLinks` in that case
+  - Test helper list defaults: use `param if param is not None else default` (not `param or default`) to allow empty lists as inputs
+  - pytest-httpx is strict: leftover unused mock responses cause teardown AssertionError — count expected HTTP calls precisely
+  - `_AT_RISK_DAYS` uses `float(_AT_RISK_DAYS)` for comparison with `days_remaining` (float) to avoid type mismatch
+  - `is_at_risk` requires `0.0 <= days_remaining <= 7.0` — negative days_remaining (past due) is excluded (overdue, not at-risk)
+---
+
+## 2026-03-22 - US-005
+Session: iter-f95f9251
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented full `DependencyAnalyzer` in `src/kanboard/orchestration/dependencies.py`
+- `_get_link_label_map()` fetches all link types once, returns `{link_id: label}` map
+- `_get_or_fetch_task(task_id)` checks `self._task_cache` first (populated from input tasks), fetches from API on miss, returns `None` on 404
+- `_get_project_name(project_id, project_name_cache)` uses caller-owned dict for within-call caching
+- `get_dependency_edges(tasks, cross_project_only)` normalises all edges to "blocks" direction; canonical dedup key `(blocker_id, blocked_id)` prevents A→B / B→A duplicate when querying both tasks
+- `get_blocked_tasks(tasks)` returns tasks with at least one unresolved inbound edge
+- `get_blocking_tasks(tasks)` returns open tasks with at least one unresolved outbound edge
+- `get_critical_path(tasks)` uses Kahn's topological sort + DP longest-path; cycle detection logs warning and returns partial result; considers only open tasks and unresolved inter-open-task edges
+- `get_dependency_graph(tasks, cross_project_only)` returns `{"nodes": [...], "edges": [...]}` dict
+- Written 33 tests in `tests/unit/orchestration/test_dependencies.py`; coverage: 97% on `dependencies.py` (≥90% required)
+- **Learnings for future iterations:**
+  - `getProjectById` is called INSIDE the edge processing inner loop, not after the outer task loop — mock response order must interleave project calls between `getAllTaskLinks` calls
+  - `get_critical_path` passes full task list to `get_dependency_edges` — `getAllTaskLinks` is called for inactive tasks too; only the active_edges filter (inside critical path logic) excludes them
+  - Deduplication set holds `(blocker_id, blocked_id)` tuples — different from `frozenset({A, B})` to preserve direction; two reverse edges in a cycle (A→B, B→A) are NOT duplicates
+  - ruff format reformatted both files after writing — always run `ruff format .` before committing
+---
+
+## 2026-03-22 - US-008
+Session: iter-c8ba0902
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard_cli/commands/milestone.py` with 7 Click subcommands: list, show, create, remove, add-task, remove-task, progress
+- Registered `milestone` command group in `src/kanboard_cli/main.py` (sorted import position)
+- `milestone list`: renders table with name, target_date, task_count, critical_count from LocalPortfolioStore; all 4 output formats
+- `milestone show`: renders progress bar via render_milestone_progress + task counts + blocked_task_ids; graceful fallback to cached store data with warning on API unreachable
+- `milestone create`: positional PORTFOLIO_NAME + MILESTONE_NAME args + optional `--target-date YYYY-MM-DD` + `--description` (accepted but not stored — Milestone model has no description field)
+- `milestone remove`: requires `--yes`; best-effort metadata cleanup via sync_metadata() before returning; detects not-found via `remove_milestone()` return value (False = not found)
+- `milestone add-task`: validates task exists via `client.tasks.get_task()`, then checks `task.project_id in portfolio.project_ids`; clear error message if project not in portfolio
+- `milestone remove-task`: requires `--yes`; delegates to `store.remove_task_from_milestone()`
+- `milestone progress`: with milestone_name → `get_milestone_progress()`; without → `get_all_milestone_progress()`; "No milestones found." when empty
+- Date parsing helper `_parse_target_date()` uses `datetime.strptime("%Y-%m-%d")`; raises ClickException on invalid format
+- Internal helpers `_get_store()` and `_get_manager()` mirror the portfolio.py pattern (lazy imports)
+- 35 CLI tests in `tests/cli/test_milestone.py` using MagicMock for store and PortfolioManager
+- 2341 tests pass; ruff check + format clean; commit 786f481
+- Files changed: `src/kanboard_cli/commands/milestone.py` (new), `src/kanboard_cli/main.py` (milestone import + registration), `tests/cli/test_milestone.py` (new)
+- **Learnings for future iterations:**
+  - `Milestone` model has no `description` field (US-002 spec) — `--description` CLI option must be accepted but silently ignored; do NOT fail if the AC includes it
+  - `store.remove_milestone()` returns `True`/`False` (not exception) for not-found — check return value for error detection
+  - `milestone show` fallback: catch all `Exception` subclasses (including `Exception`) on the manager call since pytest-mocked managers may raise base Exception
+  - When patching `PortfolioManager` in CLI tests, patch at `kanboard.orchestration.portfolio.PortfolioManager` (where the class is defined), not at the import site in `milestone.py` (which uses lazy import inside `_get_manager`)
+  - `milestone progress` without milestone_name arg: Click `required=False, default=None` argument works correctly for optional positional args
+---
+
+## 2026-03-22 - US-009
+Session: iter-286b940d
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Added 4 dependency subcommands to `portfolio` command group (not a new top-level group)
+- `portfolio dependencies <name> [--cross-project-only] [--format graph|table|json]`: graph=ASCII render_dependency_graph, table=flat DependencyEdge rows via format_output, json=structured dict via get_dependency_graph
+- `portfolio blocked <name>`: cross-project blocked tasks (implicitly `is_cross_project=True`); all 4 output formats
+- `portfolio blocking <name>`: cross-project blocking tasks (implicitly `is_cross_project=True`); all 4 output formats
+- `portfolio critical-path <name>`: numbered list with BOTTLENECK annotation via render_critical_path
+- Added `_get_analyzer(app_ctx)` helper — mirrors `_get_manager()` pattern with lazy import and client-null guard
+- Added `DependencyAnalyzer` to `TYPE_CHECKING` import block in portfolio.py
+- Added column constants: `_DEP_EDGE_COLUMNS`, `_BLOCKED_COLUMNS`, `_BLOCKING_COLUMNS`
+- `blocked`/`blocking` rows are one per (task, edge) pair — expanded with cross-project filter in the loop
+- `critical-path` calls `get_dependency_edges` first to populate task cache, then `get_critical_path` (which re-calls internally); `getAllTaskLinks` is called twice but `getTask` benefits from cache
+- Updated docstring to list all 12 subcommands (added dependencies, blocked, blocking, critical-path)
+- 17 new CLI tests in `tests/cli/test_portfolio.py`: graph output, cross-project-only flag, table format (JSON mode), JSON format, not-found; blocked success/JSON/same-project-filter/not-found; blocking success/JSON/same-project-filter/not-found; critical-path success/empty/not-found/bottleneck
+- Added `_make_dependency_edge()` helper and `_invoke_dep()` helper that patches both PortfolioManager and DependencyAnalyzer
+- 2358 tests pass; ruff check + format clean; commit bbb2011
+- Files changed: `src/kanboard_cli/commands/portfolio.py` (4 new subcommands, _get_analyzer, column constants), `tests/cli/test_portfolio.py` (17 new tests, _make_dependency_edge, _invoke_dep)
+- **Learnings for future iterations:**
+  - `DependencyAnalyzer` patch target is `kanboard.orchestration.dependencies.DependencyAnalyzer` (definition location), consistent with PortfolioManager pattern at `kanboard.orchestration.portfolio.PortfolioManager`
+  - `_invoke_dep()` helper uses ExitStack to combine 5 patches cleanly — reuse this for commands needing both manager and analyzer
+  - `blocked`/`blocking` cross-project filter is done at the row-building loop level (not at get_blocked_tasks call) since get_blocked_tasks returns all edges; filtering in the loop avoids an extra analyzer method call
+  - `--format` option uses `"fmt"` as the Python parameter name to avoid shadowing the built-in `format`
+  - `click.Choice(["graph","table","json"], case_sensitive=False)` allows `--format TABLE` etc.
+---
+
+## 2026-03-23 - US-013
+Session: iter-0af56124
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Added 3 orchestration class imports to `src/kanboard/__init__.py`: `DependencyAnalyzer`, `LocalPortfolioStore`, `PortfolioManager` (from `kanboard.orchestration`)
+- Added all 3 to `__all__` in correct RUF022 alphabetical order:
+  - `DependencyAnalyzer` before `DependencyEdge` (A < E)
+  - `LocalPortfolioStore` between `LinksResource` and `MeResource` (Lo > Li, L < M)
+  - `PortfolioManager` between `Portfolio` and `Project` (Portfolio is prefix of PortfolioManager)
+- Verified `from kanboard import PortfolioManager, DependencyAnalyzer, LocalPortfolioStore` succeeds
+- `kanboard portfolio --help` confirms all 12 subcommands: list, show, create, remove, add-project, remove-project, tasks, sync, dependencies, blocked, blocking, critical-path
+- `kanboard milestone --help` confirms all 7 subcommands: list, show, create, remove, add-task, remove-task, progress
+- `src/kanboard_cli/main.py` already had portfolio + milestone imported and registered (done in US-007/US-008)
+- 2259 tests pass; ruff check + format clean; commit 16b9c8e
+- Files changed: `src/kanboard/__init__.py` (3 new imports + 3 `__all__` entries)
+- **Learnings for future iterations:**
+  - When a "wiring" story is the final story, most work is already done by prior stories — the key task is just auditing what's missing and filling gaps
+  - `from kanboard.orchestration import X` works because `orchestration/__init__.py` already re-exports the 3 classes — `kanboard/__init__.py` just needs to forward them
+  - RUF022 alphabetical sort with capitalized names: sort is pure lexicographic on the string (capitals before lowercase in ASCII), so "DependencyAnalyzer" < "DependencyEdge" since 'A' < 'E'
+  - "Portfolio" < "PortfolioManager" because when comparing equal prefix strings, the shorter string comes first lexicographically
+---
