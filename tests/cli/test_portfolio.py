@@ -2005,6 +2005,78 @@ def test_portfolio_dependencies_remote_not_found(
     assert result.exit_code != 0
 
 
+def test_portfolio_tasks_remote_backend(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_remote_backend: MagicMock,
+) -> None:
+    """``portfolio tasks`` with remote backend routes through PortfolioManager."""
+    task_obj = _make_task(task_id=55, title="Remote Task", project_id=3)
+    project_obj = _make_project(project_id=3, name="Remote Project")
+
+    mock_manager = MagicMock()
+    mock_manager.get_portfolio_tasks.return_value = [task_obj]
+    mock_client.projects.get_project_by_id.return_value = project_obj
+
+    with patch("kanboard.orchestration.portfolio.PortfolioManager", return_value=mock_manager):
+        result = _invoke_remote(
+            runner,
+            mock_remote_config,
+            mock_client,
+            ["portfolio", "tasks", "Remote Portfolio"],
+            mock_backend=mock_remote_backend,
+        )
+
+    assert result.exit_code == 0
+    # Rich may wrap long titles; check task ID and partial title match.
+    assert "55" in result.output
+    assert "Remote" in result.output
+    mock_manager.get_portfolio_tasks.assert_called_once_with(
+        "Remote Portfolio", status=1, project_id=None, assignee_id=None
+    )
+
+
+def test_portfolio_list_remote_csv(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_remote_backend: MagicMock,
+) -> None:
+    """``portfolio list --output csv`` with remote backend renders CSV with headers."""
+    mock_remote_backend.load.return_value = [_make_portfolio(name="Remote Portfolio")]
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["--output", "csv", "portfolio", "list"],
+        mock_backend=mock_remote_backend,
+    )
+    assert result.exit_code == 0
+    assert "name" in result.output
+    assert "Remote Portfolio" in result.output
+
+
+def test_portfolio_list_remote_quiet(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_remote_backend: MagicMock,
+) -> None:
+    """``portfolio list --output quiet`` with remote backend prints nothing (no id field)."""
+    mock_remote_backend.load.return_value = [_make_portfolio(name="Quiet Remote")]
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["--output", "quiet", "portfolio", "list"],
+        mock_backend=mock_remote_backend,
+    )
+    assert result.exit_code == 0
+    # portfolio list has no 'id' column — quiet output is empty (same as local backend).
+    assert result.output.strip() == ""
+
+
 # ===========================================================================
 # portfolio migrate (US-011)
 # ===========================================================================
