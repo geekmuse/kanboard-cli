@@ -46,7 +46,10 @@ from kanboard.models import (
 from kanboard.orchestration import (
     DependencyAnalyzer,
     LocalPortfolioStore,
+    PortfolioBackend,
     PortfolioManager,
+    RemotePortfolioBackend,
+    create_backend,
 )
 from kanboard.resources.actions import ActionsResource
 from kanboard.resources.application import ApplicationResource
@@ -117,6 +120,7 @@ __all__ = [
     "PluginMilestoneProgress",
     "PluginPortfolio",
     "Portfolio",
+    "PortfolioBackend",
     "PortfolioManager",
     "PortfoliosResource",
     "Project",
@@ -125,6 +129,7 @@ __all__ = [
     "ProjectMetadataResource",
     "ProjectPermissionsResource",
     "ProjectsResource",
+    "RemotePortfolioBackend",
     "Subtask",
     "SubtaskTimeTrackingResource",
     "SubtasksResource",
@@ -141,5 +146,6 @@ __all__ = [
     "TasksResource",
     "User",
     "UsersResource",
+    "create_backend",
     "get_workflow_config",
 ]
