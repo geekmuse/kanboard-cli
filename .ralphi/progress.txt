@@ -315,3 +315,36 @@ Corrective Plan: N/A
   - `migrate_status` uses plain `click.echo` output (not `format_output`) consistent with other informational commands like `portfolio sync`; `migrate_diff` uses `format_output` for tabular diff rows
   - For `test_migrate_status_no_client`, patch `KanboardConfig.resolve` to raise `KanboardConfigError` (makes `app_ctx.client = None`) while separately patching `_get_store`
 ---
+
+## 2026-03-24 - US-013
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Added `kanboard portfolio migrate remote-to-local` subcommand to `src/kanboard_cli/commands/portfolio.py`:
+  - Added `PluginPortfolio` to `TYPE_CHECKING` imports (used for type annotation in helper)
+  - `_migrate_one_portfolio_remote_to_local(plugin_pf, app_ctx, local_store, *, dry_run, on_conflict)` — top-level helper; returns `"ok"` or `"skip"`; raises `ValueError` (conflict/fail) or `KanboardAPIError`/`KanboardConfigError` (API errors)
+  - Conflict detection: checks `local_store.load()` for same-named portfolio — read-only, OK in dry-run
+  - `--on-conflict fail` (default): raises `ValueError` on conflict, converted to `ClickException` by caller
+  - `--on-conflict skip`: logs "already exists locally — skipping" and returns `"skip"`
+  - `--on-conflict overwrite`: calls `local_store.remove_portfolio(name)` then recreates
+  - `--yes` guard: `on_conflict == "overwrite"` without `--yes` (and not `--dry-run`) prompts via `click.confirm(..., abort=True)`
+  - `--dry-run`: remote reads ARE made (to show what would be migrated); local writes skipped; output prefixed with `[dry-run]`
+  - `--all`: calls `client.portfolios.get_all_portfolios()` for remote portfolio list; per-portfolio errors caught, logged, counted in `failed`; single-portfolio errors propagate as `ClickException`
+  - Step-by-step progress: "Creating portfolio 'X'", "  Adding project #N", "  Creating milestone 'M'", "    Adding task #T to milestone 'M'"
+  - Summary line: "Migrated N portfolios (M failed)."
+  - Remote data fetch order: `get_portfolio_projects(id)` → `get_portfolio_milestones(id)` → for each milestone: `get_milestone_tasks(ms.id)`; extracts `int(p["id"])` for project_ids, `int(t["id"])` for task_ids
+  - `migrate_remote_to_local` Click command registered under `portfolio_migrate` group as `"remote-to-local"`
+- Added 8 new CLI tests in `tests/cli/test_portfolio.py`:
+  - `_make_remote_plugin_pf()` and `_make_plugin_milestone()` test helpers
+  - Tests: no-name-no-all (usage error), success (full migration with API call assertions), dry-run (remote reads made, local writes not called), conflict-fail, conflict-skip (0 migrated), conflict-overwrite (remove+recreate with --yes), overwrite-requires-yes (prompt with "n" aborts), all (2 portfolios), partial-failure (1 success + 1 API error)
+- Files changed: `src/kanboard_cli/commands/portfolio.py`, `tests/cli/test_portfolio.py`
+- **Learnings for future iterations:**
+  - `remote-to-local` dry-run still makes remote API calls (unlike `local-to-remote` where dry-run skips all API calls) — because the source is remote and we need the data to print meaningful output
+  - Conflict detection for `remote-to-local` checks `local_store.load()` (local read) — safe in dry-run
+  - `get_portfolio_projects()` returns `list[dict]` where each dict has `"id"` key; use `int(p["id"])` to extract project IDs (same pattern as `RemotePortfolioBackend._build_portfolio()`)
+  - `get_milestone_tasks()` returns `list[dict]` where each dict has `"id"` key; use `int(t["id"])` with `t.get("id")` guard
+  - For `--all` in remote-to-local: call `client.portfolios.get_all_portfolios()` (not `RemotePortfolioBackend.load()`) to avoid double-fetching projects/milestones; the helper then fetches per-portfolio data
+  - `PluginPortfolio` type hint in helper is under `TYPE_CHECKING`; at runtime `from __future__ import annotations` makes it a string (no import needed at runtime)
+---
