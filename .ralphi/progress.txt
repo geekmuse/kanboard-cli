@@ -366,3 +366,26 @@ Corrective Plan: N/A
   - For `--all` in remote-to-local: call `client.portfolios.get_all_portfolios()` (not `RemotePortfolioBackend.load()`) to avoid double-fetching projects/milestones; the helper then fetches per-portfolio data
   - `PluginPortfolio` type hint in helper is under `TYPE_CHECKING`; at runtime `from __future__ import annotations` makes it a string (no import needed at runtime)
 ---
+
+## 2026-03-24 - US-015
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Added 3 missing CLI tests to `tests/cli/test_portfolio.py` to satisfy all US-015 acceptance criteria:
+  - `test_portfolio_tasks_remote_backend` — verifies `portfolio tasks <name>` routes through `PortfolioManager` with a remote backend; patches both `_get_backend` and `PortfolioManager`; asserts task ID and partial title match (Rich wraps long titles across lines)
+  - `test_portfolio_list_remote_csv` — verifies `portfolio list --output csv` with remote backend renders CSV headers and portfolio name
+  - `test_portfolio_list_remote_quiet` — verifies `portfolio list --output quiet` with remote backend produces no output (no `id` column, same behavior as local backend)
+- Previous stories (US-008, US-009, US-011, US-012, US-013) had already added:
+  - Remote backend routing tests for 3 portfolio subcommands (list, create, dependencies) + all 4 migrate sub-operations
+  - Remote backend routing tests for all 7 milestone subcommands
+  - All output format tests for the local backend
+- US-015 completed the final gap: `portfolio tasks` remote test + csv/quiet formats for remote backend
+- Files changed: `tests/cli/test_portfolio.py`
+- **Learnings for future iterations:**
+  - Rich table wraps long strings (e.g., "Remote Task" → two lines); assert on task ID + partial word instead of full title
+  - `portfolio list --output quiet` produces no output because there is no `id` column — assert `result.output.strip() == ""`; this is consistent across both local and remote backends
+  - For `portfolio tasks` remote test, patch `kanboard.orchestration.portfolio.PortfolioManager` as outer context manager around `_invoke_remote(...)` call — both patches are active when `runner.invoke` executes
+  - US-015 was mostly already covered by previous story iterations that added the core tests; only 3 edge-case tests were missing
+---

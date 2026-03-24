@@ -5,7 +5,7 @@
   "userStories": [
     {
       "id": "US-001",
-      "title": "Plugin SDK models — PluginPortfolio, PluginMilestone, PluginMilestoneProgress",
+      "title": "Plugin SDK models \u2014 PluginPortfolio, PluginMilestone, PluginMilestoneProgress",
       "description": "Add 3 new dataclasses to src/kanboard/models.py representing server-side plugin entities: PluginPortfolio (id, name, description, owner_id, is_active, created_at, updated_at), PluginMilestone (id, portfolio_id, name, description, target_date, status, color_id, owner_id, created_at, updated_at), and PluginMilestoneProgress (milestone_id, total, completed, percent, is_at_risk, is_overdue). Each must have a from_api(cls, data: dict) classmethod following the standard resource model pattern with _int(), _parse_date() type coercion. These are distinct from the Phase 0 orchestration models (Portfolio, Milestone, MilestoneProgress) which are client-side constructs without from_api().",
       "acceptanceCriteria": [
         "PluginPortfolio dataclass with from_api() handling all fields including _int() for id/owner_id/is_active and _parse_date() for created_at/updated_at",
@@ -26,7 +26,7 @@
     },
     {
       "id": "US-002",
-      "title": "Portfolios resource module — SDK",
+      "title": "Portfolios resource module \u2014 SDK",
       "description": "Implement src/kanboard/resources/portfolios.py with PortfoliosResource covering 13 plugin API methods: createPortfolio, getPortfolio, getPortfolioByName, getAllPortfolios, updatePortfolio, removePortfolio, addProjectToPortfolio, removeProjectFromPortfolio, getPortfolioProjects, getProjectPortfolios, getPortfolioTasks, getPortfolioTaskCount, getPortfolioOverview. Wire into KanboardClient as client.portfolios. Follow the established resource pattern (TYPE_CHECKING guard, _client.call(), typed returns, standard exception handling).",
       "acceptanceCriteria": [
         "PortfoliosResource class with __init__(self, client) pattern",
@@ -61,7 +61,7 @@
     },
     {
       "id": "US-003",
-      "title": "Milestones resource module — SDK",
+      "title": "Milestones resource module \u2014 SDK",
       "description": "Implement src/kanboard/resources/milestones.py with MilestonesResource covering 10 plugin API methods: createMilestone, getMilestone, getPortfolioMilestones, updateMilestone, removeMilestone, addTaskToMilestone, removeTaskFromMilestone, getMilestoneTasks, getTaskMilestones, getMilestoneProgress. Wire into KanboardClient as client.milestones. Follow established resource pattern.",
       "acceptanceCriteria": [
         "MilestonesResource class with __init__(self, client) pattern",
@@ -117,7 +117,7 @@
     },
     {
       "id": "US-005",
-      "title": "Configuration extension — portfolio_backend",
+      "title": "Configuration extension \u2014 portfolio_backend",
       "description": "Extend KanboardConfig with a new portfolio_backend field (str, default 'local') supporting values 'local' and 'remote'. Add layered resolution: TOML profile key portfolio_backend, environment variable KANBOARD_PORTFOLIO_BACKEND, and CLI parameter cli_portfolio_backend. Validate during resolve() that the value is one of the two allowed values.",
       "acceptanceCriteria": [
         "KanboardConfig.portfolio_backend field added (str, default 'local')",
@@ -133,20 +133,20 @@
       "priority": 5,
       "status": "done",
       "dependsOn": [],
-      "notes": "Independent of backend implementation — can be done in parallel with US-001 through US-004.",
+      "notes": "Independent of backend implementation \u2014 can be done in parallel with US-001 through US-004.",
       "startedAt": "2026-03-24T03:27:54.255Z",
       "updatedAt": "2026-03-24T03:34:48.471Z",
       "completedAt": "2026-03-24T03:34:48.471Z"
     },
     {
       "id": "US-006",
-      "title": "Backend protocol and factory — orchestration/backend.py",
+      "title": "Backend protocol and factory \u2014 orchestration/backend.py",
       "description": "Create src/kanboard/orchestration/backend.py with: (1) PortfolioBackend typing.Protocol class defining the 12-method interface (list_portfolios, get_portfolio, create_portfolio, update_portfolio, remove_portfolio, add_project, remove_project, add_milestone, update_milestone, remove_milestone, add_task_to_milestone, remove_task_from_milestone); (2) RemotePortfolioBackend class wrapping PortfoliosResource + MilestonesResource to satisfy the protocol, translating name-based lookups to ID-based API calls; (3) create_backend() factory function that returns LocalPortfolioStore or RemotePortfolioBackend based on backend_type string. Verify LocalPortfolioStore already satisfies the protocol without modification.",
       "acceptanceCriteria": [
         "PortfolioBackend Protocol class with 12 method signatures matching LocalPortfolioStore's public API",
         "RemotePortfolioBackend class implementing all 12 protocol methods using PortfoliosResource + MilestonesResource",
         "RemotePortfolioBackend.get_portfolio(name) calls get_portfolio_by_name() internally and converts PluginPortfolio to Portfolio model",
-        "RemotePortfolioBackend handles name→ID translation for all methods requiring portfolio_id or milestone_id",
+        "RemotePortfolioBackend handles name\u2192ID translation for all methods requiring portfolio_id or milestone_id",
         "create_backend('local') returns LocalPortfolioStore instance",
         "create_backend('remote', client=...) returns RemotePortfolioBackend instance",
         "create_backend('remote') without client raises KanboardConfigError",
@@ -170,7 +170,7 @@
     },
     {
       "id": "US-007",
-      "title": "CLI global option — --portfolio-backend",
+      "title": "CLI global option \u2014 --portfolio-backend",
       "description": "Add --portfolio-backend Click option to the root cli group in main.py (type=click.Choice(['local', 'remote']), default=None). Pass through to KanboardConfig.resolve() as cli_portfolio_backend parameter. Store resolved value in AppContext.",
       "acceptanceCriteria": [
         "--portfolio-backend option added to root cli group in main.py",
@@ -211,7 +211,7 @@
         "US-006",
         "US-007"
       ],
-      "notes": "This is the most impactful wiring change. Take care with the dependency subcommands — local backend uses DependencyAnalyzer (client-side graph traversal), remote backend uses PortfoliosResource methods (server-side SQL).",
+      "notes": "This is the most impactful wiring change. Take care with the dependency subcommands \u2014 local backend uses DependencyAnalyzer (client-side graph traversal), remote backend uses PortfoliosResource methods (server-side SQL).",
       "startedAt": "2026-03-24T03:57:32.990Z",
       "updatedAt": "2026-03-24T04:12:59.795Z",
       "completedAt": "2026-03-24T04:12:59.795Z"
@@ -234,7 +234,7 @@
         "US-006",
         "US-007"
       ],
-      "notes": "Simpler than portfolio wiring since there are fewer asymmetries — milestone CRUD maps cleanly to plugin API.",
+      "notes": "Simpler than portfolio wiring since there are fewer asymmetries \u2014 milestone CRUD maps cleanly to plugin API.",
       "startedAt": "2026-03-24T04:13:00.523Z",
       "updatedAt": "2026-03-24T04:24:24.515Z",
       "completedAt": "2026-03-24T04:24:24.515Z"
@@ -245,7 +245,7 @@
       "description": "Implement ADR-24: on first remote backend operation, call a plugin-specific API method and catch the JSON-RPC method-not-found error to detect whether the plugin is installed. Cache the detection result for the session (on the RemotePortfolioBackend instance). When the plugin is not detected, raise KanboardConfigError with a clear message including install instructions and a suggestion to use --portfolio-backend local.",
       "acceptanceCriteria": [
         "RemotePortfolioBackend probes plugin availability on first API call",
-        "Detection result cached — subsequent calls do not re-probe",
+        "Detection result cached \u2014 subsequent calls do not re-probe",
         "Plugin detected: operations proceed normally",
         "Plugin not detected: KanboardConfigError raised with message mentioning kanboard-plugin-portfolio-management and --portfolio-backend local",
         "Unit tests mock both detected and not-detected scenarios",
@@ -263,8 +263,8 @@
     },
     {
       "id": "US-011",
-      "title": "Migration subcommand — status and diff",
-      "description": "Add kanboard portfolio migrate subcommand group with two read-only sub-operations: (1) migrate status — show current backend config, data counts on both local and remote sides, and plugin detection result; (2) migrate diff <portfolio_name> [--all] — compare local and remote state, show differences in portfolio/milestone/task membership. Both are non-destructive read operations.",
+      "title": "Migration subcommand \u2014 status and diff",
+      "description": "Add kanboard portfolio migrate subcommand group with two read-only sub-operations: (1) migrate status \u2014 show current backend config, data counts on both local and remote sides, and plugin detection result; (2) migrate diff <portfolio_name> [--all] \u2014 compare local and remote state, show differences in portfolio/milestone/task membership. Both are non-destructive read operations.",
       "acceptanceCriteria": [
         "kanboard portfolio migrate status shows: active backend, config source, local store counts (portfolios/milestones/tasks), remote counts (if reachable), plugin detection status",
         "kanboard portfolio migrate diff <name> compares local and remote portfolio by name, shows differences in projects, milestones, and task assignments",
@@ -287,7 +287,7 @@
     },
     {
       "id": "US-012",
-      "title": "Migration subcommand — local-to-remote",
+      "title": "Migration subcommand \u2014 local-to-remote",
       "description": "Add kanboard portfolio migrate local-to-remote <portfolio_name> [--all] [--dry-run] [--on-conflict skip|overwrite|fail] [--yes]. Reads portfolio from LocalPortfolioStore, creates it on the server via PortfoliosResource + MilestonesResource. Handles conflict when a same-named portfolio already exists on the server. Supports --dry-run (preview without executing), --on-conflict (skip/overwrite/fail, default fail), --all (migrate all local portfolios), and --yes (skip confirmation for overwrite).",
       "acceptanceCriteria": [
         "kanboard portfolio migrate local-to-remote <name> creates portfolio on server with projects, milestones, and task assignments",
@@ -307,14 +307,14 @@
       "dependsOn": [
         "US-011"
       ],
-      "notes": "Destructive overwrite requires --yes flag (consistent with project conventions). Migration is not transactional — partial failures leave partial state that can be cleaned up with remove commands.",
+      "notes": "Destructive overwrite requires --yes flag (consistent with project conventions). Migration is not transactional \u2014 partial failures leave partial state that can be cleaned up with remove commands.",
       "startedAt": "2026-03-24T14:16:33.626Z",
       "updatedAt": "2026-03-24T14:26:20.500Z",
       "completedAt": "2026-03-24T14:26:20.500Z"
     },
     {
       "id": "US-013",
-      "title": "Migration subcommand — remote-to-local",
+      "title": "Migration subcommand \u2014 remote-to-local",
       "description": "Add kanboard portfolio migrate remote-to-local <portfolio_name> [--all] [--dry-run] [--on-conflict skip|overwrite|fail] [--yes]. Fetches portfolio from plugin API, writes to LocalPortfolioStore. Same conflict resolution, dry-run, and --all semantics as local-to-remote.",
       "acceptanceCriteria": [
         "kanboard portfolio migrate remote-to-local <name> fetches portfolio from server and writes to local store with projects, milestones, and task assignments",
@@ -339,7 +339,7 @@
     },
     {
       "id": "US-014",
-      "title": "Unit tests — backend abstraction and remote adapter",
+      "title": "Unit tests \u2014 backend abstraction and remote adapter",
       "description": "Comprehensive unit tests for orchestration/backend.py: PortfolioBackend protocol conformance for both LocalPortfolioStore and RemotePortfolioBackend, create_backend() factory behavior for all input combinations, RemotePortfolioBackend method delegation (each of the 12 methods), name-to-ID translation in RemotePortfolioBackend, and plugin detection caching. Target >=95% coverage.",
       "acceptanceCriteria": [
         "Protocol conformance tests: both LocalPortfolioStore and RemotePortfolioBackend satisfy PortfolioBackend",
@@ -356,14 +356,14 @@
         "US-006",
         "US-010"
       ],
-      "notes": "Mock PortfoliosResource and MilestonesResource at the method level (not httpx level) for RemotePortfolioBackend tests — the resource modules have their own httpx-level tests.",
+      "notes": "Mock PortfoliosResource and MilestonesResource at the method level (not httpx level) for RemotePortfolioBackend tests \u2014 the resource modules have their own httpx-level tests.",
       "startedAt": "2026-03-24T14:38:41.564Z",
-      "updatedAt": "2026-03-24T15:05:00.000Z",
-      "completedAt": "2026-03-24T15:05:00.000Z"
+      "updatedAt": "2026-03-24T14:46:32.943Z",
+      "completedAt": "2026-03-24T14:46:32.943Z"
     },
     {
       "id": "US-015",
-      "title": "CLI tests — backend selection and migration",
+      "title": "CLI tests \u2014 backend selection and migration",
       "description": "CLI output tests verifying: (1) --portfolio-backend flag routes correctly to both backends; (2) all portfolio and milestone subcommands work with remote backend (at least one test per subcommand group); (3) all 4 migrate sub-operations (status, diff, local-to-remote, remote-to-local) with CliRunner; (4) --dry-run, --on-conflict, --yes flag behavior on migration commands.",
       "acceptanceCriteria": [
         "--portfolio-backend local and --portfolio-backend remote route to correct backend in portfolio and milestone commands",
@@ -377,25 +377,28 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 15,
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-008",
         "US-009",
         "US-012",
         "US-013"
       ],
-      "notes": "Mock both backends at the AppContext/create_backend level. Use CliRunner(mix_stderr=False) for clean output assertions."
+      "notes": "Mock both backends at the AppContext/create_backend level. Use CliRunner(mix_stderr=False) for clean output assertions.",
+      "startedAt": "2026-03-24T14:46:33.285Z",
+      "updatedAt": "2026-03-24T14:54:12.000Z",
+      "completedAt": "2026-03-24T14:54:12.000Z"
     },
     {
       "id": "US-016",
-      "title": "Integration tests — plugin backend",
-      "description": "Integration tests against Docker Kanboard with the portfolio plugin installed. Extend docker-compose.test.yml to install the plugin. Full CRUD lifecycle for portfolios and milestones via the remote backend. Migration round-trip test (local→remote→local verifying data integrity).",
+      "title": "Integration tests \u2014 plugin backend",
+      "description": "Integration tests against Docker Kanboard with the portfolio plugin installed. Extend docker-compose.test.yml to install the plugin. Full CRUD lifecycle for portfolios and milestones via the remote backend. Migration round-trip test (local\u2192remote\u2192local verifying data integrity).",
       "acceptanceCriteria": [
         "docker-compose.test.yml extended to install kanboard-plugin-portfolio-management into the Kanboard container",
         "Integration tests for portfolio CRUD lifecycle: create, add projects, get, update, remove",
         "Integration tests for milestone CRUD lifecycle: create, add tasks, get progress, remove",
         "Integration tests for dependency query methods: get_portfolio_dependencies, get_blocked_tasks",
-        "Migration round-trip test: create local portfolio → migrate local-to-remote → migrate remote-to-local → verify local data matches original",
+        "Migration round-trip test: create local portfolio \u2192 migrate local-to-remote \u2192 migrate remote-to-local \u2192 verify local data matches original",
         "All tests marked @pytest.mark.integration",
         "ruff check passes, pytest passes"
       ],
@@ -412,7 +415,7 @@
     },
     {
       "id": "US-017",
-      "title": "Documentation — dual-backend orchestration",
+      "title": "Documentation \u2014 dual-backend orchestration",
       "description": "Update documentation across 6 files: docs/configuration.md (portfolio_backend key, env var, CLI flag), docs/cli-reference.md (portfolio migrate subcommand group, backend selection notes on portfolio and milestone), docs/sdk-guide.md (PortfoliosResource and MilestonesResource sections, backend selection via SDK), CLAUDE.md (portfolio_backend config, plugin resource modules, PluginPortfolio/PluginMilestone models, orchestration/backend.py), AGENTS.md (new resource modules in directory structure), README.md (update orchestration section to mention dual-backend and plugin integration).",
       "acceptanceCriteria": [
         "docs/configuration.md updated with portfolio_backend config key, KANBOARD_PORTFOLIO_BACKEND env var, --portfolio-backend CLI flag, and resolution order",
