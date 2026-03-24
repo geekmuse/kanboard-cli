@@ -716,6 +716,170 @@ def test_username_none_in_app_auth_mode(tmp_path: Path, monkeypatch: pytest.Monk
 
 
 # ---------------------------------------------------------------------------
+# KanboardConfig.resolve — portfolio_backend field
+# ---------------------------------------------------------------------------
+
+
+def _base_cfg_file(tmp_path: Path) -> Path:
+    """Write a minimal valid config file with url + token."""
+    return _write_toml(
+        tmp_path,
+        "[profiles.default]\nurl='http://kb/jsonrpc.php'\ntoken='tok'\n",
+    )
+
+
+def test_portfolio_backend_defaults_to_local(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """portfolio_backend defaults to 'local' when not configured anywhere."""
+    monkeypatch.delenv("KANBOARD_PORTFOLIO_BACKEND", raising=False)
+    config = KanboardConfig.resolve(config_file=_base_cfg_file(tmp_path))
+    assert config.portfolio_backend == "local"
+
+
+def test_portfolio_backend_from_toml_profile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """portfolio_backend is read from the TOML profile."""
+    monkeypatch.delenv("KANBOARD_PORTFOLIO_BACKEND", raising=False)
+    cfg_file = _write_toml(
+        tmp_path,
+        """
+[profiles.default]
+url = "http://kb/jsonrpc.php"
+token = "tok"
+portfolio_backend = "remote"
+""",
+    )
+    config = KanboardConfig.resolve(config_file=cfg_file)
+    assert config.portfolio_backend == "remote"
+
+
+def test_portfolio_backend_local_from_toml_profile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """portfolio_backend = 'local' is accepted from TOML profile."""
+    monkeypatch.delenv("KANBOARD_PORTFOLIO_BACKEND", raising=False)
+    cfg_file = _write_toml(
+        tmp_path,
+        """
+[profiles.default]
+url = "http://kb/jsonrpc.php"
+token = "tok"
+portfolio_backend = "local"
+""",
+    )
+    config = KanboardConfig.resolve(config_file=cfg_file)
+    assert config.portfolio_backend == "local"
+
+
+def test_portfolio_backend_env_var_overrides_toml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """KANBOARD_PORTFOLIO_BACKEND env var overrides the TOML profile value."""
+    monkeypatch.setenv("KANBOARD_PORTFOLIO_BACKEND", "remote")
+    cfg_file = _write_toml(
+        tmp_path,
+        """
+[profiles.default]
+url = "http://kb/jsonrpc.php"
+token = "tok"
+portfolio_backend = "local"
+""",
+    )
+    config = KanboardConfig.resolve(config_file=cfg_file)
+    assert config.portfolio_backend == "remote"
+
+
+def test_portfolio_backend_env_var_local(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """KANBOARD_PORTFOLIO_BACKEND=local is accepted."""
+    monkeypatch.setenv("KANBOARD_PORTFOLIO_BACKEND", "local")
+    config = KanboardConfig.resolve(config_file=_base_cfg_file(tmp_path))
+    assert config.portfolio_backend == "local"
+
+
+def test_portfolio_backend_cli_overrides_env_var(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """cli_portfolio_backend parameter overrides KANBOARD_PORTFOLIO_BACKEND env var."""
+    monkeypatch.setenv("KANBOARD_PORTFOLIO_BACKEND", "remote")
+    config = KanboardConfig.resolve(
+        cli_portfolio_backend="local",
+        config_file=_base_cfg_file(tmp_path),
+    )
+    assert config.portfolio_backend == "local"
+
+
+def test_portfolio_backend_cli_remote(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """cli_portfolio_backend='remote' is accepted."""
+    monkeypatch.delenv("KANBOARD_PORTFOLIO_BACKEND", raising=False)
+    config = KanboardConfig.resolve(
+        cli_portfolio_backend="remote",
+        config_file=_base_cfg_file(tmp_path),
+    )
+    assert config.portfolio_backend == "remote"
+
+
+def test_portfolio_backend_invalid_value_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """KanboardConfigError raised when portfolio_backend is not 'local' or 'remote'."""
+    monkeypatch.delenv("KANBOARD_PORTFOLIO_BACKEND", raising=False)
+    cfg_file = _write_toml(
+        tmp_path,
+        """
+[profiles.default]
+url = "http://kb/jsonrpc.php"
+token = "tok"
+portfolio_backend = "database"
+""",
+    )
+    with pytest.raises(KanboardConfigError) as exc_info:
+        KanboardConfig.resolve(config_file=cfg_file)
+    assert exc_info.value.field == "portfolio_backend"
+    assert "database" in str(exc_info.value)
+    assert "local" in str(exc_info.value)
+    assert "remote" in str(exc_info.value)
+
+
+def test_portfolio_backend_invalid_env_var_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """KanboardConfigError raised when KANBOARD_PORTFOLIO_BACKEND has an invalid value."""
+    monkeypatch.setenv("KANBOARD_PORTFOLIO_BACKEND", "s3")
+    with pytest.raises(KanboardConfigError) as exc_info:
+        KanboardConfig.resolve(config_file=_base_cfg_file(tmp_path))
+    assert exc_info.value.field == "portfolio_backend"
+    assert "s3" in str(exc_info.value)
+
+
+def test_portfolio_backend_invalid_cli_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """KanboardConfigError raised when cli_portfolio_backend has an invalid value."""
+    monkeypatch.delenv("KANBOARD_PORTFOLIO_BACKEND", raising=False)
+    with pytest.raises(KanboardConfigError) as exc_info:
+        KanboardConfig.resolve(
+            cli_portfolio_backend="invalid",
+            config_file=_base_cfg_file(tmp_path),
+        )
+    assert exc_info.value.field == "portfolio_backend"
+    assert "invalid" in str(exc_info.value)
+
+
+def test_portfolio_backend_error_message_actionable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Error message mentions env var and CLI flag for discoverability."""
+    monkeypatch.setenv("KANBOARD_PORTFOLIO_BACKEND", "wrong")
+    with pytest.raises(KanboardConfigError) as exc_info:
+        KanboardConfig.resolve(config_file=_base_cfg_file(tmp_path))
+    msg = str(exc_info.value)
+    assert "KANBOARD_PORTFOLIO_BACKEND" in msg
+    assert "--portfolio-backend" in msg
+
+
+# ---------------------------------------------------------------------------
 # Integration: re-exported from kanboard package
 # ---------------------------------------------------------------------------
 

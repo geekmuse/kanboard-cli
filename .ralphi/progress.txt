@@ -1,3 +1,24 @@
+## 2026-03-23 - US-004
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Added 5 dependency query methods to existing `src/kanboard/resources/portfolios.py`:
+  - `get_portfolio_dependencies(portfolio_id, **kwargs)` → `list[dict]`; returns [] on False/None; supports `cross_project_only` kwarg
+  - `get_blocked_tasks(portfolio_id)` → `list[dict]`; returns [] on False/None
+  - `get_blocking_tasks(portfolio_id)` → `list[dict]`; returns [] on False/None
+  - `get_portfolio_critical_path(portfolio_id)` → `list[dict]`; returns [] on False/None
+  - `get_portfolio_dependency_graph(portfolio_id, **kwargs)` → `dict`; returns {} on False/None; supports `cross_project_only` kwarg
+- Added 25 new unit tests in `tests/unit/resources/test_portfolios.py` (total grows from 48 to 73)
+- Methods placed in a new `# Dependency queries` section between task queries and overview sections
+- Files changed: `src/kanboard/resources/portfolios.py`, `tests/unit/resources/test_portfolios.py`
+- **Learnings for future iterations:**
+  - `ruff format` reformats even valid files — always run `ruff format .` after `ruff check .`
+  - All 5 methods follow existing list/dict patterns (`if not result: return []` for lists, `result or {}` for dicts)
+  - The dict-returning dependency graph method uses same `result or {}` fallback as `get_portfolio_task_count` and `get_portfolio_overview`
+---
+
 ## Codebase Patterns
 - **PortfoliosResource pattern**: Plugin API resources follow the same pattern as core resources (TYPE_CHECKING guard, _client.call(), typed returns). dict-returning methods (get_portfolio_projects, get_portfolio_tasks, get_portfolio_task_count, get_portfolio_overview) do NOT use PluginPortfolio.from_api() — they return raw dicts or {}. Use `result or {}` for dict fallback (not `if not result: return []`).
 - **get_portfolio_by_name raises on False**: Unlike typical list methods that return [] on False, name-lookup methods raise KanboardNotFoundError on both None AND False (per AC).

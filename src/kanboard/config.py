@@ -63,6 +63,9 @@ _ENV_OUTPUT_FORMAT = "KANBOARD_OUTPUT_FORMAT"
 _ENV_AUTH_MODE = "KANBOARD_AUTH_MODE"
 _ENV_USERNAME = "KANBOARD_USERNAME"
 _ENV_PASSWORD = "KANBOARD_PASSWORD"
+_ENV_PORTFOLIO_BACKEND = "KANBOARD_PORTFOLIO_BACKEND"
+
+_VALID_PORTFOLIO_BACKENDS = frozenset({"local", "remote"})
 
 
 def _load_toml(path: Path) -> dict[str, Any]:
@@ -115,6 +118,9 @@ class KanboardConfig:
             ``auth_mode`` is ``'user'``.
         password: Password or personal access token for User API
             authentication.  Required when ``auth_mode`` is ``'user'``.
+        portfolio_backend: The portfolio orchestration backend to use.  Either
+            ``'local'`` (default, uses the local JSON file store) or
+            ``'remote'`` (uses the Kanboard Portfolio Plugin API).
     """
 
     url: str
@@ -124,6 +130,7 @@ class KanboardConfig:
     auth_mode: str = "app"
     username: str | None = None
     password: str | None = None
+    portfolio_backend: str = "local"
 
     @classmethod
     def resolve(
@@ -136,6 +143,7 @@ class KanboardConfig:
         username: str | None = None,
         password: str | None = None,
         config_file: Path | None = None,
+        cli_portfolio_backend: str | None = None,
     ) -> KanboardConfig:
         """Resolve configuration from all available layers.
 
@@ -147,15 +155,16 @@ class KanboardConfig:
         4. Literal ``"default"``
 
         Field resolution order for ``url``, ``token``, ``output_format``,
-        ``auth_mode``, ``username``, and ``password``:
+        ``auth_mode``, ``username``, ``password``, and ``portfolio_backend``:
 
         1. CLI argument (parameter passed to this method)
         2. Environment variable (``KANBOARD_URL`` / ``KANBOARD_TOKEN`` /
            ``KANBOARD_OUTPUT_FORMAT`` / ``KANBOARD_AUTH_MODE`` /
-           ``KANBOARD_USERNAME`` / ``KANBOARD_PASSWORD``)
+           ``KANBOARD_USERNAME`` / ``KANBOARD_PASSWORD`` /
+           ``KANBOARD_PORTFOLIO_BACKEND``)
         3. Config file value for the active profile
         4. Built-in default (``"table"`` for ``output_format``;
-           ``"app"`` for ``auth_mode``)
+           ``"app"`` for ``auth_mode``; ``"local"`` for ``portfolio_backend``)
 
         Required fields depend on ``auth_mode``:
 
@@ -174,14 +183,18 @@ class KanboardConfig:
             password: Password for User API auth from a CLI flag, or ``None``.
             config_file: Path to the TOML config file.  Defaults to
                 :data:`CONFIG_FILE` when ``None``.
+            cli_portfolio_backend: Portfolio backend selection from a CLI flag
+                (``'local'`` or ``'remote'``), or ``None`` to fall back to env
+                var / config file / default.
 
         Returns:
             A fully resolved, frozen :class:`KanboardConfig` instance.
 
         Raises:
             KanboardConfigError: If required fields cannot be resolved from any
-                layer.  The error message includes actionable advice on how to
-                supply the missing value.
+                layer, or if ``portfolio_backend`` is not ``'local'`` or
+                ``'remote'``.  The error message includes actionable advice on
+                how to supply the missing value.
         """
         cfg_path = config_file if config_file is not None else CONFIG_FILE
         raw_cfg = _load_toml(cfg_path)
@@ -222,6 +235,13 @@ class KanboardConfig:
             password or os.environ.get(_ENV_PASSWORD) or profile_data.get("password")
         )
 
+        resolved_portfolio_backend: str = (
+            cli_portfolio_backend
+            or os.environ.get(_ENV_PORTFOLIO_BACKEND)
+            or profile_data.get("portfolio_backend")
+            or "local"
+        )
+
         # ── Required field validation ─────────────────────────────────────
         if not resolved_url:
             raise KanboardConfigError(
@@ -255,6 +275,15 @@ class KanboardConfig:
                     field="token",
                 )
 
+        if resolved_portfolio_backend not in _VALID_PORTFOLIO_BACKENDS:
+            raise KanboardConfigError(
+                f"Invalid portfolio_backend value '{resolved_portfolio_backend}'. "
+                "Must be 'local' or 'remote'. "
+                "Set it via --portfolio-backend, the KANBOARD_PORTFOLIO_BACKEND "
+                "environment variable, or 'portfolio_backend' in your config file profile.",
+                field="portfolio_backend",
+            )
+
         return cls(
             url=resolved_url,
             token=resolved_token or "",
@@ -263,6 +292,7 @@ class KanboardConfig:
             auth_mode=resolved_auth_mode,
             username=resolved_username,
             password=resolved_password,
+            portfolio_backend=resolved_portfolio_backend,
         )
 
 
