@@ -793,6 +793,180 @@ class DependencyEdge:
     is_resolved: bool
 
 
+# ---------------------------------------------------------------------------
+# Plugin models (Phase 1 — server-side portfolio plugin entities)
+#
+# These models map directly to Kanboard plugin JSON-RPC API responses.
+# They have from_api() classmethods because they ARE deserialized from
+# single plugin API responses.  Distinct from the Phase 0 orchestration
+# models above (Portfolio, Milestone, MilestoneProgress) which are
+# client-side composites without from_api().
+# ---------------------------------------------------------------------------
+
+
+@dataclasses.dataclass
+class PluginPortfolio:
+    """Server-side portfolio entity returned by the Kanboard Portfolio plugin.
+
+    Returned by ``createPortfolio``, ``getPortfolio``, ``getAllPortfolios``,
+    and related plugin endpoints.  Distinct from the client-side
+    :class:`Portfolio` orchestration model which has no ``from_api()``.
+
+    Attributes:
+        id: Server-assigned portfolio ID.
+        name: Unique portfolio name.
+        description: Human-readable description.
+        owner_id: ID of the portfolio owner user.
+        is_active: Whether the portfolio is active.
+        created_at: Timestamp when the portfolio was created.
+        updated_at: Timestamp of the last modification.
+    """
+
+    id: int
+    name: str
+    description: str
+    owner_id: int
+    is_active: bool
+    created_at: datetime | None
+    updated_at: datetime | None
+
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> PluginPortfolio:
+        """Construct a :class:`PluginPortfolio` from a raw plugin API response dict.
+
+        All integer fields are coerced via :func:`_int`, date fields via
+        :func:`_parse_date`, and missing keys are filled with sensible defaults.
+
+        Args:
+            data: Dictionary from a ``getPortfolio`` or ``getAllPortfolios`` response.
+
+        Returns:
+            A populated :class:`PluginPortfolio` instance.
+        """
+        return cls(
+            id=_int(data.get("id", 0)),
+            name=str(data.get("name", "")),
+            description=str(data.get("description", "")),
+            owner_id=_int(data.get("owner_id", 0)),
+            is_active=bool(_int(data.get("is_active", 1))),
+            created_at=_parse_date(data.get("created_at")),
+            updated_at=_parse_date(data.get("updated_at")),
+        )
+
+
+@dataclasses.dataclass
+class PluginMilestone:
+    """Server-side milestone entity returned by the Kanboard Portfolio plugin.
+
+    Returned by ``createMilestone``, ``getMilestone``, ``getPortfolioMilestones``,
+    and related plugin endpoints.  Distinct from the client-side
+    :class:`Milestone` orchestration model which has no ``from_api()``.
+
+    Attributes:
+        id: Server-assigned milestone ID.
+        portfolio_id: ID of the parent portfolio.
+        name: Human-readable milestone name.
+        description: Optional description.
+        target_date: Optional due date for the milestone.
+        status: Milestone status as an integer (plugin-defined values).
+        color_id: Optional color identifier string.
+        owner_id: ID of the milestone owner user.
+        created_at: Timestamp when the milestone was created.
+        updated_at: Timestamp of the last modification.
+    """
+
+    id: int
+    portfolio_id: int
+    name: str
+    description: str
+    target_date: datetime | None
+    status: int
+    color_id: str
+    owner_id: int
+    created_at: datetime | None
+    updated_at: datetime | None
+
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> PluginMilestone:
+        """Construct a :class:`PluginMilestone` from a raw plugin API response dict.
+
+        All integer fields are coerced via :func:`_int`, date fields via
+        :func:`_parse_date`, ``color_id`` defaults to empty string, and
+        missing keys are filled with sensible defaults.
+
+        Args:
+            data: Dictionary from a ``getMilestone`` or ``getPortfolioMilestones`` response.
+
+        Returns:
+            A populated :class:`PluginMilestone` instance.
+        """
+        return cls(
+            id=_int(data.get("id", 0)),
+            portfolio_id=_int(data.get("portfolio_id", 0)),
+            name=str(data.get("name", "")),
+            description=str(data.get("description", "")),
+            target_date=_parse_date(data.get("target_date")),
+            status=_int(data.get("status", 0)),
+            color_id=str(data.get("color_id", "")),
+            owner_id=_int(data.get("owner_id", 0)),
+            created_at=_parse_date(data.get("created_at")),
+            updated_at=_parse_date(data.get("updated_at")),
+        )
+
+
+@dataclasses.dataclass
+class PluginMilestoneProgress:
+    """Server-computed milestone progress returned by the Kanboard Portfolio plugin.
+
+    Returned by ``getMilestoneProgress``.  Represents server-side SQL-computed
+    progress rather than the client-side computation done by
+    :class:`~kanboard.orchestration.portfolio.PortfolioManager`.
+
+    Attributes:
+        milestone_id: ID of the milestone this progress belongs to.
+        total: Total number of tasks tracked by the milestone.
+        completed: Number of closed/completed tasks.
+        percent: Completion percentage (0.0-100.0).
+        is_at_risk: ``True`` when the milestone is behind schedule.
+        is_overdue: ``True`` when the milestone target date has passed.
+    """
+
+    milestone_id: int
+    total: int
+    completed: int
+    percent: float
+    is_at_risk: bool
+    is_overdue: bool
+
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> PluginMilestoneProgress:
+        """Construct a :class:`PluginMilestoneProgress` from a raw plugin API response dict.
+
+        Integer fields coerced via :func:`_int`, ``percent`` via ``float()``,
+        boolean flags via ``bool()``.
+
+        Args:
+            data: Dictionary from a ``getMilestoneProgress`` API response.
+
+        Returns:
+            A populated :class:`PluginMilestoneProgress` instance.
+        """
+        raw_percent = data.get("percent", 0.0)
+        try:
+            percent = float(raw_percent) if raw_percent is not None else 0.0
+        except (ValueError, TypeError):
+            percent = 0.0
+
+        return cls(
+            milestone_id=_int(data.get("milestone_id", 0)),
+            total=_int(data.get("total", 0)),
+            completed=_int(data.get("completed", 0)),
+            percent=percent,
+            is_at_risk=bool(data.get("is_at_risk", False)),
+            is_overdue=bool(data.get("is_overdue", False)),
+        )
+
+
 @dataclasses.dataclass
 class Action:
     """Represents a Kanboard automatic action returned by ``getActions`` and related endpoints.

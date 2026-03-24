@@ -15,6 +15,9 @@ from kanboard.models import (
     Link,
     Milestone,
     MilestoneProgress,
+    PluginMilestone,
+    PluginMilestoneProgress,
+    PluginPortfolio,
     Portfolio,
     Project,
     ProjectFile,
@@ -1116,6 +1119,235 @@ class TestDependencyEdge:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# PluginPortfolio tests (US-001)
+# ---------------------------------------------------------------------------
+
+_PLUGIN_PORTFOLIO_PAYLOAD = {
+    "id": "1",
+    "name": "Platform Team",
+    "description": "All platform projects",
+    "owner_id": "3",
+    "is_active": "1",
+    "created_at": "1710000000",
+    "updated_at": "1710100000",
+}
+
+
+class TestPluginPortfolio:
+    def test_from_api_basic(self):
+        pp = PluginPortfolio.from_api(_PLUGIN_PORTFOLIO_PAYLOAD)
+        assert pp.id == 1
+        assert pp.name == "Platform Team"
+        assert pp.description == "All platform projects"
+        assert pp.owner_id == 3
+        assert pp.is_active is True
+
+    def test_from_api_dates_parsed(self):
+        pp = PluginPortfolio.from_api(_PLUGIN_PORTFOLIO_PAYLOAD)
+        assert isinstance(pp.created_at, datetime)
+        assert pp.created_at == datetime.fromtimestamp(1710000000)
+        assert isinstance(pp.updated_at, datetime)
+        assert pp.updated_at == datetime.fromtimestamp(1710100000)
+
+    def test_from_api_is_active_false(self):
+        pp = PluginPortfolio.from_api({**_PLUGIN_PORTFOLIO_PAYLOAD, "is_active": "0"})
+        assert pp.is_active is False
+
+    def test_from_api_is_active_int_string_coercion(self):
+        pp = PluginPortfolio.from_api({**_PLUGIN_PORTFOLIO_PAYLOAD, "id": "42", "owner_id": "99"})
+        assert pp.id == 42
+        assert pp.owner_id == 99
+
+    def test_from_api_missing_dates_return_none(self):
+        data = {**_PLUGIN_PORTFOLIO_PAYLOAD, "created_at": None, "updated_at": "0"}
+        pp = PluginPortfolio.from_api(data)
+        assert pp.created_at is None
+        assert pp.updated_at is None
+
+    def test_from_api_empty_dict_uses_defaults(self):
+        pp = PluginPortfolio.from_api({})
+        assert pp.id == 0
+        assert pp.name == ""
+        assert pp.description == ""
+        assert pp.owner_id == 0
+        assert pp.is_active is True  # default is_active=1
+        assert pp.created_at is None
+        assert pp.updated_at is None
+
+    def test_from_api_missing_description_defaults_empty(self):
+        data = {k: v for k, v in _PLUGIN_PORTFOLIO_PAYLOAD.items() if k != "description"}
+        pp = PluginPortfolio.from_api(data)
+        assert pp.description == ""
+
+    def test_has_from_api_classmethod(self):
+        assert hasattr(PluginPortfolio, "from_api")
+
+
+# ---------------------------------------------------------------------------
+# PluginMilestone tests (US-001)
+# ---------------------------------------------------------------------------
+
+_PLUGIN_MILESTONE_PAYLOAD = {
+    "id": "5",
+    "portfolio_id": "1",
+    "name": "v2.0 Release",
+    "description": "Major release milestone",
+    "target_date": "2024-12-31",
+    "status": "0",
+    "color_id": "blue",
+    "owner_id": "3",
+    "created_at": "1710000000",
+    "updated_at": "1710100000",
+}
+
+
+class TestPluginMilestone:
+    def test_from_api_basic(self):
+        pm = PluginMilestone.from_api(_PLUGIN_MILESTONE_PAYLOAD)
+        assert pm.id == 5
+        assert pm.portfolio_id == 1
+        assert pm.name == "v2.0 Release"
+        assert pm.description == "Major release milestone"
+        assert pm.status == 0
+        assert pm.color_id == "blue"
+        assert pm.owner_id == 3
+
+    def test_from_api_target_date_parsed(self):
+        pm = PluginMilestone.from_api(_PLUGIN_MILESTONE_PAYLOAD)
+        assert isinstance(pm.target_date, datetime)
+        assert pm.target_date == datetime(2024, 12, 31)
+
+    def test_from_api_target_date_unix_timestamp(self):
+        pm = PluginMilestone.from_api({**_PLUGIN_MILESTONE_PAYLOAD, "target_date": "1735689600"})
+        assert isinstance(pm.target_date, datetime)
+
+    def test_from_api_target_date_none(self):
+        pm = PluginMilestone.from_api({**_PLUGIN_MILESTONE_PAYLOAD, "target_date": None})
+        assert pm.target_date is None
+
+    def test_from_api_target_date_zero_string(self):
+        pm = PluginMilestone.from_api({**_PLUGIN_MILESTONE_PAYLOAD, "target_date": "0"})
+        assert pm.target_date is None
+
+    def test_from_api_created_at_updated_at_dates(self):
+        pm = PluginMilestone.from_api(_PLUGIN_MILESTONE_PAYLOAD)
+        assert isinstance(pm.created_at, datetime)
+        assert pm.created_at == datetime.fromtimestamp(1710000000)
+        assert isinstance(pm.updated_at, datetime)
+
+    def test_from_api_int_coercions(self):
+        data = {**_PLUGIN_MILESTONE_PAYLOAD, "status": "2", "portfolio_id": "10"}
+        pm = PluginMilestone.from_api(data)
+        assert pm.status == 2
+        assert pm.portfolio_id == 10
+
+    def test_from_api_color_id_default_empty_string(self):
+        data = {k: v for k, v in _PLUGIN_MILESTONE_PAYLOAD.items() if k != "color_id"}
+        pm = PluginMilestone.from_api(data)
+        assert pm.color_id == ""
+
+    def test_from_api_color_id_null_becomes_empty_string(self):
+        pm = PluginMilestone.from_api({**_PLUGIN_MILESTONE_PAYLOAD, "color_id": None})
+        assert pm.color_id == "None"  # str(None) == "None" — plugin should send ""
+
+    def test_from_api_empty_dict_uses_defaults(self):
+        pm = PluginMilestone.from_api({})
+        assert pm.id == 0
+        assert pm.portfolio_id == 0
+        assert pm.name == ""
+        assert pm.description == ""
+        assert pm.target_date is None
+        assert pm.status == 0
+        assert pm.color_id == ""
+        assert pm.owner_id == 0
+        assert pm.created_at is None
+        assert pm.updated_at is None
+
+    def test_has_from_api_classmethod(self):
+        assert hasattr(PluginMilestone, "from_api")
+
+
+# ---------------------------------------------------------------------------
+# PluginMilestoneProgress tests (US-001)
+# ---------------------------------------------------------------------------
+
+_PLUGIN_PROGRESS_PAYLOAD = {
+    "milestone_id": "5",
+    "total": "10",
+    "completed": "4",
+    "percent": "40.0",
+    "is_at_risk": True,
+    "is_overdue": False,
+}
+
+
+class TestPluginMilestoneProgress:
+    def test_from_api_basic(self):
+        prog = PluginMilestoneProgress.from_api(_PLUGIN_PROGRESS_PAYLOAD)
+        assert prog.milestone_id == 5
+        assert prog.total == 10
+        assert prog.completed == 4
+        assert prog.percent == pytest.approx(40.0)
+        assert prog.is_at_risk is True
+        assert prog.is_overdue is False
+
+    def test_from_api_int_coercions(self):
+        prog = PluginMilestoneProgress.from_api(
+            {**_PLUGIN_PROGRESS_PAYLOAD, "milestone_id": "99", "total": "50", "completed": "25"}
+        )
+        assert prog.milestone_id == 99
+        assert prog.total == 50
+        assert prog.completed == 25
+
+    def test_from_api_percent_float_from_int(self):
+        prog = PluginMilestoneProgress.from_api({**_PLUGIN_PROGRESS_PAYLOAD, "percent": 75})
+        assert prog.percent == pytest.approx(75.0)
+
+    def test_from_api_percent_float_from_string(self):
+        prog = PluginMilestoneProgress.from_api({**_PLUGIN_PROGRESS_PAYLOAD, "percent": "33.33"})
+        assert prog.percent == pytest.approx(33.33)
+
+    def test_from_api_percent_none_becomes_zero(self):
+        prog = PluginMilestoneProgress.from_api({**_PLUGIN_PROGRESS_PAYLOAD, "percent": None})
+        assert prog.percent == pytest.approx(0.0)
+
+    def test_from_api_percent_invalid_becomes_zero(self):
+        prog = PluginMilestoneProgress.from_api({**_PLUGIN_PROGRESS_PAYLOAD, "percent": "n/a"})
+        assert prog.percent == pytest.approx(0.0)
+
+    def test_from_api_bool_flags_false(self):
+        prog = PluginMilestoneProgress.from_api(
+            {**_PLUGIN_PROGRESS_PAYLOAD, "is_at_risk": False, "is_overdue": False}
+        )
+        assert prog.is_at_risk is False
+        assert prog.is_overdue is False
+
+    def test_from_api_bool_flags_truthy_int(self):
+        prog = PluginMilestoneProgress.from_api(
+            {**_PLUGIN_PROGRESS_PAYLOAD, "is_at_risk": 1, "is_overdue": 1}
+        )
+        assert prog.is_at_risk is True
+        assert prog.is_overdue is True
+
+    def test_from_api_empty_dict_uses_defaults(self):
+        prog = PluginMilestoneProgress.from_api({})
+        assert prog.milestone_id == 0
+        assert prog.total == 0
+        assert prog.completed == 0
+        assert prog.percent == pytest.approx(0.0)
+        assert prog.is_at_risk is False
+        assert prog.is_overdue is False
+
+    def test_has_from_api_classmethod(self):
+        assert hasattr(PluginMilestoneProgress, "from_api")
+
+
+# ---------------------------------------------------------------------------
+# Re-export from kanboard package
+# ---------------------------------------------------------------------------
+
+
 class TestReExports:
     def test_all_models_importable_from_kanboard(self):
         import kanboard
@@ -1142,6 +1374,10 @@ class TestReExports:
             "Milestone",
             "MilestoneProgress",
             "Portfolio",
+            # Plugin models (US-001)
+            "PluginMilestone",
+            "PluginMilestoneProgress",
+            "PluginPortfolio",
         )
         for name in names:
             assert hasattr(kanboard, name), f"{name} not exported from kanboard"
@@ -1150,4 +1386,10 @@ class TestReExports:
         import kanboard
 
         for name in ("DependencyEdge", "Milestone", "MilestoneProgress", "Portfolio"):
+            assert name in kanboard.__all__, f"{name} missing from kanboard.__all__"
+
+    def test_plugin_models_in_all(self):
+        import kanboard
+
+        for name in ("PluginMilestone", "PluginMilestoneProgress", "PluginPortfolio"):
             assert name in kanboard.__all__, f"{name} missing from kanboard.__all__"
