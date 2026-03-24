@@ -56,8 +56,8 @@
       ],
       "notes": "13 methods total. The resource follows the exact same pattern as TasksResource, ProjectsResource, etc. Dependency query methods (5) are added in a separate story.",
       "startedAt": "2026-03-24T03:07:21.275Z",
-      "updatedAt": "2026-03-24T03:30:00.000Z",
-      "completedAt": "2026-03-24T03:30:00.000Z"
+      "updatedAt": "2026-03-24T03:14:42.080Z",
+      "completedAt": "2026-03-24T03:14:42.080Z"
     },
     {
       "id": "US-003",
@@ -82,11 +82,14 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 3,
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-001"
       ],
-      "notes": "10 methods. getMilestoneProgress returns PluginMilestoneProgress (server-computed, not client-computed like the Phase 0 MilestoneProgress)."
+      "notes": "10 methods. getMilestoneProgress returns PluginMilestoneProgress (server-computed, not client-computed like the Phase 0 MilestoneProgress).",
+      "startedAt": "2026-03-24T03:14:42.691Z",
+      "updatedAt": "2026-03-24T03:22:00.000Z",
+      "completedAt": "2026-03-24T03:22:00.000Z"
     },
     {
       "id": "US-004",

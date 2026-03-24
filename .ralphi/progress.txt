@@ -8,6 +8,25 @@
 - **Ruff RUF002**: Use ASCII hyphen-minus `-` in docstrings for ranges (0.0-100.0), not en-dash `–`.
 ---
 
+## 2026-03-24 - US-003
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/milestones.py` with all 10 plugin API methods
+- Methods: create_milestone, get_milestone, get_portfolio_milestones, update_milestone, remove_milestone, add_task_to_milestone, remove_task_from_milestone, get_milestone_tasks, get_task_milestones, get_milestone_progress
+- Wired `MilestonesResource` into `KanboardClient` as `self.milestones`
+- Exported `MilestonesResource` from `src/kanboard/__init__.py` (sorted after MilestoneProgress in __all__)
+- Added 39 unit tests in `tests/unit/resources/test_milestones.py` covering success, API error, not-found, empty/None/False for every method
+- `get_milestone_progress()` raises `KanboardNotFoundError` with `resource="PluginMilestoneProgress"` on None
+- Files changed: `src/kanboard/resources/milestones.py`, `src/kanboard/client.py`, `src/kanboard/__init__.py`, `tests/unit/resources/test_milestones.py`
+- **Learnings for future iterations:**
+  - `ruff format` may reformat new files even when `ruff check` passes — always run format after check (same gotcha as US-002)
+  - dict-returning task/progress methods follow the same `result or {}` / `if not result: return []` patterns as PortfoliosResource
+  - `add_task_to_milestone` raises KanboardAPIError on False (same as add_project_to_portfolio); remove_task_from_milestone just returns bool (no raise)
+---
+
 ## PRD Run Context
 PRD Branch: ralph/phase-1-dual-backend-orchestration
 Started: 2026-03-24T02:50:05.636Z
