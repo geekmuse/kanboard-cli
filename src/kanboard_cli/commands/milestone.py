@@ -2,10 +2,19 @@
 
 Subcommands: list, show, create, remove, add-task, remove-task, progress.
 
-Milestones are stored locally in ``~/.config/kanboard/portfolios.json`` via
-:class:`~kanboard.orchestration.store.LocalPortfolioStore`.  Progress is
-computed live from the Kanboard API via
-:class:`~kanboard.orchestration.portfolio.PortfolioManager`.
+Milestones are stored and retrieved via a configurable backend:
+
+- **local** (default): ``~/.config/kanboard/portfolios.json`` via
+  :class:`~kanboard.orchestration.store.LocalPortfolioStore`.
+- **remote**: Kanboard Portfolio Management plugin API via
+  :class:`~kanboard.orchestration.backend.RemotePortfolioBackend`.
+
+Select the backend with ``--portfolio-backend local|remote`` (CLI flag),
+``KANBOARD_PORTFOLIO_BACKEND`` (env var), or ``portfolio_backend`` (config TOML key).
+
+Progress is computed live from the Kanboard API via
+:class:`~kanboard.orchestration.portfolio.PortfolioManager` (local) or the
+plugin's ``getMilestoneProgress`` endpoint (remote).
 """
 
 from __future__ import annotations
@@ -20,6 +29,7 @@ from kanboard.exceptions import (
     KanboardAPIError,
     KanboardConfigError,
     KanboardConnectionError,
+    KanboardNotFoundError,
 )
 from kanboard_cli.formatters import format_output, format_success
 
@@ -51,12 +61,64 @@ def _get_store() -> LocalPortfolioStore:
     return LocalPortfolioStore()
 
 
-def _get_manager(app_ctx: AppContext, store: LocalPortfolioStore) -> PortfolioManager:
+def _get_backend(app_ctx: AppContext) -> Any:
+    """Return the configured portfolio backend.
+
+    Reads ``app_ctx.config.portfolio_backend`` to select the backend:
+
+    - ``"local"`` (default): :class:`~kanboard.orchestration.store.LocalPortfolioStore`
+    - ``"remote"``: :class:`~kanboard.orchestration.backend.RemotePortfolioBackend`
+
+    For the local backend this delegates to :func:`_get_store`, which means
+    tests that patch ``_get_store`` continue to work without modification.
+
+    Args:
+        app_ctx: The current application context.
+
+    Returns:
+        A backend instance satisfying the
+        :class:`~kanboard.orchestration.backend.PortfolioBackend` protocol.
+
+    Raises:
+        click.ClickException: Remote backend requested but no client configured.
+    """
+    backend_type = "local"
+    if app_ctx.config is not None:
+        backend_type = app_ctx.config.portfolio_backend
+
+    if backend_type == "remote":
+        if app_ctx.client is None:
+            raise click.ClickException(
+                "Remote portfolio backend requires Kanboard configuration. "
+                "Run 'kanboard config init'."
+            )
+        from kanboard.orchestration.backend import create_backend
+
+        return create_backend("remote", client=app_ctx.client)
+
+    # Local backend — delegate to _get_store so existing test patches still work.
+    return _get_store()
+
+
+def _is_remote_backend(app_ctx: AppContext) -> bool:
+    """Return ``True`` when the configured portfolio backend is ``"remote"``.
+
+    Args:
+        app_ctx: The current application context.
+
+    Returns:
+        ``True`` if ``portfolio_backend == "remote"``, ``False`` otherwise.
+    """
+    return bool(app_ctx.config and app_ctx.config.portfolio_backend == "remote")
+
+
+def _get_manager(app_ctx: AppContext, backend: Any) -> PortfolioManager:
     """Instantiate PortfolioManager, raising ClickException if no client configured.
 
     Args:
         app_ctx: The current application context.
-        store: The local portfolio store instance.
+        backend: The portfolio backend (local store or remote adapter) used as
+            the data source for portfolio/milestone metadata lookups.
 
     Returns:
         A ready-to-use :class:`~kanboard.orchestration.portfolio.PortfolioManager`.
@@ -68,7 +130,7 @@ def _get_manager(app_ctx: AppContext, store: LocalPortfolioStore) -> PortfolioMa
 
     if app_ctx.client is None:
         raise click.ClickException("No Kanboard configuration found. Run 'kanboard config init'.")
-    return PortfolioManager(app_ctx.client, store)
+    return PortfolioManager(app_ctx.client, backend)  # type: ignore[arg-type]
 
 
 def _parse_target_date(date_str: str | None) -> datetime | None:
@@ -119,12 +181,13 @@ def milestone_list(ctx: click.Context, portfolio_name: str) -> None:
     Examples:
         kanboard milestone list "My Portfolio"
         kanboard --output json milestone list "My Portfolio"
+        kanboard --portfolio-backend remote milestone list "My Portfolio"
     """
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
+    backend = _get_backend(app_ctx)
     try:
-        portfolio_obj = store.get_portfolio(portfolio_name)
-    except KanboardConfigError as exc:
+        portfolio_obj = backend.get_portfolio(portfolio_name)
+    except (KanboardConfigError, KanboardNotFoundError) as exc:
         raise click.ClickException(str(exc)) from exc
 
     rows: list[dict[str, Any]] = [
@@ -157,16 +220,17 @@ def milestone_show(ctx: click.Context, portfolio_name: str, milestone_name: str)
     \b
     Examples:
         kanboard milestone show "My Portfolio" "Sprint 1"
+        kanboard --portfolio-backend remote milestone show "My Portfolio" "Sprint 1"
     """
     from kanboard_cli.renderers import render_milestone_progress
 
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
+    backend = _get_backend(app_ctx)
 
-    # Verify the portfolio and milestone exist in the store.
+    # Verify the portfolio and milestone exist in the backend.
     try:
-        portfolio_obj = store.get_portfolio(portfolio_name)
-    except KanboardConfigError as exc:
+        portfolio_obj = backend.get_portfolio(portfolio_name)
+    except (KanboardConfigError, KanboardNotFoundError) as exc:
         raise click.ClickException(str(exc)) from exc
 
     milestone_obj = next(
@@ -181,7 +245,7 @@ def milestone_show(ctx: click.Context, portfolio_name: str, milestone_name: str)
     # Try to fetch live progress from the API.
     if app_ctx.client is not None:
         try:
-            manager = _get_manager(app_ctx, store)
+            manager = _get_manager(app_ctx, backend)
             progress = manager.get_milestone_progress(portfolio_name, milestone_name)
             click.echo(render_milestone_progress(progress, use_color=False), nl=False)
             if progress.total > 0:
@@ -241,13 +305,14 @@ def milestone_create(
     Examples:
         kanboard milestone create "My Portfolio" "Sprint 1"
         kanboard milestone create "My Portfolio" "Q2 Release" --target-date 2026-06-30
+        kanboard --portfolio-backend remote milestone create "My Portfolio" "Sprint 1"
     """
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
+    backend = _get_backend(app_ctx)
     parsed_date = _parse_target_date(target_date)
     try:
-        store.add_milestone(portfolio_name, milestone_name, target_date=parsed_date)
-    except KanboardConfigError as exc:
+        backend.add_milestone(portfolio_name, milestone_name, target_date=parsed_date)
+    except (KanboardConfigError, KanboardNotFoundError, KanboardAPIError) as exc:
         raise click.ClickException(str(exc)) from exc
     except ValueError as exc:
         raise click.ClickException(str(exc)) from exc
@@ -280,12 +345,13 @@ def milestone_remove(
 ) -> None:
     r"""Remove MILESTONE_NAME from PORTFOLIO_NAME.
 
-    Performs best-effort task metadata cleanup in Kanboard when a client is
-    configured.  Requires ``--yes`` to confirm.
+    For the local backend, performs best-effort task metadata cleanup in
+    Kanboard when a client is configured.  Requires ``--yes`` to confirm.
 
     \b
     Examples:
         kanboard milestone remove "My Portfolio" "Sprint 1" --yes
+        kanboard --portfolio-backend remote milestone remove "My Portfolio" "Sprint 1" --yes
     """
     if not yes:
         click.confirm(
@@ -295,11 +361,11 @@ def milestone_remove(
         )
 
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
+    backend = _get_backend(app_ctx)
 
     try:
-        removed = store.remove_milestone(portfolio_name, milestone_name)
-    except KanboardConfigError as exc:
+        removed = backend.remove_milestone(portfolio_name, milestone_name)
+    except (KanboardConfigError, KanboardNotFoundError) as exc:
         raise click.ClickException(str(exc)) from exc
 
     if not removed:
@@ -307,13 +373,13 @@ def milestone_remove(
             f"Milestone '{milestone_name}' not found in portfolio '{portfolio_name}'."
         )
 
-    # Best-effort metadata cleanup: re-sync portfolio metadata so the removed
-    # milestone is no longer referenced in task/project metadata.
-    if app_ctx.client is not None:
+    # Best-effort metadata cleanup for local backend only.  The remote backend
+    # manages its own server-side data and does not need client-side sync.
+    if not _is_remote_backend(app_ctx) and app_ctx.client is not None:
         try:
             from kanboard.orchestration.portfolio import PortfolioManager
 
-            manager = PortfolioManager(app_ctx.client, store)
+            manager = PortfolioManager(app_ctx.client, backend)  # type: ignore[arg-type]
             manager.sync_metadata(portfolio_name)
         except Exception as exc:
             logger.debug(
@@ -361,14 +427,15 @@ def milestone_add_task(
     Examples:
         kanboard milestone add-task "My Portfolio" "Sprint 1" 42
         kanboard milestone add-task "My Portfolio" "Sprint 1" 42 --critical
+        kanboard --portfolio-backend remote milestone add-task "My Portfolio" "Sprint 1" 42
     """
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
+    backend = _get_backend(app_ctx)
 
     # Load portfolio to validate task project membership.
     try:
-        portfolio_obj = store.get_portfolio(portfolio_name)
-    except KanboardConfigError as exc:
+        portfolio_obj = backend.get_portfolio(portfolio_name)
+    except (KanboardConfigError, KanboardNotFoundError) as exc:
         raise click.ClickException(str(exc)) from exc
 
     # Validate task exists and belongs to a portfolio project.
@@ -386,8 +453,8 @@ def milestone_add_task(
             )
 
     try:
-        store.add_task_to_milestone(portfolio_name, milestone_name, task_id, critical=critical)
-    except KanboardConfigError as exc:
+        backend.add_task_to_milestone(portfolio_name, milestone_name, task_id, critical=critical)
+    except (KanboardConfigError, KanboardNotFoundError, KanboardAPIError) as exc:
         raise click.ClickException(str(exc)) from exc
 
     label = " (critical)" if critical else ""
@@ -427,6 +494,7 @@ def milestone_remove_task(
     \b
     Examples:
         kanboard milestone remove-task "My Portfolio" "Sprint 1" 42 --yes
+        kanboard --portfolio-backend remote milestone remove-task "My Portfolio" "Sprint 1" 42 --yes
     """
     if not yes:
         click.confirm(
@@ -435,11 +503,11 @@ def milestone_remove_task(
         )
 
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
+    backend = _get_backend(app_ctx)
 
     try:
-        store.remove_task_from_milestone(portfolio_name, milestone_name, task_id)
-    except KanboardConfigError as exc:
+        backend.remove_task_from_milestone(portfolio_name, milestone_name, task_id)
+    except (KanboardConfigError, KanboardNotFoundError) as exc:
         raise click.ClickException(str(exc)) from exc
 
     format_success(
@@ -467,16 +535,75 @@ def milestone_progress(
     With MILESTONE_NAME, shows a single milestone detail view.  Without it,
     shows progress bars for all milestones in the portfolio.
 
+    For the **local** backend, progress is computed client-side from live task
+    data via :class:`~kanboard.orchestration.portfolio.PortfolioManager`.
+
+    For the **remote** backend, delegates to the plugin's server-side
+    ``getMilestoneProgress`` endpoint.
+
     \b
     Examples:
         kanboard milestone progress "My Portfolio"
         kanboard milestone progress "My Portfolio" "Sprint 1"
+        kanboard --portfolio-backend remote milestone progress "My Portfolio"
+        kanboard --portfolio-backend remote milestone progress "My Portfolio" "Sprint 1"
     """
     from kanboard_cli.renderers import render_milestone_progress
 
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
-    manager = _get_manager(app_ctx, store)
+
+    # ------------------------------------------------------------------
+    # Remote path — server-side getMilestoneProgress
+    # ------------------------------------------------------------------
+    if _is_remote_backend(app_ctx):
+        if app_ctx.client is None:  # pragma: no cover — _get_backend ensures this
+            raise click.ClickException(
+                "Remote portfolio backend requires Kanboard configuration. "
+                "Run 'kanboard config init'."
+            )
+        try:
+            plugin_pf = app_ctx.client.portfolios.get_portfolio_by_name(portfolio_name)
+        except KanboardNotFoundError as exc:
+            raise click.ClickException(str(exc)) from exc
+
+        plugin_milestones = app_ctx.client.milestones.get_portfolio_milestones(plugin_pf.id)
+
+        if milestone_name is not None:
+            plugin_milestones = [m for m in plugin_milestones if m.name == milestone_name]
+            if not plugin_milestones:
+                raise click.ClickException(
+                    f"Milestone '{milestone_name}' not found in portfolio '{portfolio_name}'."
+                )
+
+        if not plugin_milestones:
+            click.echo("No milestones found.")
+            return
+
+        from kanboard.models import MilestoneProgress
+
+        for plugin_ms in plugin_milestones:
+            try:
+                plugin_prog = app_ctx.client.milestones.get_milestone_progress(plugin_ms.id)
+            except (KanboardAPIError, KanboardConnectionError) as exc:
+                raise click.ClickException(str(exc)) from exc
+            progress = MilestoneProgress(
+                milestone_name=plugin_ms.name,
+                portfolio_name=portfolio_name,
+                target_date=plugin_ms.target_date,
+                total=plugin_prog.total,
+                completed=plugin_prog.completed,
+                percent=plugin_prog.percent,
+                is_at_risk=plugin_prog.is_at_risk,
+                is_overdue=plugin_prog.is_overdue,
+            )
+            click.echo(render_milestone_progress(progress, use_color=False), nl=False)
+        return
+
+    # ------------------------------------------------------------------
+    # Local path — client-side PortfolioManager
+    # ------------------------------------------------------------------
+    backend = _get_backend(app_ctx)
+    manager = _get_manager(app_ctx, backend)
 
     try:
         if milestone_name is not None:

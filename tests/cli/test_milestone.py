@@ -1,4 +1,4 @@
-"""CLI tests for ``kanboard milestone`` subcommands (US-008)."""
+"""CLI tests for ``kanboard milestone`` subcommands (US-008, US-009)."""
 
 from __future__ import annotations
 
@@ -968,3 +968,337 @@ def test_milestone_progress_api_error(
 
     assert result.exit_code != 0
     assert "Error" in result.output or "error" in result.output.lower()
+
+
+# ===========================================================================
+# Remote backend tests (US-009)
+# ===========================================================================
+
+
+@pytest.fixture()
+def mock_remote_config() -> KanboardConfig:
+    """Return a minimal resolved config with portfolio_backend='remote'."""
+    return KanboardConfig(
+        url="http://kanboard.test/jsonrpc.php",
+        token="test-token",
+        profile="default",
+        output_format="table",
+        portfolio_backend="remote",
+    )
+
+
+@pytest.fixture()
+def mock_remote_backend() -> MagicMock:
+    """Return a MagicMock remote portfolio backend."""
+    return MagicMock()
+
+
+def _invoke_remote(
+    runner: CliRunner,
+    remote_config: KanboardConfig,
+    mock_client: MagicMock,
+    args: list[str],
+    mock_backend: MagicMock | None = None,
+    input: str | None = None,
+) -> object:
+    """Invoke CLI with remote backend config.
+
+    Patches KanboardConfig.resolve to return *remote_config* (portfolio_backend='remote').
+    Optionally patches _get_backend to return *mock_backend* for commands that call it.
+    The ``milestone progress`` remote path calls ``client.milestones`` directly and
+    does not need mock_backend.
+    """
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch("kanboard_cli.main.KanboardConfig.resolve", return_value=remote_config)
+        )
+        stack.enter_context(patch("kanboard_cli.main.KanboardClient", return_value=mock_client))
+        if mock_backend is not None:
+            stack.enter_context(
+                patch(
+                    "kanboard_cli.commands.milestone._get_backend",
+                    return_value=mock_backend,
+                )
+            )
+        return runner.invoke(cli, args, input=input)
+
+
+# ---------------------------------------------------------------------------
+# milestone list — remote
+# ---------------------------------------------------------------------------
+
+
+def test_milestone_list_remote_backend(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_remote_backend: MagicMock,
+) -> None:
+    """``milestone list`` with remote backend calls backend.get_portfolio()."""
+    ms = _make_milestone(task_ids=[1, 2], critical_task_ids=[1])
+    mock_remote_backend.get_portfolio.return_value = _make_portfolio(milestones=[ms])
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["milestone", "list", "Test Portfolio"],
+        mock_backend=mock_remote_backend,
+    )
+    assert result.exit_code == 0
+    assert "Sprint 1" in result.output
+    mock_remote_backend.get_portfolio.assert_called_once_with("Test Portfolio")
+
+
+def test_milestone_list_remote_json(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_remote_backend: MagicMock,
+) -> None:
+    """``milestone list --output json`` with remote backend returns JSON array."""
+    ms = _make_milestone(task_ids=[1, 2], critical_task_ids=[1])
+    mock_remote_backend.get_portfolio.return_value = _make_portfolio(milestones=[ms])
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["--output", "json", "milestone", "list", "Test Portfolio"],
+        mock_backend=mock_remote_backend,
+    )
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert isinstance(data, list)
+    assert data[0]["name"] == "Sprint 1"
+    assert data[0]["task_count"] == 2
+
+
+# ---------------------------------------------------------------------------
+# milestone create — remote
+# ---------------------------------------------------------------------------
+
+
+def test_milestone_create_remote_backend(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_remote_backend: MagicMock,
+) -> None:
+    """``milestone create`` with remote backend calls backend.add_milestone()."""
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["milestone", "create", "Test Portfolio", "Q3 Release"],
+        mock_backend=mock_remote_backend,
+    )
+    assert result.exit_code == 0
+    assert "Q3 Release" in result.output
+    mock_remote_backend.add_milestone.assert_called_once_with(
+        "Test Portfolio", "Q3 Release", target_date=None
+    )
+
+
+def test_milestone_create_remote_with_date(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_remote_backend: MagicMock,
+) -> None:
+    """``milestone create --target-date`` with remote backend passes date to backend."""
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        [
+            "milestone",
+            "create",
+            "Test Portfolio",
+            "Sprint 1",
+            "--target-date",
+            "2026-09-15",
+        ],
+        mock_backend=mock_remote_backend,
+    )
+    assert result.exit_code == 0
+    call_args = mock_remote_backend.add_milestone.call_args
+    assert call_args[1]["target_date"] == datetime(2026, 9, 15)
+
+
+# ---------------------------------------------------------------------------
+# milestone remove — remote
+# ---------------------------------------------------------------------------
+
+
+def test_milestone_remove_remote_backend(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_remote_backend: MagicMock,
+) -> None:
+    """``milestone remove --yes`` with remote backend calls backend.remove_milestone()."""
+    mock_remote_backend.remove_milestone.return_value = True
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["milestone", "remove", "Test Portfolio", "Sprint 1", "--yes"],
+        mock_backend=mock_remote_backend,
+    )
+    assert result.exit_code == 0
+    assert "removed" in result.output
+    mock_remote_backend.remove_milestone.assert_called_once_with("Test Portfolio", "Sprint 1")
+
+
+def test_milestone_remove_remote_skips_metadata_sync(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_remote_backend: MagicMock,
+) -> None:
+    """``milestone remove`` with remote backend does NOT call PortfolioManager.sync_metadata."""
+    mock_remote_backend.remove_milestone.return_value = True
+    with patch("kanboard.orchestration.portfolio.PortfolioManager") as mock_pm_class:
+        result = _invoke_remote(
+            runner,
+            mock_remote_config,
+            mock_client,
+            ["milestone", "remove", "Test Portfolio", "Sprint 1", "--yes"],
+            mock_backend=mock_remote_backend,
+        )
+    assert result.exit_code == 0
+    mock_pm_class.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# milestone progress — remote
+# ---------------------------------------------------------------------------
+
+
+def test_milestone_progress_remote_single(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``milestone progress <portfolio> <milestone>`` with remote backend calls plugin API."""
+    # Set up plugin portfolio stub
+    plugin_pf = MagicMock()
+    plugin_pf.id = 1
+    mock_client.portfolios.get_portfolio_by_name.return_value = plugin_pf
+
+    # Set up plugin milestone stub
+    plugin_ms = MagicMock()
+    plugin_ms.id = 10
+    plugin_ms.name = "Sprint 1"
+    plugin_ms.target_date = datetime(2026, 6, 30)
+    mock_client.milestones.get_portfolio_milestones.return_value = [plugin_ms]
+
+    # Set up plugin progress stub
+    plugin_prog = MagicMock()
+    plugin_prog.total = 10
+    plugin_prog.completed = 5
+    plugin_prog.percent = 50.0
+    plugin_prog.is_at_risk = False
+    plugin_prog.is_overdue = False
+    mock_client.milestones.get_milestone_progress.return_value = plugin_prog
+
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["milestone", "progress", "Test Portfolio", "Sprint 1"],
+    )
+    assert result.exit_code == 0
+    assert "Sprint 1" in result.output
+    mock_client.portfolios.get_portfolio_by_name.assert_called_once_with("Test Portfolio")
+    mock_client.milestones.get_portfolio_milestones.assert_called_once_with(1)
+    mock_client.milestones.get_milestone_progress.assert_called_once_with(10)
+
+
+def test_milestone_progress_remote_all(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``milestone progress <portfolio>`` with remote backend returns all milestone bars."""
+    plugin_pf = MagicMock()
+    plugin_pf.id = 2
+    mock_client.portfolios.get_portfolio_by_name.return_value = plugin_pf
+
+    ms1 = MagicMock()
+    ms1.id = 11
+    ms1.name = "Sprint 1"
+    ms1.target_date = datetime(2026, 6, 30)
+    ms2 = MagicMock()
+    ms2.id = 12
+    ms2.name = "Sprint 2"
+    ms2.target_date = None
+    mock_client.milestones.get_portfolio_milestones.return_value = [ms1, ms2]
+
+    prog1 = MagicMock()
+    prog1.total = 8
+    prog1.completed = 4
+    prog1.percent = 50.0
+    prog1.is_at_risk = False
+    prog1.is_overdue = False
+
+    prog2 = MagicMock()
+    prog2.total = 6
+    prog2.completed = 6
+    prog2.percent = 100.0
+    prog2.is_at_risk = False
+    prog2.is_overdue = False
+
+    mock_client.milestones.get_milestone_progress.side_effect = [prog1, prog2]
+
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["milestone", "progress", "Test Portfolio"],
+    )
+    assert result.exit_code == 0
+    assert "Sprint 1" in result.output
+    assert "Sprint 2" in result.output
+    assert mock_client.milestones.get_milestone_progress.call_count == 2
+
+
+def test_milestone_progress_remote_no_milestones(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``milestone progress`` with remote backend and empty portfolio prints no-milestones."""
+    plugin_pf = MagicMock()
+    plugin_pf.id = 3
+    mock_client.portfolios.get_portfolio_by_name.return_value = plugin_pf
+    mock_client.milestones.get_portfolio_milestones.return_value = []
+
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["milestone", "progress", "Test Portfolio"],
+    )
+    assert result.exit_code == 0
+    assert "No milestones" in result.output
+
+
+def test_milestone_progress_remote_milestone_not_found(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``milestone progress`` with remote backend shows error when named milestone absent."""
+    plugin_pf = MagicMock()
+    plugin_pf.id = 4
+    mock_client.portfolios.get_portfolio_by_name.return_value = plugin_pf
+    mock_client.milestones.get_portfolio_milestones.return_value = []
+
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["milestone", "progress", "Test Portfolio", "Ghost Milestone"],
+    )
+    assert result.exit_code != 0
+    assert "Ghost Milestone" in result.output
