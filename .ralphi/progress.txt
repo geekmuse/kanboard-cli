@@ -39,6 +39,31 @@ Corrective Plan: N/A
   - `_VALID_PORTFOLIO_BACKENDS` is a module-level `frozenset` — a clean pattern for future enum-like string validations
 ---
 
+## 2026-03-24 - US-007
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Added `--portfolio-backend` Click option to root `cli` group in `src/kanboard_cli/main.py`:
+  - `type=click.Choice(['local', 'remote'], case_sensitive=False)`, `default=None`
+  - Also wired `envvar="KANBOARD_PORTFOLIO_BACKEND"` so the env var path is respected by Click validation too
+  - Added `portfolio_backend: str | None` parameter to `cli()` function
+- Passed `cli_portfolio_backend=portfolio_backend` to `KanboardConfig.resolve()` — resolved value stored in `AppContext.config.portfolio_backend`
+- Added 7 new CLI tests in `tests/cli/test_main.py`:
+  - `test_help_shows_portfolio_backend_option` — `--help` output contains `--portfolio-backend`
+  - `test_portfolio_backend_choice_valid[local/remote]` — both choices accepted, passed to resolve
+  - `test_portfolio_backend_choice_invalid` — unknown value rejected with `Invalid value`
+  - `test_portfolio_backend_none_by_default` — omitted flag passes `None` to resolve
+  - `test_portfolio_backend_remote_passed_to_resolve` — `--portfolio-backend remote` wires through
+  - `test_portfolio_backend_local_passed_to_resolve` — `--portfolio-backend local` wires through
+- Files changed: `src/kanboard_cli/main.py`, `tests/cli/test_main.py`
+- **Learnings for future iterations:**
+  - `--help` short-circuits before the CLI function body runs — cannot use `--help` to verify that `resolve()` was called. Use a custom `@cli.command(...)` stub as existing tests do.
+  - Ruff `format` may rejoin multi-line docstrings back to one line if the result ≤ 100 chars — just shorten the docstring text instead of using a line break.
+  - Adding `envvar=` to the Click option for `--portfolio-backend` is safe (Click's `case_sensitive=False` still applies); both Click and `KanboardConfig.resolve()` honour the env var independently.
+---
+
 ## Codebase Patterns
 - **PortfoliosResource pattern**: Plugin API resources follow the same pattern as core resources (TYPE_CHECKING guard, _client.call(), typed returns). dict-returning methods (get_portfolio_projects, get_portfolio_tasks, get_portfolio_task_count, get_portfolio_overview) do NOT use PluginPortfolio.from_api() — they return raw dicts or {}. Use `result or {}` for dict fallback (not `if not result: return []`).
 - **get_portfolio_by_name raises on False**: Unlike typical list methods that return [] on False, name-lookup methods raise KanboardNotFoundError on both None AND False (per AC).
