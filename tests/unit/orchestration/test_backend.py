@@ -834,3 +834,34 @@ class TestPluginDetection:
 
         assert exc_info.value.field == "portfolio_backend"
         assert "kanboard-plugin-portfolio-management" in str(exc_info.value)
+
+    def test_ensure_cached_false_raises_without_reprobe(self) -> None:
+        """_ensure_plugin_detected() raises immediately when cached as False (non-load path)."""
+        backend, mock_p, _ = _make_remote_backend()
+        # Prime cache as not-detected via load()
+        mock_p.get_all_portfolios.side_effect = KanboardAPIError("nope", code=-32601)
+        with pytest.raises(KanboardConfigError):
+            backend.load()
+        assert backend._plugin_detected is False
+
+        # Now call a non-load method — must hit _ensure_plugin_detected() line 388
+        with pytest.raises(KanboardConfigError) as exc_info:
+            backend.get_portfolio("Alpha")
+
+        assert exc_info.value.field == "portfolio_backend"
+        # get_all_portfolios was NOT called again (cached result used)
+        assert mock_p.get_all_portfolios.call_count == 1
+
+    def test_ensure_non_32601_api_error_propagates_via_ensure(self) -> None:
+        """_ensure_plugin_detected() re-raises non-32601 errors and does not cache."""
+        backend, mock_p, _ = _make_remote_backend()
+        # Non-32601 error during the probe from a non-load method
+        mock_p.get_all_portfolios.side_effect = KanboardAPIError("auth failed", code=-32600)
+
+        with pytest.raises(KanboardAPIError) as exc_info:
+            backend.get_portfolio("Alpha")
+
+        assert exc_info.value.code == -32600
+        # Detection state stays None — not cached
+        assert backend._plugin_detected is None
+        assert mock_p.get_all_portfolios.call_count == 1
