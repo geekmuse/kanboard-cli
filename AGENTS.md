@@ -52,29 +52,36 @@ src/
 ├── kanboard/                # SDK package (import kanboard)
 │   ├── __init__.py          # Public API: KanboardClient, exceptions, models, orchestration
 │   ├── client.py            # JSON-RPC transport (call, batch)
-│   ├── config.py            # Layered config resolution
+│   ├── config.py            # Layered config resolution (incl. portfolio_backend field)
 │   ├── exceptions.py        # Typed exception hierarchy
 │   ├── models.py            # Dataclass models (resources use from_api(); orchestration models do not)
-│   ├── resources/           # 24 modules, one per API category
+│   │                        # Plugin models: PluginPortfolio, PluginMilestone, PluginMilestoneProgress
+│   ├── resources/           # 26 modules, one per API category
+│   │   ├── portfolios.py    # PortfoliosResource — 18 plugin API methods (13 CRUD + 5 dependency queries)
+│   │   ├── milestones.py    # MilestonesResource — 10 plugin API methods
+│   │   └── [24 other modules]
 │   └── orchestration/       # Cross-project orchestration (opt-in subpackage, NOT a resource)
-│       ├── __init__.py      # Exports: DependencyAnalyzer, LocalPortfolioStore, PortfolioManager
+│       ├── __init__.py      # Exports: DependencyAnalyzer, LocalPortfolioStore, PortfolioManager,
+│       │                    #          PortfolioBackend, RemotePortfolioBackend, create_backend
 │       ├── portfolio.py     # PortfolioManager — multi-project aggregation, milestone progress
 │       ├── dependencies.py  # DependencyAnalyzer — graph traversal, critical path
-│       └── store.py         # LocalPortfolioStore — JSON persistence
+│       ├── store.py         # LocalPortfolioStore — JSON persistence
+│       └── backend.py       # PortfolioBackend Protocol, RemotePortfolioBackend adapter, create_backend()
 └── kanboard_cli/            # CLI package
-    ├── main.py              # Click root group, global options
+    ├── main.py              # Click root group, global options (incl. --portfolio-backend)
     ├── formatters.py        # table/json/csv/quiet renderers
     ├── renderers.py         # ASCII dependency graph, progress bars, portfolio summary
     ├── workflow_loader.py   # Plugin discovery
     ├── commands/            # One module per CLI command group
-    │   ├── portfolio.py     # 12 subcommands for portfolio + dependency analysis
+    │   ├── portfolio.py     # 12 CRUD/query subcommands + migrate group (status/diff/local-to-remote/remote-to-local)
     │   └── milestone.py     # 7 subcommands for cross-project milestone management
     └── workflows/base.py    # BaseWorkflow ABC
 tests/
 ├── unit/                    # Mocked httpx tests
-│   └── orchestration/       # Orchestration unit tests (conftest + test_store, test_portfolio, test_dependencies)
+│   ├── resources/           # One test file per resource module (incl. test_portfolios.py, test_milestones.py)
+│   └── orchestration/       # Orchestration unit tests (conftest + test_store, test_portfolio, test_dependencies, test_backend)
 ├── cli/                     # CliRunner output tests
-└── integration/             # Docker lifecycle tests
+└── integration/             # Docker lifecycle tests (incl. test_plugin_backend.py)
 ```
 
 ## Testing

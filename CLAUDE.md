@@ -31,6 +31,8 @@ Python SDK (`import kanboard`) and Click-based CLI (`kanboard`) providing comple
 - **Auth:** Application API only (username `jsonrpc`, global token). User API auth (for `getMe*` etc.) deferred — raise `KanboardAuthError` until implemented
 - **JSON-RPC 2.0:** Single endpoint, HTTP Basic Auth, supports batch calls
 - **ADR-16: Orchestration is NOT a resource** — `kanboard.orchestration` is a separate subpackage; orchestration classes are NOT attached to `KanboardClient`. Callers instantiate `PortfolioManager(client, store)`, `DependencyAnalyzer(client)`, `LocalPortfolioStore()` directly.
+- **Dual-backend orchestration** — Phase 1 adds `RemotePortfolioBackend` (wraps `PortfoliosResource` + `MilestonesResource`) and `create_backend(backend_type, client=None)` factory. Both backends satisfy the `PortfolioBackend` typing.Protocol. Backend selected via `portfolio_backend` config key (`"local"` | `"remote"`).
+- **Plugin resources** — `kb.portfolios` (`PortfoliosResource`, 18 methods) and `kb.milestones` (`MilestonesResource`, 10 methods) wrap the [Kanboard Portfolio plugin](https://github.com/geekmuse/kanboard-plugin-portfolio-management) JSON-RPC API. Plugin detection probes on first call; raises `KanboardConfigError` with install instructions if absent.
 - See `docs/plan/01-architecture.md` for ADRs 1–15 and directory structure
 - See `docs/design/cross-project-orchestration.md` for the orchestration research, architecture, and Phase 0/1 roadmap
 
@@ -40,30 +42,36 @@ Python SDK (`import kanboard`) and Click-based CLI (`kanboard`) providing comple
 src/kanboard/                    # SDK (importable library)
   __init__.py                    # Public API: KanboardClient, exceptions, models, orchestration
   client.py                      # JSON-RPC transport (call, batch, context manager)
-  config.py                      # KanboardConfig dataclass with resolve() classmethod
+  config.py                      # KanboardConfig dataclass with resolve() (incl. portfolio_backend)
   exceptions.py                  # Typed hierarchy (see below)
   models.py                      # Dataclasses: Task, Project, Column, Swimlane, etc.
-  resources/                     # 24 modules, one per API category
+                                 #   + Plugin models: PluginPortfolio, PluginMilestone, PluginMilestoneProgress
+  resources/                     # 26 modules, one per API category
+    portfolios.py                # PortfoliosResource — 18 plugin API methods (13 CRUD + 5 dependency queries)
+    milestones.py                # MilestonesResource — 10 plugin API methods
+    [24 other resource modules]
   orchestration/                 # Cross-project orchestration subpackage (opt-in, NOT a resource)
-    __init__.py                  # Exports: DependencyAnalyzer, LocalPortfolioStore, PortfolioManager
+    __init__.py                  # Exports: DependencyAnalyzer, LocalPortfolioStore, PortfolioManager,
+                                 #          PortfolioBackend, RemotePortfolioBackend, create_backend
     portfolio.py                 # PortfolioManager — multi-project aggregation, milestone progress
     dependencies.py              # DependencyAnalyzer — graph traversal, critical path (Kahn's algo)
     store.py                     # LocalPortfolioStore — JSON persistence (~/.config/kanboard/portfolios.json)
+    backend.py                   # PortfolioBackend Protocol, RemotePortfolioBackend, create_backend()
 
 src/kanboard_cli/                # CLI (Click application)
-  main.py                        # Root click.Group, global options, config wiring
+  main.py                        # Root click.Group, global options (incl. --portfolio-backend), config wiring
   formatters.py                  # format_output() and format_success()
   renderers.py                   # ASCII dependency graph, progress bars, portfolio summary
   workflow_loader.py             # Plugin discovery from ~/.config/kanboard/workflows/
   commands/                      # One module per CLI command group
-    portfolio.py                 # 12 subcommands: list, show, create, remove, add-project, remove-project, tasks, sync, dependencies, blocked, blocking, critical-path
+    portfolio.py                 # 12 CRUD/query subcommands + migrate group (status/diff/local-to-remote/remote-to-local)
     milestone.py                 # 7 subcommands: list, show, create, remove, add-task, remove-task, progress
   workflows/base.py              # BaseWorkflow ABC
 
 tests/unit/                      # Mocked httpx tests
-  orchestration/                 # Orchestration unit tests (store, portfolio, dependencies)
+  orchestration/                 # Orchestration unit tests (store, portfolio, dependencies, backend)
 tests/cli/                       # CliRunner output tests
-tests/integration/               # Docker lifecycle tests
+tests/integration/               # Docker lifecycle tests (incl. plugin backend tests)
 ```
 
 ## Coding Conventions
@@ -115,8 +123,16 @@ ruff format src/ tests/    # Format
 
 - Config file: `~/.config/kanboard/config.toml`
 - Workflow plugins: `~/.config/kanboard/workflows/`
-- **Portfolio store:** `~/.config/kanboard/portfolios.json` (managed by `LocalPortfolioStore`)
+- **Portfolio store:** `~/.config/kanboard/portfolios.json` (managed by `LocalPortfolioStore`; used when `portfolio_backend = "local"`)
 - Constants exported from `kanboard.config`: `CONFIG_DIR`, `CONFIG_FILE`, `WORKFLOW_DIR`
+
+## Portfolio Backend Config
+
+| Config Key | Env Var | CLI Flag | Values | Default |
+|---|---|---|---|---|
+| `portfolio_backend` (TOML profile key) | `KANBOARD_PORTFOLIO_BACKEND` | `--portfolio-backend` | `"local"` or `"remote"` | `"local"` |
+
+Resolution order: `--portfolio-backend` CLI flag → `KANBOARD_PORTFOLIO_BACKEND` env var → `portfolio_backend` TOML profile key → `"local"` default.
 
 ## Orchestration Metadata Keys
 

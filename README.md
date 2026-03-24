@@ -34,21 +34,29 @@ Both are distributed as a single `kanboard-cli` package installable from PyPI.
 - **Layered configuration** — Config file → environment variables → CLI flags
 - **Workflow plugins** — Drop `.py` files into `~/.config/kanboard/workflows/` to add custom CLI commands
 - **Context manager support** — `KanboardClient` works with `with` statements for clean resource management
-- **Cross-project orchestration** — Portfolio management, cross-project milestones, dependency analysis, and critical-path computation as a client-side meta-construct (no server plugin required)
+- **Cross-project orchestration** — Portfolio management, cross-project milestones, dependency analysis, and critical-path computation with dual-backend support (local JSON file or server-side plugin API)
 
 ## Cross-Project Orchestration
 
-kanboard-cli ships a **Phase 0 orchestration layer** that treats multiple Kanboard projects as a unified portfolio — using only the existing Kanboard API (task links, metadata) as a persistence layer with no server-side plugin required.
+kanboard-cli ships a **dual-backend orchestration layer** that treats multiple Kanboard projects as a unified portfolio, with two interchangeable persistence backends.
 
 ### What it enables
 
 | Capability | Description |
 |---|---|
-| **Portfolio management** | Group multiple projects into a named portfolio stored locally in `~/.config/kanboard/portfolios.json` |
+| **Portfolio management** | Group multiple projects into a named portfolio; stored locally or via the plugin |
 | **Cross-project milestones** | Define milestones that span tasks from multiple projects; track percent-complete and at-risk status |
 | **Dependency analysis** | Discover cross-project `blocks`/`is blocked by` relationships; detect blocked and blocking tasks |
 | **Critical path** | Compute the longest dependency chain (topological sort) across all portfolio tasks |
 | **Metadata sync** | Push portfolio and milestone membership into Kanboard project/task metadata using the `kanboard_cli:` key prefix |
+| **Backend migration** | Move data between local and remote backends with `portfolio migrate` |
+
+### Backends
+
+| Backend | Flag | Requires |
+|---|---|---|
+| Local JSON file | `--portfolio-backend local` (default) | No plugin; works with any standard Kanboard instance |
+| Plugin API | `--portfolio-backend remote` | [kanboard-plugin-portfolio-management](https://github.com/geekmuse/kanboard-plugin-portfolio-management) installed on your server |
 
 ### Quick example
 
@@ -95,11 +103,50 @@ with KanboardClient(url=URL, token=TOKEN) as kb:
     critical = analyzer.get_critical_path(tasks)
 ```
 
+### Backend migration
+
+```bash
+# Check current backend config and data counts
+kanboard portfolio migrate status
+
+# Preview migration without writing
+kanboard portfolio migrate local-to-remote --all --dry-run
+
+# Migrate all local portfolios to the remote plugin
+kanboard portfolio migrate local-to-remote --all
+
+# Pull all remote portfolios to local
+kanboard portfolio migrate remote-to-local --all
+
+# Compare local and remote state
+kanboard portfolio migrate diff --all
+```
+
+### SDK backend selection
+
+```python
+from kanboard import KanboardClient, create_backend
+from kanboard.orchestration import PortfolioManager
+
+with KanboardClient(url=URL, token=TOKEN) as kb:
+    # Local backend (default — no plugin required)
+    local_backend = create_backend("local")
+    manager = PortfolioManager(kb, local_backend)
+
+    # Remote backend (plugin required)
+    remote_backend = create_backend("remote", client=kb)
+    remote_manager = PortfolioManager(kb, remote_backend)
+
+    # Both managers expose the same API
+    tasks = manager.get_portfolio_tasks("Platform Launch")
+    tasks = remote_manager.get_portfolio_tasks("Platform Launch")
+```
+
 ### Server-side visualization (optional)
 
 For in-browser Kanboard UI features — including interactive dependency graphs, multi-project Gantt timelines, portfolio dashboards, and board-level blocking indicators — see the companion **[Kanboard Portfolio plugin](https://github.com/geekmuse/kanboard-plugin-portfolio-management)**.
 
-The CLI's `portfolio` and `milestone` commands work independently of the plugin, but the plugin provides the visual layer within Kanboard's web interface.
+The CLI's `portfolio` and `milestone` commands work independently of the plugin (using the local JSON backend by default), but the plugin provides both the visual layer within Kanboard's web interface and the `remote` backend for the CLI and SDK.
 
 See **[docs/sdk-guide.md#cross-project-orchestration](docs/sdk-guide.md#cross-project-orchestration)** and **[docs/cli-reference.md#portfolio](docs/cli-reference.md#portfolio)** for full reference documentation.
 
@@ -356,32 +403,43 @@ kanboard-cli/
 │   ├── kanboard/                   # SDK package (import kanboard)
 │   │   ├── __init__.py             # Public API surface
 │   │   ├── client.py               # JSON-RPC transport layer
-│   │   ├── config.py               # Layered configuration resolution
+│   │   ├── config.py               # Layered configuration resolution (incl. portfolio_backend)
 │   │   ├── exceptions.py           # Typed exception hierarchy
-│   │   ├── models.py               # Dataclass response models
-│   │   ├── resources/              # One module per API category (24 modules)
+│   │   ├── models.py               # Dataclass response models + plugin models
+│   │   ├── resources/              # 26 modules, one per API category
+│   │   │   ├── portfolios.py       # PortfoliosResource — plugin API (18 methods)
+│   │   │   ├── milestones.py       # MilestonesResource — plugin API (10 methods)
+│   │   │   └── [24 core modules]
 │   │   └── orchestration/          # Cross-project orchestration (opt-in)
-│   │       ├── __init__.py         # Exports: PortfolioManager, DependencyAnalyzer, LocalPortfolioStore
+│   │       ├── __init__.py         # Exports: PortfolioManager, DependencyAnalyzer, LocalPortfolioStore,
+│   │       │                       #          PortfolioBackend, RemotePortfolioBackend, create_backend
 │   │       ├── portfolio.py        # PortfolioManager — multi-project aggregation
 │   │       ├── dependencies.py     # DependencyAnalyzer — graph traversal, critical path
-│   │       └── store.py            # LocalPortfolioStore — JSON persistence
+│   │       ├── store.py            # LocalPortfolioStore — JSON persistence
+│   │       └── backend.py          # PortfolioBackend Protocol, RemotePortfolioBackend, create_backend()
 │   └── kanboard_cli/               # CLI package
-│       ├── main.py                 # Click app root, global options
+│       ├── main.py                 # Click app root, global options (incl. --portfolio-backend)
 │       ├── formatters.py           # Table / JSON / CSV / quiet renderers
 │       ├── renderers.py            # ASCII dependency graph, progress bar renderers
 │       ├── workflow_loader.py      # Plugin discovery and loading
 │       ├── commands/               # One module per CLI command group
+│       │   ├── portfolio.py        # Portfolio CRUD + dependency analysis + migrate subgroup
+│       │   └── milestone.py        # Cross-project milestone management
 │       └── workflows/
 │           └── base.py             # BaseWorkflow ABC
 ├── tests/
 │   ├── unit/                       # Mocked httpx tests
-│   │   └── orchestration/          # Orchestration unit tests
-│   ├── integration/                # Docker-based lifecycle tests
+│   │   ├── resources/              # One test file per resource module
+│   │   └── orchestration/          # Orchestration unit tests (incl. test_backend.py)
+│   ├── integration/                # Docker-based lifecycle tests (incl. test_plugin_backend.py)
 │   └── cli/                        # CliRunner output tests
 ├── docs/
 │   ├── plan/                       # Architecture and build plan
 │   ├── design/                     # Design documents and research
 │   └── tasks/                      # Per-task implementation notes
+├── docker/
+│   └── Dockerfile.kanboard-plugin-test   # Kanboard image with portfolio plugin pre-installed
+├── docker-compose.test.yml
 ├── pyproject.toml
 ├── Makefile
 ├── LICENSE

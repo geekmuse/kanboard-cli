@@ -32,16 +32,20 @@ The `kanboard` package provides a full-featured Python SDK for the
   - [Subtask Time Tracking](#subtask-time-tracking)
   - [Application Info](#application-info)
   - [Me (User API)](#me-user-api)
+  - [Portfolios Plugin Resource](#portfolios-plugin-resource)
+  - [Milestones Plugin Resource](#milestones-plugin-resource)
 - [Exception Handling](#exception-handling)
 - [Batch API](#batch-api)
 - [Low-Level `call()`](#low-level-call)
 - [Response Models](#response-models)
 - [Cross-Project Orchestration](#cross-project-orchestration)
   - [Overview](#overview)
+  - [Backend Selection](#backend-selection)
   - [LocalPortfolioStore](#localportfoliostore)
   - [PortfolioManager](#portfoliomanager)
   - [DependencyAnalyzer](#dependencyanalyzer)
   - [Orchestration Models](#orchestration-models)
+  - [Plugin Models](#plugin-models)
 
 ---
 
@@ -188,6 +192,8 @@ All resource methods are accessed through attributes of `KanboardClient`:
 | `kb.groups` | `GroupsResource` | User groups |
 | `kb.links` | `LinksResource` | Link type definitions |
 | `kb.me` | `MeResource` | Authenticated user (requires user auth) |
+| `kb.milestones` | `MilestonesResource` | Portfolio plugin milestone management *(requires plugin)* |
+| `kb.portfolios` | `PortfoliosResource` | Portfolio plugin portfolio management *(requires plugin)* |
 | `kb.project_files` | `ProjectFilesResource` | Project file attachments |
 | `kb.project_metadata` | `ProjectMetadataResource` | Project key-value metadata |
 | `kb.project_permissions` | `ProjectPermissionsResource` | Project user/group access |
@@ -715,6 +721,135 @@ with KanboardClient(
     project_id = kb.me.create_my_private_project("My Private Project")
 ```
 
+### Portfolios Plugin Resource
+
+> **Requires:** [kanboard-plugin-portfolio-management](https://github.com/geekmuse/kanboard-plugin-portfolio-management) installed on your Kanboard server.
+
+`kb.portfolios` exposes the 18 plugin JSON-RPC methods for server-side portfolio management (13 CRUD + 5 dependency queries). All methods return typed dataclass models (`PluginPortfolio`) or raw dicts for complex structures.
+
+```python
+from kanboard import KanboardClient, PluginPortfolio
+from kanboard.exceptions import KanboardNotFoundError, KanboardAPIError
+
+with KanboardClient(url=URL, token=TOKEN) as kb:
+    # --- Portfolio CRUD ---
+
+    # Create (returns new portfolio ID)
+    portfolio_id = kb.portfolios.create_portfolio(
+        name="Platform Launch",
+        description="Q3 release programme",
+        owner_id=1,
+    )
+
+    # Read
+    pf = kb.portfolios.get_portfolio(portfolio_id)          # -> PluginPortfolio
+    pf_by_name = kb.portfolios.get_portfolio_by_name("Platform Launch")
+    all_pfs = kb.portfolios.get_all_portfolios()            # -> list[PluginPortfolio]
+
+    # Update
+    kb.portfolios.update_portfolio(portfolio_id, description="Updated description")
+
+    # Project membership
+    kb.portfolios.add_project_to_portfolio(portfolio_id, project_id=1)
+    kb.portfolios.add_project_to_portfolio(portfolio_id, project_id=2)
+    projects = kb.portfolios.get_portfolio_projects(portfolio_id)  # list[dict]
+    memberships = kb.portfolios.get_project_portfolios(project_id=1)  # list[PluginPortfolio]
+    kb.portfolios.remove_project_from_portfolio(portfolio_id, project_id=2)
+
+    # Task aggregation
+    tasks = kb.portfolios.get_portfolio_tasks(portfolio_id, status_id=1)  # list[dict]
+    count = kb.portfolios.get_portfolio_task_count(portfolio_id)          # dict
+    overview = kb.portfolios.get_portfolio_overview(portfolio_id)         # dict
+
+    # --- Dependency queries (server-side SQL) ---
+
+    deps = kb.portfolios.get_portfolio_dependencies(portfolio_id)
+    deps_xp = kb.portfolios.get_portfolio_dependencies(portfolio_id, cross_project_only=True)
+    blocked = kb.portfolios.get_blocked_tasks(portfolio_id)    # list[dict]
+    blocking = kb.portfolios.get_blocking_tasks(portfolio_id)  # list[dict]
+    crit = kb.portfolios.get_portfolio_critical_path(portfolio_id)  # list[dict]
+    graph = kb.portfolios.get_portfolio_dependency_graph(portfolio_id)    # dict
+
+    # --- Cleanup ---
+    kb.portfolios.remove_portfolio(portfolio_id)
+```
+
+**Return conventions:**
+
+| Method | Returns | On error |
+|---|---|---|
+| `create_portfolio` | `int` (portfolio ID) | `KanboardAPIError` on `False` |
+| `get_portfolio` | `PluginPortfolio` | `KanboardNotFoundError` on `None` |
+| `get_portfolio_by_name` | `PluginPortfolio` | `KanboardNotFoundError` on `None` or `False` |
+| `get_all_portfolios` | `list[PluginPortfolio]` | `[]` on `False`/`None` |
+| `update_portfolio` | `bool` | `KanboardAPIError` on `False` |
+| `get_portfolio_projects` | `list[dict]` | `[]` on `False`/`None` |
+| `get_portfolio_tasks` | `list[dict]` | `[]` on `False`/`None` |
+| `get_portfolio_task_count` | `dict` | `{}` on `False`/`None` |
+| `get_portfolio_overview` | `dict` | `{}` on `False`/`None` |
+| `get_portfolio_dependency_graph` | `dict` | `{}` on `False`/`None` |
+| Dependency list methods | `list[dict]` | `[]` on `False`/`None` |
+
+---
+
+### Milestones Plugin Resource
+
+> **Requires:** [kanboard-plugin-portfolio-management](https://github.com/geekmuse/kanboard-plugin-portfolio-management) installed on your Kanboard server.
+
+`kb.milestones` exposes the 10 plugin JSON-RPC methods for server-side milestone management. Progress is computed server-side (unlike the client-side `PortfolioManager.get_milestone_progress()`).
+
+```python
+from kanboard import KanboardClient, PluginMilestone, PluginMilestoneProgress
+from kanboard.exceptions import KanboardNotFoundError, KanboardAPIError
+
+with KanboardClient(url=URL, token=TOKEN) as kb:
+    # Assume portfolio_id is already known (from kb.portfolios.create_portfolio or get_portfolio)
+    portfolio_id = 1
+
+    # Create milestone
+    milestone_id = kb.milestones.create_milestone(
+        portfolio_id=portfolio_id,
+        name="Beta Release",
+        target_date="2026-06-30",
+        description="First feature-complete release",
+    )
+
+    # Read
+    ms = kb.milestones.get_milestone(milestone_id)               # -> PluginMilestone
+    all_ms = kb.milestones.get_portfolio_milestones(portfolio_id)  # -> list[PluginMilestone]
+
+    # Update
+    kb.milestones.update_milestone(milestone_id, target_date="2026-07-15")
+
+    # Task membership
+    kb.milestones.add_task_to_milestone(milestone_id, task_id=42)
+    kb.milestones.add_task_to_milestone(milestone_id, task_id=99)
+    ms_tasks = kb.milestones.get_milestone_tasks(milestone_id)   # -> list[dict]
+    task_ms = kb.milestones.get_task_milestones(task_id=42)      # -> list[PluginMilestone]
+    kb.milestones.remove_task_from_milestone(milestone_id, task_id=42)
+
+    # Server-computed progress
+    progress = kb.milestones.get_milestone_progress(milestone_id)  # -> PluginMilestoneProgress
+    print(f"{progress.percent:.0f}% complete")
+    print(f"At risk: {progress.is_at_risk}, Overdue: {progress.is_overdue}")
+
+    # Cleanup
+    kb.milestones.remove_milestone(milestone_id)
+```
+
+**Return conventions:**
+
+| Method | Returns | On error |
+|---|---|---|
+| `create_milestone` | `int` (milestone ID) | `KanboardAPIError` on `False` |
+| `get_milestone` | `PluginMilestone` | `KanboardNotFoundError` on `None` |
+| `get_portfolio_milestones` | `list[PluginMilestone]` | `[]` on `False`/`None` |
+| `update_milestone` | `bool` | `KanboardAPIError` on `False` |
+| `add_task_to_milestone` | `bool` | `KanboardAPIError` on `False` |
+| `get_milestone_tasks` | `list[dict]` | `[]` on `False`/`None` |
+| `get_task_milestones` | `list[PluginMilestone]` | `[]` on `False`/`None` |
+| `get_milestone_progress` | `PluginMilestoneProgress` | `KanboardNotFoundError` on `None` |
+
 ---
 
 ## Exception Handling
@@ -900,11 +1035,14 @@ with KanboardClient(url=URL, token=TOKEN) as kb:
 
 ### Overview
 
-The `kanboard.orchestration` subpackage provides portfolio management, cross-project milestones, dependency analysis, and critical-path computation **without requiring any server-side plugin**. It uses the existing Kanboard task link and metadata APIs as a persistence layer.
+The `kanboard.orchestration` subpackage provides portfolio management, cross-project milestones, dependency analysis, and critical-path computation. It supports two interchangeable backends:
+
+| Backend | Class | Description |
+|---|---|---|
+| Local JSON | `LocalPortfolioStore` | Persists portfolios to `~/.config/kanboard/portfolios.json`. Works with any standard Kanboard instance — no plugin required. |
+| Remote plugin | `RemotePortfolioBackend` | Delegates to the [Kanboard Portfolio plugin](https://github.com/geekmuse/kanboard-plugin-portfolio-management) via JSON-RPC. Requires the plugin installed on your server. |
 
 **The orchestration classes are opt-in and not wired into `KanboardClient`.** Callers instantiate them separately, passing a `KanboardClient` as a constructor argument.
-
-> **Note:** The orchestration classes work with any standard Kanboard instance — no server-side plugin is required for core functionality. For additional server-side features (UI dashboards, interactive dependency graphs, Gantt timelines, and board-level blocking indicators), see the [Kanboard Portfolio plugin](https://github.com/geekmuse/kanboard-plugin-portfolio-management).
 
 ```python
 from kanboard import KanboardClient
@@ -912,10 +1050,69 @@ from kanboard.orchestration import (
     DependencyAnalyzer,
     LocalPortfolioStore,
     PortfolioManager,
+    RemotePortfolioBackend,
+    create_backend,
 )
 
-# All three are also re-exported from the top-level package:
-from kanboard import DependencyAnalyzer, LocalPortfolioStore, PortfolioManager
+# All exports are also available from the top-level package:
+from kanboard import (
+    DependencyAnalyzer,
+    LocalPortfolioStore,
+    PortfolioManager,
+    RemotePortfolioBackend,
+    create_backend,
+)
+```
+
+---
+
+### Backend Selection
+
+Use the `create_backend()` factory to select the backend at runtime, driven by configuration:
+
+```python
+from kanboard import KanboardClient, create_backend
+from kanboard.orchestration import PortfolioManager
+
+with KanboardClient(url=URL, token=TOKEN) as kb:
+    # Local backend (no plugin required)
+    local_backend = create_backend("local")
+
+    # Remote backend (plugin required)
+    remote_backend = create_backend("remote", client=kb)
+
+    # PortfolioManager works transparently with either backend
+    manager = PortfolioManager(kb, local_backend)
+    tasks = manager.get_portfolio_tasks("Platform Launch")
+
+    # Switch to remote — identical API
+    remote_manager = PortfolioManager(kb, remote_backend)
+    tasks = remote_manager.get_portfolio_tasks("Platform Launch")
+```
+
+**Driving backend selection from `KanboardConfig`:**
+
+```python
+from kanboard import KanboardClient
+from kanboard.config import KanboardConfig
+from kanboard.orchestration import PortfolioManager, create_backend
+
+config = KanboardConfig.resolve()
+# config.portfolio_backend is "local" or "remote"
+
+with KanboardClient(url=config.url, token=config.token) as kb:
+    backend = create_backend(config.portfolio_backend, client=kb)
+    manager = PortfolioManager(kb, backend)
+```
+
+The `PortfolioBackend` protocol defines the interface that both `LocalPortfolioStore` and `RemotePortfolioBackend` satisfy:
+
+```python
+from kanboard.orchestration import PortfolioBackend
+
+# Type-check backend conformance at runtime
+from kanboard import LocalPortfolioStore, RemotePortfolioBackend
+assert isinstance(LocalPortfolioStore(), PortfolioBackend)    # True
 ```
 
 ---
@@ -1108,3 +1305,21 @@ from kanboard import Portfolio, Milestone, MilestoneProgress, DependencyEdge
 | `DependencyEdge` | `task_id`, `task_title`, `task_project_id`, `task_project_name`, `opposite_task_id`, `opposite_task_title`, `opposite_task_project_id`, `opposite_task_project_name`, `link_label`, `is_cross_project`, `is_resolved` |
 
 All four models are **mutable** (no `frozen=True`) to support in-place editing before saving to the store.
+
+---
+
+### Plugin Models
+
+When using the remote backend or calling `kb.portfolios` / `kb.milestones` directly, the API returns three additional typed dataclass models. Unlike the orchestration models above, these **do** have `from_api()` classmethods (they are server-side entities, not client-side constructs).
+
+```python
+from kanboard import PluginPortfolio, PluginMilestone, PluginMilestoneProgress
+```
+
+| Model | Key Fields |
+|---|---|
+| `PluginPortfolio` | `id`, `name`, `description`, `owner_id`, `is_active`, `created_at`, `updated_at` |
+| `PluginMilestone` | `id`, `portfolio_id`, `name`, `description`, `target_date`, `status`, `color_id`, `owner_id`, `created_at`, `updated_at` |
+| `PluginMilestoneProgress` | `milestone_id`, `total`, `completed`, `percent` (float), `is_at_risk`, `is_overdue` |
+
+These models are returned by `PortfoliosResource` and `MilestonesResource` methods. The `RemotePortfolioBackend` internally converts `PluginPortfolio` + `PluginMilestone` into the orchestration-layer `Portfolio` and `Milestone` models so that `PortfolioManager` can work with either backend transparently.

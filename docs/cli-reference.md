@@ -53,6 +53,7 @@ kanboard [GLOBAL OPTIONS] COMMAND [ARGS]...
 | `--output FORMAT` | `-o` | | `table` | Output format: `table`, `json`, `csv`, `quiet` |
 | `--verbose` | `-v` | | off | Enable DEBUG-level logging |
 | `--auth-mode MODE` | | `KANBOARD_AUTH_MODE` | `app` | Auth mode: `app` (token) or `user` (username+password) |
+| `--portfolio-backend BACKEND` | | `KANBOARD_PORTFOLIO_BACKEND` | `local` | Portfolio storage backend: `local` (JSON file) or `remote` (plugin API) |
 | `--version` | | | | Print the CLI version and exit |
 | `--help` / `-h` | | | | Show help and exit |
 
@@ -1102,27 +1103,34 @@ See the main [README](../README.md) for workflow plugin development details.
 
 ### portfolio
 
-Cross-project portfolio management, task aggregation, dependency analysis, and critical-path computation.
-Portfolio state is stored locally in `~/.config/kanboard/portfolios.json` — no server-side plugin is required.
+Cross-project portfolio management, task aggregation, dependency analysis, critical-path computation, and bidirectional migration between local and plugin backends.
+
+Portfolio data can be stored in either of two backends, selected via the `--portfolio-backend` global flag, `KANBOARD_PORTFOLIO_BACKEND` env var, or the `portfolio_backend` TOML profile key:
+
+| Backend | Value | Notes |
+|---|---|---|
+| Local JSON file | `local` (default) | No plugin required; stored in `~/.config/kanboard/portfolios.json` |
+| Plugin API | `remote` | Requires [kanboard-plugin-portfolio-management](https://github.com/geekmuse/kanboard-plugin-portfolio-management) installed on your server |
 
 ```
-kanboard portfolio SUBCOMMAND [ARGS]...
+kanboard [--portfolio-backend local|remote] portfolio SUBCOMMAND [ARGS]...
 ```
 
 | Subcommand | Description |
 |---|---|
 | `portfolio list` | List all portfolios (name, description, project count, milestone count) |
 | `portfolio show NAME` | Portfolio dashboard: summary, milestone progress bars, at-risk items |
-| `portfolio create NAME [--description TEXT]` | Create a new portfolio in the local store |
-| `portfolio remove NAME --yes` | Delete a portfolio from the local store (best-effort metadata cleanup) |
+| `portfolio create NAME [--description TEXT]` | Create a new portfolio |
+| `portfolio remove NAME --yes` | Delete a portfolio (best-effort metadata cleanup for local backend) |
 | `portfolio add-project NAME PROJECT_ID` | Add a project to a portfolio (validates project exists via API) |
 | `portfolio remove-project NAME PROJECT_ID --yes` | Remove a project from a portfolio |
 | `portfolio tasks NAME [--status active\|closed] [--project ID] [--assignee ID]` | List all tasks across all portfolio projects |
-| `portfolio sync NAME` | Push portfolio/milestone metadata to Kanboard project and task metadata |
+| `portfolio sync NAME` | Push portfolio/milestone metadata to Kanboard (no-op for remote backend) |
 | `portfolio dependencies NAME [--cross-project-only] [--format graph\|table\|json]` | Visualise task dependency graph |
 | `portfolio blocked NAME` | List cross-project tasks blocked by unresolved dependencies |
 | `portfolio blocking NAME` | List cross-project open tasks that are blocking others |
 | `portfolio critical-path NAME` | Numbered list of the longest dependency chain; marks the bottleneck task |
+| `portfolio migrate SUBCOMMAND` | Migrate data between local and remote backends (see below) |
 
 #### Portfolio list
 
@@ -1253,7 +1261,119 @@ kanboard portfolio critical-path "Platform Launch"
 
 # Sync to Kanboard metadata (for external tool integration)
 kanboard portfolio sync "Platform Launch"
+
+# Use the remote backend (requires plugin)
+kanboard --portfolio-backend remote portfolio list
+kanboard --portfolio-backend remote portfolio show "Platform Launch"
 ```
+
+---
+
+#### Portfolio migrate
+
+Migrate portfolio data between the local JSON file and the remote plugin backend.
+
+```
+kanboard portfolio migrate SUBCOMMAND [ARGS]...
+```
+
+| Subcommand | Description |
+|---|---|
+| `portfolio migrate status` | Show active backend config, local and remote data counts, plugin detection result |
+| `portfolio migrate diff [NAME] [--all]` | Compare local and remote state for a portfolio (or all portfolios) |
+| `portfolio migrate local-to-remote [NAME] [--all] [--dry-run] [--on-conflict MODE] [--yes]` | Push local portfolio(s) to the remote plugin backend |
+| `portfolio migrate remote-to-local [NAME] [--all] [--dry-run] [--on-conflict MODE] [--yes]` | Pull remote portfolio(s) into the local JSON file |
+
+**Conflict resolution modes** (`--on-conflict`):
+
+| Mode | Default | Behaviour |
+|---|---|---|
+| `fail` | ✓ | Raise an error when the same-named portfolio already exists on the target side |
+| `skip` | | Skip the conflicting portfolio and continue (`--all` mode) |
+| `overwrite` | | Remove the existing portfolio on the target side and recreate (requires `--yes`) |
+
+##### `migrate status`
+
+```bash
+kanboard portfolio migrate status
+```
+
+Example output:
+
+```
+Backend Configuration
+  Active backend : local
+  Config source  : default
+
+Local Store  (~/.config/kanboard/portfolios.json)
+  Portfolios : 2
+  Milestones : 4
+  Tasks      : 23
+
+Remote (Plugin API)
+  Plugin detected : Yes
+  Portfolios      : 1
+  Milestones      : 2
+```
+
+##### `migrate diff`
+
+```bash
+# Single portfolio diff
+kanboard portfolio migrate diff "Platform Launch"
+
+# All portfolios
+kanboard portfolio migrate diff --all
+
+# JSON output
+kanboard --output json portfolio migrate diff --all
+```
+
+The diff table shows each portfolio's projects, milestones, and task assignments with a `status` column: `both`, `local only`, or `remote only`.
+
+##### `migrate local-to-remote`
+
+```bash
+# Migrate one portfolio (fail on conflict)
+kanboard portfolio migrate local-to-remote "Platform Launch"
+
+# Migrate all, skip conflicts
+kanboard portfolio migrate local-to-remote --all --on-conflict skip
+
+# Preview without executing
+kanboard portfolio migrate local-to-remote --all --dry-run
+
+# Overwrite existing remote portfolio (requires --yes)
+kanboard portfolio migrate local-to-remote "Platform Launch" \
+    --on-conflict overwrite --yes
+```
+
+Progress output:
+
+```
+Creating portfolio 'Platform Launch'...
+  Adding project #1
+  Adding project #2
+  Creating milestone 'Beta Release'
+    Adding task #42 to milestone 'Beta Release'
+    Adding task #99 to milestone 'Beta Release'
+Migrated 1 portfolios (0 failed).
+```
+
+##### `migrate remote-to-local`
+
+```bash
+# Migrate one portfolio from plugin to local file
+kanboard portfolio migrate remote-to-local "Platform Launch"
+
+# Migrate all remote portfolios, overwrite conflicts
+kanboard portfolio migrate remote-to-local --all --on-conflict overwrite --yes
+
+# Dry-run (remote reads ARE made to show what would be written)
+kanboard portfolio migrate remote-to-local "Platform Launch" --dry-run
+```
+
+> **Note:** For `remote-to-local`, `--dry-run` still makes read-only API calls to the remote backend (so meaningful output can be shown). No local writes are performed.
 
 ---
 
@@ -1261,8 +1381,10 @@ kanboard portfolio sync "Platform Launch"
 
 Cross-project milestone management. Milestones group tasks from multiple projects and track completion, at-risk status, and overdue state.
 
+All `milestone` subcommands respect the `--portfolio-backend` flag and automatically use the correct backend (local JSON or remote plugin API) for milestone CRUD and progress computation. When `portfolio_backend = "remote"`, milestone progress is served by the plugin's `getMilestoneProgress` server-side method rather than the client-side computation used by the local backend.
+
 ```
-kanboard milestone SUBCOMMAND [ARGS]...
+kanboard [--portfolio-backend local|remote] milestone SUBCOMMAND [ARGS]...
 ```
 
 | Subcommand | Description |
