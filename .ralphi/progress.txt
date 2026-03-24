@@ -209,6 +209,32 @@ Corrective Plan: N/A
   - `pytest --cov=kanboard.orchestration.backend` (not `src/kanboard/orchestration/backend`) is the correct coverage measurement path for this project layout
 ---
 
+## 2026-03-23 - US-016
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `docker/Dockerfile.kanboard-plugin-test` — extends `kanboard/kanboard:latest`, installs `git` via `apk`, and clones the portfolio plugin into `/var/www/app/plugins/PortfolioManagement`; uses `|| echo "..."` for graceful failure if repo is unavailable
+- Updated `docker-compose.test.yml` — changed `image:` to `build:` pointing at the new Dockerfile; updated comments to reflect plugin-aware build
+- Added `cleanup_portfolio_ids` fixture to `tests/integration/conftest.py` — uses `kanboard_client.portfolios.remove_portfolio(id)` directly (not the backend adapter); scoped to function; safe to add to main conftest because it does not require the plugin fixture
+- Created `tests/integration/test_plugin_backend.py` with 9 integration tests:
+  - Module fixtures: `plugin_backend` (module-scoped, auto-skips if plugin absent), `cleanup_portfolio_names`, `plugin_project`, `plugin_task`
+  - Portfolio CRUD: `test_portfolio_lifecycle_create_and_get`, `test_portfolio_lifecycle_add_and_remove_project`, `test_portfolio_lifecycle_update`, `test_portfolio_lifecycle_remove`
+  - Milestone CRUD: `test_milestone_lifecycle_create_add_tasks_and_progress`, `test_milestone_lifecycle_remove`
+  - Dependency queries: `test_dependency_query_get_portfolio_dependencies`, `test_dependency_query_get_blocked_tasks`
+  - Round-trip: `test_migration_round_trip_local_to_remote_to_local` — uses `LocalPortfolioStore` (via `tmp_path`) + `RemotePortfolioBackend`; verifies name/description/project_ids/milestones/task_ids preserved
+- All 9 tests marked `@pytest.mark.integration`; auto-skip when plugin absent via `KanboardConfigError` from `plugin_backend.load()` call
+- Files changed: `docker/Dockerfile.kanboard-plugin-test` (new), `docker-compose.test.yml`, `tests/integration/conftest.py`, `tests/integration/test_plugin_backend.py` (new)
+- **Learnings for future iterations:**
+  - Docker Compose `build:` + Dockerfile with `|| echo "..."` is the right pattern for optional plugin installation; don't use `|| exit 0` (that's shell but RUN already exits 0 if last command is `echo`)
+  - `plugin_backend` fixture uses module scope — `_plugin_detected = True` is cached after `load()`, so all tests in the module share the detection state without re-probing
+  - `cleanup_portfolio_names` fixture takes `plugin_backend` as arg (not `kanboard_client`) so `RemotePortfolioBackend.remove_portfolio(name)` handles ID resolution gracefully
+  - `tmp_path` is a pytest built-in fixture that provides a `pathlib.Path` to a per-test temporary directory — pass it directly to `LocalPortfolioStore(path=tmp_path / "store.json")`
+  - `cleanup_portfolio_ids` in conftest.py uses `kanboard_client.portfolios.remove_portfolio(id)` (ID-based) for direct cleanup; `cleanup_portfolio_names` in the test file uses `plugin_backend.remove_portfolio(name)` (name-based) — different approaches for different use cases
+  - For milestone progress test, resolve portfolio_id via `kanboard_client.portfolios.get_portfolio_by_name(name).id` then call `kanboard_client.milestones.get_portfolio_milestones(portfolio_id)` to find the milestone ID
+---
+
 ## Codebase Patterns
 - **PortfoliosResource pattern**: Plugin API resources follow the same pattern as core resources (TYPE_CHECKING guard, _client.call(), typed returns). dict-returning methods (get_portfolio_projects, get_portfolio_tasks, get_portfolio_task_count, get_portfolio_overview) do NOT use PluginPortfolio.from_api() — they return raw dicts or {}. Use `result or {}` for dict fallback (not `if not result: return []`).
 - **get_portfolio_by_name raises on False**: Unlike typical list methods that return [] on False, name-lookup methods raise KanboardNotFoundError on both None AND False (per AC).
