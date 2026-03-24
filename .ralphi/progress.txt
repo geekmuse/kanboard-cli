@@ -1,4 +1,7 @@
 ## Codebase Patterns
+- **PortfoliosResource pattern**: Plugin API resources follow the same pattern as core resources (TYPE_CHECKING guard, _client.call(), typed returns). dict-returning methods (get_portfolio_projects, get_portfolio_tasks, get_portfolio_task_count, get_portfolio_overview) do NOT use PluginPortfolio.from_api() — they return raw dicts or {}. Use `result or {}` for dict fallback (not `if not result: return []`).
+- **get_portfolio_by_name raises on False**: Unlike typical list methods that return [] on False, name-lookup methods raise KanboardNotFoundError on both None AND False (per AC).
+
 - **Packaging fixed (fix commit)**: `pyproject.toml` previously listed `kanboard-sdk>=1.1.1` as a runtime dep and only packaged `src/kanboard_cli` in the wheel. This caused `pip install -e '.[dev]'` to reinstall `kanboard-sdk` from PyPI, shadowing `src/kanboard/`. Fixed by: (1) adding `src/kanboard` to `[tool.hatch.build.targets.wheel] packages`, and (2) removing `kanboard-sdk` from dependencies (this repo IS the SDK). `tests/conftest.py` also adds `src/` to the front of `sys.path` as a belt-and-suspenders guard.
 - **Model pattern**: All plugin API models go in `src/kanboard/models.py` in the `# Plugin models (Phase 1)` section. Use `_int()`, `_float()`, `_parse_date()` helpers. Export via `__init__.py` imports + `__all__` (sorted, RUF022 requires sorted `__all__`).
 - **RUF022**: `__all__` must be sorted lexicographically. "Plugin..." < "Portfolio..." < "Project..." because 'l' < 'o'.
@@ -28,4 +31,22 @@ Corrective Plan: N/A
   - The pre-commit hook runs `pip install -e '.[dev]'` which re-installs `kanboard-sdk` 1.1.1 from PyPI, putting a stale `kanboard/` directory back in site-packages after every commit. Must run `pip uninstall kanboard-sdk` before the next test run.
   - RUF002: use ASCII `-` not `–` (en-dash) in docstring range examples
   - `PluginMilestone.from_api()` uses `str(data.get("color_id", ""))` — if the API returns `None`, this yields `"None"` (the string). Consider guarding: `str(data.get("color_id") or "")` in future if needed.
+---
+
+## 2026-03-24 - US-002
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Implemented `src/kanboard/resources/portfolios.py` with all 13 plugin API methods
+- Methods: create_portfolio, get_portfolio, get_portfolio_by_name, get_all_portfolios, update_portfolio, remove_portfolio, add_project_to_portfolio, remove_project_from_portfolio, get_portfolio_projects, get_project_portfolios, get_portfolio_tasks, get_portfolio_task_count, get_portfolio_overview
+- Wired `PortfoliosResource` into `KanboardClient` as `self.portfolios`
+- Exported `PortfoliosResource` from `src/kanboard/__init__.py` (sorted in __all__ between PortfolioManager and Project)
+- Added 48 unit tests in `tests/unit/resources/test_portfolios.py` covering success, API error, not-found, empty/None/False for every method
+- Files changed: `src/kanboard/resources/portfolios.py`, `src/kanboard/client.py`, `src/kanboard/__init__.py`, `tests/unit/resources/test_portfolios.py`
+- **Learnings for future iterations:**
+  - dict-returning methods use `result or {}` for the empty fallback (not `if not result: return []`)
+  - get_portfolio_by_name() raises KanboardNotFoundError on both None and False (unlike list methods which return [])
+  - `ruff format` may reformat new files even when `ruff check` passes — always run format after check
 ---
