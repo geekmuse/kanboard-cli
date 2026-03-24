@@ -303,14 +303,14 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 12,
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-011"
       ],
       "notes": "Destructive overwrite requires --yes flag (consistent with project conventions). Migration is not transactional — partial failures leave partial state that can be cleaned up with remove commands.",
       "startedAt": "2026-03-24T14:16:33.626Z",
-      "updatedAt": "2026-03-24T14:16:33.626Z",
-      "completedAt": null
+      "updatedAt": "2026-03-24T14:26:20.500Z",
+      "completedAt": "2026-03-24T14:26:20.500Z"
     },
     {
       "id": "US-013",
@@ -328,11 +328,14 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 13,
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-011"
       ],
-      "notes": "Mirror of US-012 in the opposite direction. Can be parallelized with US-012."
+      "notes": "Mirror of US-012 in the opposite direction. Can be parallelized with US-012.",
+      "startedAt": "2026-03-24T14:26:20.999Z",
+      "updatedAt": "2026-03-24T14:26:20.999Z",
+      "completedAt": null
     },
     {
       "id": "US-014",

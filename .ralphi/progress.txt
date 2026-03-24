@@ -150,6 +150,47 @@ Corrective Plan: N/A
   - The `_plugin_detected` flag follows None/True/False (not Optional[bool]) semantics; using `is True` / `is False` / `is None` guards are safe
 ---
 
+## 2026-03-24 - US-012
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Added `kanboard portfolio migrate local-to-remote` subcommand to `src/kanboard_cli/commands/portfolio.py`:
+  - `_migrate_one_portfolio_local_to_remote(pf, app_ctx, *, dry_run, on_conflict)` — top-level helper; returns `"ok"` or `"skip"`; raises `ValueError` (conflict/fail) or `KanboardAPIError` (API errors)
+  - `migrate_local_to_remote` Click command registered under `portfolio_migrate` group as `"local-to-remote"`
+  - Conflict detection via `client.portfolios.get_portfolio_by_name(name)` — `KanboardNotFoundError` = no conflict; successful return = conflict exists
+  - `--on-conflict fail` (default): raises `ValueError` on conflict, converted to `ClickException` by caller
+  - `--on-conflict skip`: logs "already exists — skipping" and returns `"skip"` (not counted in migrated or failed)
+  - `--on-conflict overwrite`: calls `remove_portfolio(existing.id)` then recreates
+  - `--yes` guard: `on_conflict == "overwrite"` without `--yes` (and not `--dry-run`) prompts via `click.confirm(..., abort=True)`
+  - `--dry-run`: reads local store only; prefixes all output lines with `[dry-run]`; no client API calls at all
+  - `--all`: migrates all local portfolios; per-portfolio errors are caught, logged, and counted in `failed`; single-portfolio errors propagate as `ClickException`
+  - Step-by-step progress: "Creating portfolio 'X'", "  Adding project #N", "  Creating milestone 'M'", "    Adding task #T to milestone 'M'"
+  - Summary line: "Migrated N portfolios (M failed)."
+  - Migration order: create portfolio → add projects → for each milestone: create milestone → add tasks
+  - `milestone.target_date` forwarded as kwarg to `create_milestone` when not None
+- Added 9 new CLI tests in `tests/cli/test_portfolio.py`:
+  - `_make_local_portfolio_for_migration()` helper
+  - `test_migrate_local_to_remote_no_name_no_all` — usage error
+  - `test_migrate_local_to_remote_success` — full migration, API calls verified
+  - `test_migrate_local_to_remote_dry_run` — `[dry-run]` prefix, all API methods `assert_not_called()`
+  - `test_migrate_local_to_remote_conflict_fail` — default conflict mode errors
+  - `test_migrate_local_to_remote_conflict_skip` — skip mode, summary shows 0 migrated
+  - `test_migrate_local_to_remote_conflict_overwrite` — overwrite with --yes removes+recreates
+  - `test_migrate_local_to_remote_overwrite_requires_yes` — prompt with "n" aborts
+  - `test_migrate_local_to_remote_all` — --all, 2 portfolios migrated
+  - `test_migrate_local_to_remote_partial_failure` — --all, 1 success + 1 API error, summary shows "(1 failed)"
+- Files changed: `src/kanboard_cli/commands/portfolio.py`, `tests/cli/test_portfolio.py`
+- **Learnings for future iterations:**
+  - `_migrate_one_portfolio_local_to_remote` returns a string status ("ok"/"skip") rather than raising for the skip case; this avoids special-casing skip exceptions in the caller
+  - `--dry-run` completely bypasses client — even conflict detection (read-only but still an API call). Dry-run is a pure local+print operation. Users should use `migrate diff` for conflict preview.
+  - `--on-conflict overwrite` + `--dry-run` skips the `click.confirm` gate (no destructive action occurs in dry-run)
+  - For `--all` partial failure: `click.ClickException` IS an `Exception` subclass so `except Exception` catches it. Re-raise directly (`raise`) if already ClickException to avoid double-wrapping the message.
+  - `migrate_local_to_remote` is distinct from `migrate_diff` (US-011) — no `format_output` call; uses raw `click.echo` throughout for step-by-step progress
+  - `ms_kwargs` is used as the variable name (not `kwargs`) to avoid shadowing; the loop variable scope means using a fresh dict per milestone iteration
+---
+
 ## Codebase Patterns
 - **PortfoliosResource pattern**: Plugin API resources follow the same pattern as core resources (TYPE_CHECKING guard, _client.call(), typed returns). dict-returning methods (get_portfolio_projects, get_portfolio_tasks, get_portfolio_task_count, get_portfolio_overview) do NOT use PluginPortfolio.from_api() — they return raw dicts or {}. Use `result or {}` for dict fallback (not `if not result: return []`).
 - **get_portfolio_by_name raises on False**: Unlike typical list methods that return [] on False, name-lookup methods raise KanboardNotFoundError on both None AND False (per AC).
