@@ -59,6 +59,7 @@ from kanboard.resources.group_members import GroupMembersResource
 from kanboard.resources.groups import GroupsResource
 from kanboard.resources.links import LinksResource
 from kanboard.resources.me import MeResource
+from kanboard.resources.portfolios import PortfoliosResource
 from kanboard.resources.project_files import ProjectFilesResource
 from kanboard.resources.project_metadata import ProjectMetadataResource
 from kanboard.resources.project_permissions import ProjectPermissionsResource
@@ -115,6 +116,7 @@ __all__ = [
     "PluginPortfolio",
     "Portfolio",
     "PortfolioManager",
+    "PortfoliosResource",
     "Project",
     "ProjectFile",
     "ProjectFilesResource",

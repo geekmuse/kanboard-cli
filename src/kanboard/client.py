@@ -26,6 +26,7 @@ from kanboard.resources.group_members import GroupMembersResource
 from kanboard.resources.groups import GroupsResource
 from kanboard.resources.links import LinksResource
 from kanboard.resources.me import MeResource
+from kanboard.resources.portfolios import PortfoliosResource
 from kanboard.resources.project_files import ProjectFilesResource
 from kanboard.resources.project_metadata import ProjectMetadataResource
 from kanboard.resources.project_permissions import ProjectPermissionsResource
@@ -67,6 +68,7 @@ class KanboardClient:
     - :attr:`groups` — :class:`~kanboard.resources.groups.GroupsResource`
     - :attr:`links` — :class:`~kanboard.resources.links.LinksResource`
     - :attr:`me` — :class:`~kanboard.resources.me.MeResource`
+    - :attr:`portfolios` — :class:`~kanboard.resources.portfolios.PortfoliosResource`
     - :attr:`project_files` — :class:`~kanboard.resources.project_files.ProjectFilesResource`
     - :attr:`project_metadata` — :class:`ProjectMetadataResource`
     - :attr:`project_permissions` — :class:`ProjectPermissionsResource`
@@ -147,6 +149,7 @@ class KanboardClient:
         self.groups: GroupsResource = GroupsResource(self)
         self.links: LinksResource = LinksResource(self)
         self.me: MeResource = MeResource(self)
+        self.portfolios: PortfoliosResource = PortfoliosResource(self)
         self.project_files: ProjectFilesResource = ProjectFilesResource(self)
         self.project_metadata: ProjectMetadataResource = ProjectMetadataResource(self)
         self.project_permissions: ProjectPermissionsResource = ProjectPermissionsResource(self)
