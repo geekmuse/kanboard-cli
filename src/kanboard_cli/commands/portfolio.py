@@ -3,9 +3,17 @@
 Subcommands: list, show, create, remove, add-project, remove-project, tasks, sync,
 dependencies, blocked, blocking, critical-path.
 
-Portfolios are stored locally in ``~/.config/kanboard/portfolios.json`` via
-:class:`~kanboard.orchestration.store.LocalPortfolioStore`.  Live task and
-milestone data is fetched from the Kanboard API via
+Portfolios are stored and retrieved via a configurable backend:
+
+- **local** (default): ``~/.config/kanboard/portfolios.json`` via
+  :class:`~kanboard.orchestration.store.LocalPortfolioStore`.
+- **remote**: Kanboard Portfolio Management plugin API via
+  :class:`~kanboard.orchestration.backend.RemotePortfolioBackend`.
+
+Select the backend with ``--portfolio-backend local|remote`` (CLI flag),
+``KANBOARD_PORTFOLIO_BACKEND`` (env var), or ``portfolio_backend`` (config TOML key).
+
+Live task and milestone data is fetched from the Kanboard API via
 :class:`~kanboard.orchestration.portfolio.PortfolioManager`.
 """
 
@@ -83,12 +91,64 @@ def _get_store() -> LocalPortfolioStore:
     return LocalPortfolioStore()
 
 
-def _get_manager(app_ctx: AppContext, store: LocalPortfolioStore) -> PortfolioManager:
+def _get_backend(app_ctx: AppContext) -> Any:
+    """Return the configured portfolio backend.
+
+    Reads ``app_ctx.config.portfolio_backend`` to select the backend:
+
+    - ``"local"`` (default): :class:`~kanboard.orchestration.store.LocalPortfolioStore`
+    - ``"remote"``: :class:`~kanboard.orchestration.backend.RemotePortfolioBackend`
+
+    For the local backend this delegates to :func:`_get_store`, which means
+    tests that patch ``_get_store`` continue to work without modification.
+
+    Args:
+        app_ctx: The current application context.
+
+    Returns:
+        A backend instance satisfying the
+        :class:`~kanboard.orchestration.backend.PortfolioBackend` protocol.
+
+    Raises:
+        click.ClickException: Remote backend requested but no client configured.
+    """
+    backend_type = "local"
+    if app_ctx.config is not None:
+        backend_type = app_ctx.config.portfolio_backend
+
+    if backend_type == "remote":
+        if app_ctx.client is None:
+            raise click.ClickException(
+                "Remote portfolio backend requires Kanboard configuration. "
+                "Run 'kanboard config init'."
+            )
+        from kanboard.orchestration.backend import create_backend
+
+        return create_backend("remote", client=app_ctx.client)
+
+    # Local backend — delegate to _get_store so existing test patches still work.
+    return _get_store()
+
+
+def _is_remote_backend(app_ctx: AppContext) -> bool:
+    """Return ``True`` when the configured portfolio backend is ``"remote"``.
+
+    Args:
+        app_ctx: The current application context.
+
+    Returns:
+        ``True`` if ``portfolio_backend == "remote"``, ``False`` otherwise.
+    """
+    return bool(app_ctx.config and app_ctx.config.portfolio_backend == "remote")
+
+
+def _get_manager(app_ctx: AppContext, backend: Any) -> PortfolioManager:
     """Instantiate PortfolioManager, raising ClickException if no client configured.
 
     Args:
         app_ctx: The current application context.
-        store: The local portfolio store instance.
+        backend: The portfolio backend (local store or remote adapter) used as
+            the data source for portfolio/milestone metadata lookups.
 
     Returns:
         A ready-to-use :class:`~kanboard.orchestration.portfolio.PortfolioManager`.
@@ -100,7 +160,7 @@ def _get_manager(app_ctx: AppContext, store: LocalPortfolioStore) -> PortfolioMa
 
     if app_ctx.client is None:
         raise click.ClickException("No Kanboard configuration found. Run 'kanboard config init'.")
-    return PortfolioManager(app_ctx.client, store)
+    return PortfolioManager(app_ctx.client, backend)  # type: ignore[arg-type]
 
 
 def _get_analyzer(app_ctx: AppContext) -> DependencyAnalyzer:
@@ -140,16 +200,17 @@ def portfolio() -> None:
 @portfolio.command("list")
 @click.pass_context
 def portfolio_list(ctx: click.Context) -> None:
-    r"""List all portfolios from the local store.
+    r"""List all portfolios from the configured backend.
 
     \b
     Examples:
         kanboard portfolio list
         kanboard --output json portfolio list
+        kanboard --portfolio-backend remote portfolio list
     """
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
-    portfolios = store.load()
+    backend = _get_backend(app_ctx)
+    portfolios = backend.load()
     rows: list[dict[str, Any]] = [
         {
             "name": p.name,
@@ -173,22 +234,23 @@ def portfolio_list(ctx: click.Context) -> None:
 def portfolio_show(ctx: click.Context, name: str) -> None:
     r"""Show portfolio NAME — summary, milestone progress bars, and at-risk items.
 
-    Falls back to cached local-store data with a warning when the Kanboard API
+    Falls back to cached backend data with a warning when the Kanboard API
     is unreachable.
 
     \b
     Examples:
         kanboard portfolio show "My Portfolio"
+        kanboard --portfolio-backend remote portfolio show "My Portfolio"
     """
     from kanboard.orchestration.portfolio import PortfolioManager
     from kanboard_cli.renderers import render_milestone_progress, render_portfolio_summary
 
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
+    backend = _get_backend(app_ctx)
 
     try:
-        portfolio_obj = store.get_portfolio(name)
-    except KanboardConfigError as exc:
+        portfolio_obj = backend.get_portfolio(name)
+    except (KanboardConfigError, KanboardNotFoundError) as exc:
         raise click.ClickException(str(exc)) from exc
 
     milestone_progress: list = []
@@ -198,7 +260,7 @@ def portfolio_show(ctx: click.Context, name: str) -> None:
 
     if app_ctx.client is not None:
         try:
-            manager = PortfolioManager(app_ctx.client, store)
+            manager = PortfolioManager(app_ctx.client, backend)  # type: ignore[arg-type]
             tasks = manager.get_portfolio_tasks(name)
             task_count = len(tasks)
             blocked_count = sum(1 for t in tasks if not t.is_active)
@@ -240,18 +302,19 @@ def portfolio_show(ctx: click.Context, name: str) -> None:
 @click.option("--description", "-d", default="", help="Portfolio description.")
 @click.pass_context
 def portfolio_create(ctx: click.Context, name: str, description: str) -> None:
-    r"""Create a new portfolio NAME in the local store.
+    r"""Create a new portfolio NAME via the configured backend.
 
     \b
     Examples:
         kanboard portfolio create "My Portfolio"
         kanboard portfolio create "Q2 Release" --description "All Q2 work"
+        kanboard --portfolio-backend remote portfolio create "Remote Portfolio"
     """
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
+    backend = _get_backend(app_ctx)
     try:
-        store.create_portfolio(name, description)
-    except ValueError as exc:
+        backend.create_portfolio(name, description)
+    except (ValueError, KanboardAPIError) as exc:
         raise click.ClickException(str(exc)) from exc
     format_success(f"Portfolio '{name}' created.", app_ctx.output)
 
@@ -271,32 +334,33 @@ def portfolio_create(ctx: click.Context, name: str, description: str) -> None:
 )
 @click.pass_context
 def portfolio_remove(ctx: click.Context, name: str, yes: bool) -> None:
-    r"""Remove portfolio NAME from the local store.
+    r"""Remove portfolio NAME from the configured backend.
 
-    Performs best-effort metadata cleanup in Kanboard when a client is
-    configured.  Requires ``--yes`` to confirm.
+    For the local backend, performs best-effort metadata cleanup in Kanboard
+    when a client is configured.  Requires ``--yes`` to confirm.
 
     \b
     Examples:
         kanboard portfolio remove "My Portfolio" --yes
+        kanboard --portfolio-backend remote portfolio remove "My Portfolio" --yes
     """
     if not yes:
         click.confirm(f"Remove portfolio '{name}'? This cannot be undone.", abort=True)
 
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
+    backend = _get_backend(app_ctx)
 
-    # Best-effort metadata cleanup before removing from store.
-    if app_ctx.client is not None:
+    # Best-effort metadata cleanup for local backend only.
+    if not _is_remote_backend(app_ctx) and app_ctx.client is not None:
         try:
             from kanboard.orchestration.portfolio import PortfolioManager
 
-            manager = PortfolioManager(app_ctx.client, store)
+            manager = PortfolioManager(app_ctx.client, backend)  # type: ignore[arg-type]
             manager.sync_metadata(name)
         except Exception as exc:
             logger.debug("Metadata cleanup failed for portfolio '%s': %s", name, exc)
 
-    removed = store.remove_portfolio(name)
+    removed = backend.remove_portfolio(name)
     if not removed:
         raise click.ClickException(f"Portfolio '{name}' not found.")
     format_success(f"Portfolio '{name}' removed.", app_ctx.output)
@@ -317,9 +381,10 @@ def portfolio_add_project(ctx: click.Context, name: str, project_id: int) -> Non
     \b
     Examples:
         kanboard portfolio add-project "My Portfolio" 3
+        kanboard --portfolio-backend remote portfolio add-project "My Portfolio" 3
     """
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
+    backend = _get_backend(app_ctx)
 
     # Validate the project exists in Kanboard before adding.
     if app_ctx.client is not None:
@@ -329,8 +394,8 @@ def portfolio_add_project(ctx: click.Context, name: str, project_id: int) -> Non
             raise click.ClickException(f"Project #{project_id} not found: {exc}") from exc
 
     try:
-        store.add_project(name, project_id)
-    except KanboardConfigError as exc:
+        backend.add_project(name, project_id)
+    except (KanboardConfigError, KanboardNotFoundError, KanboardAPIError) as exc:
         raise click.ClickException(str(exc)) from exc
     format_success(f"Project #{project_id} added to portfolio '{name}'.", app_ctx.output)
 
@@ -358,6 +423,7 @@ def portfolio_remove_project(ctx: click.Context, name: str, project_id: int, yes
     \b
     Examples:
         kanboard portfolio remove-project "My Portfolio" 3 --yes
+        kanboard --portfolio-backend remote portfolio remove-project "My Portfolio" 3 --yes
     """
     if not yes:
         click.confirm(
@@ -366,11 +432,11 @@ def portfolio_remove_project(ctx: click.Context, name: str, project_id: int, yes
         )
 
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
+    backend = _get_backend(app_ctx)
 
     try:
-        store.remove_project(name, project_id)
-    except KanboardConfigError as exc:
+        backend.remove_project(name, project_id)
+    except (KanboardConfigError, KanboardNotFoundError, KanboardAPIError) as exc:
         raise click.ClickException(str(exc)) from exc
     format_success(
         f"Project #{project_id} removed from portfolio '{name}'.",
@@ -423,10 +489,11 @@ def portfolio_tasks(
         kanboard portfolio tasks "My Portfolio"
         kanboard portfolio tasks "My Portfolio" --status closed --project 2
         kanboard --output json portfolio tasks "My Portfolio" --assignee 5
+        kanboard --portfolio-backend remote portfolio tasks "My Portfolio"
     """
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
-    manager = _get_manager(app_ctx, store)
+    backend = _get_backend(app_ctx)
+    manager = _get_manager(app_ctx, backend)
 
     status_id = 1 if status == "active" else 0
     try:
@@ -478,16 +545,29 @@ def portfolio_tasks(
 def portfolio_sync(ctx: click.Context, name: str) -> None:
     r"""Sync portfolio NAME metadata to Kanboard projects and tasks.
 
-    Writes ``kanboard_cli:portfolio`` to each project's metadata and
-    ``kanboard_cli:milestones`` to each task's metadata.
+    For the **local** backend, writes ``kanboard_cli:portfolio`` to each
+    project's metadata and ``kanboard_cli:milestones`` to each task's metadata.
+
+    For the **remote** backend, this command is a no-op — the plugin manages
+    its own server-side data and does not require client-side metadata sync.
 
     \b
     Examples:
         kanboard portfolio sync "My Portfolio"
+        kanboard --portfolio-backend remote portfolio sync "My Portfolio"
     """
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
-    manager = _get_manager(app_ctx, store)
+
+    # Remote backend manages its own server-side data — sync is a no-op.
+    if _is_remote_backend(app_ctx):
+        click.echo(
+            "Portfolio sync is a no-op for the remote backend — "
+            "data is already managed server-side."
+        )
+        return
+
+    backend = _get_backend(app_ctx)
+    manager = _get_manager(app_ctx, backend)
 
     try:
         result = manager.sync_metadata(name)
@@ -531,8 +611,13 @@ def portfolio_dependencies(
 ) -> None:
     r"""Show the dependency graph for all tasks in portfolio NAME.
 
-    Defaults to an ASCII dependency graph.  Use ``--format table`` for flat
-    DependencyEdge rows or ``--format json`` for a machine-readable dict.
+    For the **local** backend, defaults to an ASCII dependency graph computed
+    client-side.  Use ``--format table`` for flat rows or ``--format json``
+    for a machine-readable dict.
+
+    For the **remote** backend, delegates to the plugin's server-side SQL
+    dependency analysis.  The result is always rendered as flat rows or JSON
+    (``--format graph`` falls back to flat rows for remote).
 
     \b
     Examples:
@@ -540,12 +625,44 @@ def portfolio_dependencies(
         kanboard portfolio dependencies "My Portfolio" --cross-project-only
         kanboard portfolio dependencies "My Portfolio" --format json
         kanboard --output csv portfolio dependencies "My Portfolio" --format table
+        kanboard --portfolio-backend remote portfolio dependencies "My Portfolio"
     """
-    from kanboard_cli.renderers import render_dependency_graph
+    import json as _json
 
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
-    manager = _get_manager(app_ctx, store)
+
+    # ------------------------------------------------------------------
+    # Remote path — server-side dependency analysis
+    # ------------------------------------------------------------------
+    if _is_remote_backend(app_ctx):
+        if app_ctx.client is None:  # pragma: no cover — _get_backend ensures this
+            raise click.ClickException(
+                "Remote portfolio backend requires Kanboard configuration. "
+                "Run 'kanboard config init'."
+            )
+        try:
+            plugin_pf = app_ctx.client.portfolios.get_portfolio_by_name(name)
+        except KanboardNotFoundError as exc:
+            raise click.ClickException(str(exc)) from exc
+
+        deps = app_ctx.client.portfolios.get_portfolio_dependencies(
+            plugin_pf.id, cross_project_only=cross_project_only
+        )
+
+        if fmt == "json":
+            click.echo(_json.dumps(deps, indent=2))
+        else:
+            # graph format not available server-side — render as flat rows.
+            format_output(deps, app_ctx.output)
+        return
+
+    # ------------------------------------------------------------------
+    # Local path — client-side DependencyAnalyzer
+    # ------------------------------------------------------------------
+    from kanboard_cli.renderers import render_dependency_graph
+
+    backend = _get_backend(app_ctx)
+    manager = _get_manager(app_ctx, backend)
     analyzer = _get_analyzer(app_ctx)
 
     try:
@@ -581,10 +698,8 @@ def portfolio_dependencies(
         format_output(rows, app_ctx.output, columns=_DEP_EDGE_COLUMNS)
 
     else:  # json
-        import json
-
         graph = analyzer.get_dependency_graph(tasks, cross_project_only=cross_project_only)
-        click.echo(json.dumps(graph, indent=2))
+        click.echo(_json.dumps(graph, indent=2))
 
 
 # ---------------------------------------------------------------------------
@@ -598,17 +713,41 @@ def portfolio_dependencies(
 def portfolio_blocked(ctx: click.Context, name: str) -> None:
     r"""List tasks in portfolio NAME that are blocked by cross-project dependencies.
 
-    Shows only edges where the blocking task belongs to a different project
-    (``is_cross_project=True``).  All four output formats are supported.
+    For the **local** backend, computes blocked tasks client-side using the
+    dependency graph.  For the **remote** backend, delegates to the plugin's
+    server-side ``getBlockedTasks`` query.
 
     \b
     Examples:
         kanboard portfolio blocked "My Portfolio"
         kanboard --output json portfolio blocked "My Portfolio"
+        kanboard --portfolio-backend remote portfolio blocked "My Portfolio"
     """
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
-    manager = _get_manager(app_ctx, store)
+
+    # ------------------------------------------------------------------
+    # Remote path — server-side blocked-task query
+    # ------------------------------------------------------------------
+    if _is_remote_backend(app_ctx):
+        if app_ctx.client is None:  # pragma: no cover — _get_backend ensures this
+            raise click.ClickException(
+                "Remote portfolio backend requires Kanboard configuration. "
+                "Run 'kanboard config init'."
+            )
+        try:
+            plugin_pf = app_ctx.client.portfolios.get_portfolio_by_name(name)
+        except KanboardNotFoundError as exc:
+            raise click.ClickException(str(exc)) from exc
+
+        data = app_ctx.client.portfolios.get_blocked_tasks(plugin_pf.id)
+        format_output(data, app_ctx.output)
+        return
+
+    # ------------------------------------------------------------------
+    # Local path — client-side DependencyAnalyzer
+    # ------------------------------------------------------------------
+    backend = _get_backend(app_ctx)
+    manager = _get_manager(app_ctx, backend)
     analyzer = _get_analyzer(app_ctx)
 
     try:
@@ -651,18 +790,41 @@ def portfolio_blocked(ctx: click.Context, name: str) -> None:
 def portfolio_blocking(ctx: click.Context, name: str) -> None:
     r"""List tasks in portfolio NAME that are blocking other tasks cross-project.
 
-    Shows only edges where the blocking task and the blocked task belong to
-    different projects (``is_cross_project=True``).  All four output formats
-    are supported.
+    For the **local** backend, computes blocking tasks client-side using the
+    dependency graph.  For the **remote** backend, delegates to the plugin's
+    server-side ``getBlockingTasks`` query.
 
     \b
     Examples:
         kanboard portfolio blocking "My Portfolio"
         kanboard --output json portfolio blocking "My Portfolio"
+        kanboard --portfolio-backend remote portfolio blocking "My Portfolio"
     """
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
-    manager = _get_manager(app_ctx, store)
+
+    # ------------------------------------------------------------------
+    # Remote path — server-side blocking-task query
+    # ------------------------------------------------------------------
+    if _is_remote_backend(app_ctx):
+        if app_ctx.client is None:  # pragma: no cover — _get_backend ensures this
+            raise click.ClickException(
+                "Remote portfolio backend requires Kanboard configuration. "
+                "Run 'kanboard config init'."
+            )
+        try:
+            plugin_pf = app_ctx.client.portfolios.get_portfolio_by_name(name)
+        except KanboardNotFoundError as exc:
+            raise click.ClickException(str(exc)) from exc
+
+        data = app_ctx.client.portfolios.get_blocking_tasks(plugin_pf.id)
+        format_output(data, app_ctx.output)
+        return
+
+    # ------------------------------------------------------------------
+    # Local path — client-side DependencyAnalyzer
+    # ------------------------------------------------------------------
+    backend = _get_backend(app_ctx)
+    manager = _get_manager(app_ctx, backend)
     analyzer = _get_analyzer(app_ctx)
 
     try:
@@ -704,19 +866,46 @@ def portfolio_blocking(ctx: click.Context, name: str) -> None:
 def portfolio_critical_path(ctx: click.Context, name: str) -> None:
     r"""Show the critical dependency chain for portfolio NAME.
 
-    Identifies the longest unresolved dependency chain across all portfolio
-    tasks and annotates the bottleneck — the task whose completion would
-    unblock the most downstream work.
+    For the **local** backend, identifies the longest unresolved dependency
+    chain across all portfolio tasks and annotates the bottleneck.
+
+    For the **remote** backend, delegates to the plugin's server-side
+    ``getPortfolioCriticalPath`` query and outputs the result as JSON.
 
     \b
     Examples:
         kanboard portfolio critical-path "My Portfolio"
+        kanboard --portfolio-backend remote portfolio critical-path "My Portfolio"
     """
-    from kanboard_cli.renderers import render_critical_path
+    import json as _json
 
     app_ctx: AppContext = ctx.obj
-    store = _get_store()
-    manager = _get_manager(app_ctx, store)
+
+    # ------------------------------------------------------------------
+    # Remote path — server-side critical-path query
+    # ------------------------------------------------------------------
+    if _is_remote_backend(app_ctx):
+        if app_ctx.client is None:  # pragma: no cover — _get_backend ensures this
+            raise click.ClickException(
+                "Remote portfolio backend requires Kanboard configuration. "
+                "Run 'kanboard config init'."
+            )
+        try:
+            plugin_pf = app_ctx.client.portfolios.get_portfolio_by_name(name)
+        except KanboardNotFoundError as exc:
+            raise click.ClickException(str(exc)) from exc
+
+        path = app_ctx.client.portfolios.get_portfolio_critical_path(plugin_pf.id)
+        click.echo(_json.dumps(path, indent=2))
+        return
+
+    # ------------------------------------------------------------------
+    # Local path — client-side DependencyAnalyzer
+    # ------------------------------------------------------------------
+    from kanboard_cli.renderers import render_critical_path
+
+    backend = _get_backend(app_ctx)
+    manager = _get_manager(app_ctx, backend)
     analyzer = _get_analyzer(app_ctx)
 
     try:

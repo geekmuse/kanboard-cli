@@ -188,8 +188,8 @@
       ],
       "notes": "",
       "startedAt": "2026-03-24T03:49:55.175Z",
-      "updatedAt": "2026-03-24T03:58:00.000Z",
-      "completedAt": "2026-03-24T03:58:00.000Z"
+      "updatedAt": "2026-03-24T03:57:32.328Z",
+      "completedAt": "2026-03-24T03:57:32.328Z"
     },
     {
       "id": "US-008",
@@ -206,12 +206,15 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 8,
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-006",
         "US-007"
       ],
-      "notes": "This is the most impactful wiring change. Take care with the dependency subcommands — local backend uses DependencyAnalyzer (client-side graph traversal), remote backend uses PortfoliosResource methods (server-side SQL)."
+      "notes": "This is the most impactful wiring change. Take care with the dependency subcommands — local backend uses DependencyAnalyzer (client-side graph traversal), remote backend uses PortfoliosResource methods (server-side SQL).",
+      "startedAt": "2026-03-24T03:57:32.990Z",
+      "updatedAt": "2026-03-24T03:57:32.990Z",
+      "completedAt": null
     },
     {
       "id": "US-009",

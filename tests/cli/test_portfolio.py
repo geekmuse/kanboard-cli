@@ -1696,3 +1696,310 @@ def test_portfolio_critical_path_bottleneck(
     assert result.exit_code == 0
     assert "BOTTLENECK" in result.output
     assert "Root Blocker" in result.output
+
+
+# ===========================================================================
+# Remote backend routing (US-008)
+# ===========================================================================
+
+
+@pytest.fixture()
+def mock_remote_config() -> KanboardConfig:
+    """Return a minimal resolved config with portfolio_backend='remote'."""
+    return KanboardConfig(
+        url="http://kanboard.test/jsonrpc.php",
+        token="test-token",
+        profile="default",
+        output_format="table",
+        portfolio_backend="remote",
+    )
+
+
+@pytest.fixture()
+def mock_remote_backend() -> MagicMock:
+    """Return a MagicMock remote portfolio backend."""
+    backend = MagicMock()
+    backend.load.return_value = []
+    return backend
+
+
+def _invoke_remote(
+    runner: CliRunner,
+    remote_config: KanboardConfig,
+    mock_client: MagicMock,
+    args: list[str],
+    mock_backend: MagicMock | None = None,
+    input: str | None = None,
+) -> object:
+    """Invoke CLI with remote backend config.
+
+    Patches KanboardConfig.resolve to return *remote_config* (portfolio_backend='remote').
+    Optionally patches _get_backend to return *mock_backend* for commands that
+    call it.  Dependency commands use mock_client.portfolios directly and do
+    not need mock_backend.
+    """
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch("kanboard_cli.main.KanboardConfig.resolve", return_value=remote_config)
+        )
+        stack.enter_context(patch("kanboard_cli.main.KanboardClient", return_value=mock_client))
+        if mock_backend is not None:
+            stack.enter_context(
+                patch(
+                    "kanboard_cli.commands.portfolio._get_backend",
+                    return_value=mock_backend,
+                )
+            )
+        return runner.invoke(cli, args, input=input)
+
+
+def test_portfolio_list_remote_backend(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_remote_backend: MagicMock,
+) -> None:
+    """``portfolio list`` with remote backend calls backend.load() and renders portfolios."""
+    mock_remote_backend.load.return_value = [
+        _make_portfolio(name="Remote Portfolio", project_ids=[1, 2], milestone_count=2)
+    ]
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["portfolio", "list"],
+        mock_backend=mock_remote_backend,
+    )
+    assert result.exit_code == 0
+    assert "Remote Portfolio" in result.output
+    mock_remote_backend.load.assert_called_once()
+
+
+def test_portfolio_list_remote_json(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_remote_backend: MagicMock,
+) -> None:
+    """``portfolio list --output json`` with remote backend returns JSON array."""
+    mock_remote_backend.load.return_value = [_make_portfolio(name="Remote P")]
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["--output", "json", "portfolio", "list"],
+        mock_backend=mock_remote_backend,
+    )
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert isinstance(data, list)
+    assert data[0]["name"] == "Remote P"
+
+
+def test_portfolio_create_remote_backend(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_remote_backend: MagicMock,
+) -> None:
+    """``portfolio create`` with remote backend calls backend.create_portfolio()."""
+    mock_remote_backend.create_portfolio.return_value = _make_portfolio(name="Remote Portfolio")
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["portfolio", "create", "Remote Portfolio", "--description", "Remote desc"],
+        mock_backend=mock_remote_backend,
+    )
+    assert result.exit_code == 0
+    assert "Remote Portfolio" in result.output
+    mock_remote_backend.create_portfolio.assert_called_once_with("Remote Portfolio", "Remote desc")
+
+
+def test_portfolio_create_remote_api_error(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_remote_backend: MagicMock,
+) -> None:
+    """``portfolio create`` with remote backend shows error on KanboardAPIError."""
+    mock_remote_backend.create_portfolio.side_effect = KanboardAPIError("Duplicate portfolio")
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["portfolio", "create", "Dup"],
+        mock_backend=mock_remote_backend,
+    )
+    assert result.exit_code != 0
+    assert "Duplicate" in result.output
+
+
+def test_portfolio_sync_remote_noop(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``portfolio sync`` prints a no-op message when backend is remote."""
+    # No mock_backend needed — sync returns early without calling _get_backend.
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["portfolio", "sync", "Any Portfolio"],
+    )
+    assert result.exit_code == 0
+    assert "no-op" in result.output.lower() or "remote" in result.output.lower()
+    assert "server-side" in result.output.lower()
+
+
+def test_portfolio_dependencies_remote_backend(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``portfolio dependencies`` with remote backend calls server-side plugin API."""
+    plugin_pf = MagicMock()
+    plugin_pf.id = 42
+    mock_client.portfolios.get_portfolio_by_name.return_value = plugin_pf
+    mock_client.portfolios.get_portfolio_dependencies.return_value = [
+        {"task_id": 1, "depends_on_task_id": 2, "link_label": "blocks"}
+    ]
+
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["portfolio", "dependencies", "Test Portfolio", "--format", "json"],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert isinstance(data, list)
+    assert data[0]["task_id"] == 1
+    mock_client.portfolios.get_portfolio_by_name.assert_called_once_with("Test Portfolio")
+    mock_client.portfolios.get_portfolio_dependencies.assert_called_once_with(
+        42, cross_project_only=False
+    )
+
+
+def test_portfolio_dependencies_remote_cross_project_only(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``portfolio dependencies --cross-project-only`` passes flag to server-side query."""
+    plugin_pf = MagicMock()
+    plugin_pf.id = 7
+    mock_client.portfolios.get_portfolio_by_name.return_value = plugin_pf
+    mock_client.portfolios.get_portfolio_dependencies.return_value = []
+
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["portfolio", "dependencies", "Test Portfolio", "--cross-project-only"],
+    )
+
+    assert result.exit_code == 0
+    mock_client.portfolios.get_portfolio_dependencies.assert_called_once_with(
+        7, cross_project_only=True
+    )
+
+
+def test_portfolio_blocked_remote_backend(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``portfolio blocked`` with remote backend calls server-side getBlockedTasks."""
+    plugin_pf = MagicMock()
+    plugin_pf.id = 42
+    mock_client.portfolios.get_portfolio_by_name.return_value = plugin_pf
+    mock_client.portfolios.get_blocked_tasks.return_value = [
+        {"task_id": 5, "title": "Blocked Task", "blocked_by": 3}
+    ]
+
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["portfolio", "blocked", "Test Portfolio"],
+    )
+
+    assert result.exit_code == 0
+    mock_client.portfolios.get_portfolio_by_name.assert_called_once_with("Test Portfolio")
+    mock_client.portfolios.get_blocked_tasks.assert_called_once_with(42)
+
+
+def test_portfolio_blocking_remote_backend(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``portfolio blocking`` with remote backend calls server-side getBlockingTasks."""
+    plugin_pf = MagicMock()
+    plugin_pf.id = 42
+    mock_client.portfolios.get_portfolio_by_name.return_value = plugin_pf
+    mock_client.portfolios.get_blocking_tasks.return_value = [
+        {"task_id": 3, "title": "Blocker Task", "blocks": [5]}
+    ]
+
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["portfolio", "blocking", "Test Portfolio"],
+    )
+
+    assert result.exit_code == 0
+    mock_client.portfolios.get_portfolio_by_name.assert_called_once_with("Test Portfolio")
+    mock_client.portfolios.get_blocking_tasks.assert_called_once_with(42)
+
+
+def test_portfolio_critical_path_remote_backend(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``portfolio critical-path`` with remote backend calls server-side critical path query."""
+    plugin_pf = MagicMock()
+    plugin_pf.id = 42
+    mock_client.portfolios.get_portfolio_by_name.return_value = plugin_pf
+    mock_client.portfolios.get_portfolio_critical_path.return_value = [
+        {"task_id": 1, "title": "Critical Task", "depth": 3}
+    ]
+
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["portfolio", "critical-path", "Test Portfolio"],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert isinstance(data, list)
+    assert data[0]["task_id"] == 1
+    mock_client.portfolios.get_portfolio_by_name.assert_called_once_with("Test Portfolio")
+    mock_client.portfolios.get_portfolio_critical_path.assert_called_once_with(42)
+
+
+def test_portfolio_dependencies_remote_not_found(
+    runner: CliRunner,
+    mock_remote_config: KanboardConfig,
+    mock_client: MagicMock,
+) -> None:
+    """``portfolio dependencies`` with remote backend shows error when portfolio not found."""
+    mock_client.portfolios.get_portfolio_by_name.side_effect = KanboardNotFoundError(
+        "Portfolio", "Ghost"
+    )
+
+    result = _invoke_remote(
+        runner,
+        mock_remote_config,
+        mock_client,
+        ["portfolio", "dependencies", "Ghost"],
+    )
+
+    assert result.exit_code != 0
