@@ -53,10 +53,24 @@ kanboard-cli ships a **dual-backend orchestration layer** that treats multiple K
 
 ### Backends
 
-| Backend | Flag | Requires |
+kanboard-cli supports two interchangeable backends for portfolio and milestone storage:
+
+| | **Local (default)** | **Remote (plugin)** |
 |---|---|---|
-| Local JSON file | `--portfolio-backend local` (default) | No plugin; works with any standard Kanboard instance |
-| Plugin API | `--portfolio-backend remote` | [kanboard-plugin-portfolio-management](https://github.com/geekmuse/kanboard-plugin-portfolio-management) installed on your server |
+| **Flag** | `--portfolio-backend local` | `--portfolio-backend remote` |
+| **Storage** | `~/.config/kanboard/portfolios.json` on your machine | Server-side database tables in Kanboard (via plugin) |
+| **Plugin required** | No — works with any Kanboard instance | Yes — [kanboard-plugin-portfolio-management](https://github.com/geekmuse/kanboard-plugin-portfolio-management) |
+| **Shared with other users** | No — data is machine-local only | Yes — all users with server access see the same portfolios |
+| **Offline operation** | Yes — reads/writes local file | No — requires a live Kanboard connection |
+| **Performance** | N+1 API calls for task aggregation | Single server-side query (faster for large portfolios) |
+| **Kanboard web UI integration** | No | Yes — portfolio dashboards, Gantt timeline, dependency graphs |
+| **Referential integrity** | None — stale task/project IDs possible | Enforced by server-side foreign keys |
+
+**When to use Local:** solo use, no plugin, offline-capable, quick setup — portfolio definitions live only on your machine and are invisible to other Kanboard users.
+
+**When to use Remote:** team environments, shared visibility, large portfolios (performance), or when you want Kanboard's web UI to show portfolio dashboards and dependency graphs.
+
+The backend is selected via `--portfolio-backend` flag, `KANBOARD_PORTFOLIO_BACKEND` env var, or `portfolio_backend` in your TOML profile (see [Configuration — Portfolio Backend Selection](docs/configuration.md#portfolio-backend-selection)). Switching backends at any time is safe — use `portfolio migrate` to copy data across.
 
 ### Quick example
 
@@ -192,7 +206,7 @@ Or use environment variables:
 
 ```bash
 export KANBOARD_URL="https://kanboard.example.com/jsonrpc.php"
-export KANBOARD_API_TOKEN="your-api-token-here"
+export KANBOARD_TOKEN="your-api-token-here"
 ```
 
 ### 2. Use the CLI
@@ -258,6 +272,7 @@ Location: `~/.config/kanboard/config.toml`
 [profiles.default]
 url = "https://kanboard.example.com/jsonrpc.php"
 token = "your-api-token-here"
+portfolio_backend = "local"        # or "remote" if plugin is installed
 
 [profiles.dev]
 url = "http://localhost:8080/jsonrpc.php"
@@ -270,22 +285,28 @@ output_format = "table"            # table | json | csv | quiet
 
 ### Environment Variables
 
-| Variable               | Overrides                    |
-|------------------------|------------------------------|
-| `KANBOARD_URL`         | `profiles.<active>.url`      |
-| `KANBOARD_API_TOKEN`   | `profiles.<active>.token`    |
-| `KANBOARD_PROFILE`     | `settings.default_profile`   |
-| `KANBOARD_OUTPUT`      | `settings.output_format`     |
+| Variable                       | Overrides                           |
+|--------------------------------|-------------------------------------|
+| `KANBOARD_URL`                 | `profiles.<active>.url`             |
+| `KANBOARD_TOKEN`               | `profiles.<active>.token`           |
+| `KANBOARD_PROFILE`             | `settings.default_profile`          |
+| `KANBOARD_OUTPUT_FORMAT`       | `profiles.<active>.output_format`   |
+| `KANBOARD_AUTH_MODE`           | `profiles.<active>.auth_mode`       |
+| `KANBOARD_USERNAME`            | `profiles.<active>.username`        |
+| `KANBOARD_PASSWORD`            | `profiles.<active>.password`        |
+| `KANBOARD_PORTFOLIO_BACKEND`   | `profiles.<active>.portfolio_backend` |
 
 ### CLI Flags
 
-| Flag              | Purpose                                         |
-|-------------------|-------------------------------------------------|
-| `--url URL`       | Kanboard JSON-RPC endpoint                      |
-| `--token TOKEN`   | API token                                       |
-| `--profile NAME`  | Config profile to use                           |
-| `--output FORMAT` | Output format: `table`, `json`, `csv`, `quiet`  |
-| `--verbose`       | Enable debug logging                            |
+| Flag                        | Purpose                                              |
+|-----------------------------|------------------------------------------------------|
+| `--url URL`                 | Kanboard JSON-RPC endpoint                           |
+| `--token TOKEN`             | API token                                            |
+| `--profile NAME`            | Config profile to use                                |
+| `--output FORMAT`           | Output format: `table`, `json`, `csv`, `quiet`       |
+| `--auth-mode MODE`          | Auth mode: `app` (API token) or `user` (username/password) |
+| `--portfolio-backend BACKEND` | Portfolio storage: `local` (JSON file) or `remote` (plugin API) |
+| `--verbose`                 | Enable debug logging                                 |
 
 **Resolution order:** config file → environment variables → CLI flags (highest priority)
 

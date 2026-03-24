@@ -75,6 +75,8 @@ with KanboardClient(url="https://kanboard.example.com/jsonrpc.php",
 | `client.subtask_time_tracking` | 4 | Subtask time tracking |
 | `client.me` | 7 | Current user (requires user auth) |
 | `client.application` | 7 | Application info (version, colors, roles) |
+| `client.portfolios` | 18 | Portfolio plugin — portfolio CRUD, project membership, dependency queries *(requires plugin)* |
+| `client.milestones` | 10 | Portfolio plugin — milestone CRUD, task membership, progress *(requires plugin)* |
 
 ## Exception Hierarchy
 
@@ -103,6 +105,38 @@ client = KanboardClient(url="...", token="...")
 config = KanboardConfig.resolve()
 client = KanboardClient(url=config.url, token=config.token)
 ```
+
+### Environment Variables
+
+| Variable | Purpose |
+|---|---|
+| `KANBOARD_URL` | JSON-RPC endpoint |
+| `KANBOARD_TOKEN` | API token |
+| `KANBOARD_PROFILE` | Active config profile |
+| `KANBOARD_OUTPUT_FORMAT` | Default output format |
+| `KANBOARD_AUTH_MODE` | `app` (token) or `user` (username/password) |
+| `KANBOARD_USERNAME` | Username (user auth mode) |
+| `KANBOARD_PASSWORD` | Password (user auth mode) |
+| `KANBOARD_PORTFOLIO_BACKEND` | `local` (JSON file) or `remote` (plugin API) |
+
+### Portfolio Backend (Orchestration)
+
+The orchestration layer (`PortfolioManager`, `DependencyAnalyzer`) supports two storage backends. Select via `KanboardConfig` or the `create_backend()` factory:
+
+```python
+from kanboard import KanboardClient, KanboardConfig, create_backend
+from kanboard.orchestration import PortfolioManager
+
+config = KanboardConfig.resolve()  # reads portfolio_backend from env/config file
+
+with KanboardClient(url=config.url, token=config.token) as kb:
+    backend = create_backend(config.portfolio_backend, client=kb)
+    manager = PortfolioManager(kb, backend)
+    tasks = manager.get_portfolio_tasks("My Portfolio")
+```
+
+- **`"local"`** (default) — data stored in `~/.config/kanboard/portfolios.json`; no plugin required; machine-local only
+- **`"remote"`** — data stored server-side via the [Kanboard Portfolio plugin](https://github.com/geekmuse/kanboard-plugin-portfolio-management); shared across all users
 
 ## CLI Companion
 
