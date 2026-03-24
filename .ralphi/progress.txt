@@ -1,3 +1,33 @@
+## 2026-03-24 - US-008
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Refactored `src/kanboard_cli/commands/portfolio.py` for dual-backend support:
+  - Added `_get_backend(app_ctx)` helper — returns `_get_store()` for local (preserving test patches), or `create_backend("remote", client=...)` for remote
+  - Added `_is_remote_backend(app_ctx)` helper — checks `app_ctx.config.portfolio_backend == "remote"`
+  - Updated `_get_manager(app_ctx, backend)` to accept `Any` for the backend param (`# type: ignore[arg-type]` for PortfolioManager's LocalPortfolioStore type hint)
+  - All 12 portfolio subcommands now use `_get_backend(app_ctx)` instead of `_get_store()` directly
+  - `portfolio sync` checks `_is_remote_backend` first and prints no-op message for remote
+  - `portfolio dependencies/blocked/blocking/critical-path` branch on `_is_remote_backend`:
+    - Remote: resolve portfolio_id via `client.portfolios.get_portfolio_by_name(name).id`, delegate to `PortfoliosResource` server-side methods
+    - Local: existing `DependencyAnalyzer` client-side path unchanged
+  - `portfolio remove` skips PortfolioManager metadata cleanup for remote backend
+- Added 11 new CLI tests in `tests/cli/test_portfolio.py`:
+  - `mock_remote_config` fixture (portfolio_backend='remote')
+  - `mock_remote_backend` fixture (MagicMock)
+  - `_invoke_remote()` helper that patches `KanboardConfig.resolve` and optionally `_get_backend`
+  - Tests: list (table + JSON), create (success + API error), sync (no-op), dependencies (JSON + cross-project-only), blocked, blocking, critical-path (JSON), dependencies not-found
+- Files changed: `src/kanboard_cli/commands/portfolio.py`, `tests/cli/test_portfolio.py`
+- **Learnings for future iterations:**
+  - `_get_backend` deliberately calls `_get_store()` for local backend so existing tests that patch `_get_store` continue to work without modification — this is the key pattern for additive backend support
+  - `_is_remote_backend` reads `app_ctx.config.portfolio_backend`; for sync/dependency commands, check this BEFORE calling `_get_backend` so the early-return path doesn't call `_get_store` at all
+  - For remote dependency tests, mock `app_ctx.client.portfolios.xxx` directly (MagicMock attribute chaining) — no need to patch `_get_backend` since remote dependency commands bypass it entirely
+  - `PortfolioManager` accepts `RemotePortfolioBackend` as the store parameter (both implement `get_portfolio()` returning `Portfolio`) — add `# type: ignore[arg-type]` for the LocalPortfolioStore type hint
+  - For remote `portfolio tasks`, PortfolioManager still works transparently (calls `backend.get_portfolio()` for project_ids, then standard `getAllTasks` per project)
+---
+
 ## 2026-03-23 - US-004
 Session: N/A
 Review Outcome: PASS
@@ -67,6 +97,7 @@ Corrective Plan: N/A
 ## Codebase Patterns
 - **PortfoliosResource pattern**: Plugin API resources follow the same pattern as core resources (TYPE_CHECKING guard, _client.call(), typed returns). dict-returning methods (get_portfolio_projects, get_portfolio_tasks, get_portfolio_task_count, get_portfolio_overview) do NOT use PluginPortfolio.from_api() — they return raw dicts or {}. Use `result or {}` for dict fallback (not `if not result: return []`).
 - **get_portfolio_by_name raises on False**: Unlike typical list methods that return [] on False, name-lookup methods raise KanboardNotFoundError on both None AND False (per AC).
+- **Dual-backend CLI pattern**: Add `_get_backend(app_ctx)` that calls `_get_store()` for local (preserving test mocking) and `create_backend("remote", client=...)` for remote. Add `_is_remote_backend(app_ctx)` for early-return checks in commands that diverge. Remote dependency commands skip `_get_backend` entirely and call `client.portfolios.xxx` directly after resolving portfolio_id. For milestone CLI (US-009), apply same pattern.
 
 - **Packaging fixed (fix commit)**: `pyproject.toml` previously listed `kanboard-sdk>=1.1.1` as a runtime dep and only packaged `src/kanboard_cli` in the wheel. This caused `pip install -e '.[dev]'` to reinstall `kanboard-sdk` from PyPI, shadowing `src/kanboard/`. Fixed by: (1) adding `src/kanboard` to `[tool.hatch.build.targets.wheel] packages`, and (2) removing `kanboard-sdk` from dependencies (this repo IS the SDK). `tests/conftest.py` also adds `src/` to the front of `sys.path` as a belt-and-suspenders guard.
 - **Model pattern**: All plugin API models go in `src/kanboard/models.py` in the `# Plugin models (Phase 1)` section. Use `_int()`, `_float()`, `_parse_date()` helpers. Export via `__init__.py` imports + `__all__` (sorted, RUF022 requires sorted `__all__`).
