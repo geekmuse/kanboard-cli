@@ -235,6 +235,27 @@ Corrective Plan: N/A
   - For milestone progress test, resolve portfolio_id via `kanboard_client.portfolios.get_portfolio_by_name(name).id` then call `kanboard_client.milestones.get_portfolio_milestones(portfolio_id)` to find the milestone ID
 ---
 
+## 2026-03-24 - US-017
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Updated 6 documentation files for the dual-backend orchestration phase:
+  - `docs/configuration.md`: Added `portfolio_backend` profile field, `KANBOARD_PORTFOLIO_BACKEND` env var, `--portfolio-backend` CLI flag to all reference tables. Added new "Portfolio Backend Selection" section with TOML/env/CLI config examples, plugin detection note, resolution order, and `migrate` quick-start commands.
+  - `docs/cli-reference.md`: Added `--portfolio-backend` to Global Options table. Updated `portfolio` section with dual-backend description and new `migrate` table entry. Added full `portfolio migrate` sub-section (status/diff/local-to-remote/remote-to-local) with examples, conflict mode table, and sample output. Updated `milestone` section with backend selection note.
+  - `docs/sdk-guide.md`: Added `kb.portfolios` and `kb.milestones` to Resource Categories table. Added "Portfolios Plugin Resource" section (18-method coverage with return convention table). Added "Milestones Plugin Resource" section (10-method coverage). Added "Backend Selection" sub-section with `create_backend()` factory examples. Added "Plugin Models" sub-section (PluginPortfolio, PluginMilestone, PluginMilestoneProgress). Updated ToC.
+  - `CLAUDE.md`: Updated Architecture section with dual-backend and plugin resource notes. Updated File/Folder Structure with new files (`portfolios.py`, `milestones.py`, `backend.py`). Added "Portfolio Backend Config" table.
+  - `AGENTS.md`: Updated Directory Structure with new resource modules, `backend.py`, and test files.
+  - `README.md`: Updated Key Features bullet. Updated Orchestration section with Backends table, backend migration examples, and SDK backend selection example. Updated Project Structure tree with new files.
+- Files changed: `docs/configuration.md`, `docs/cli-reference.md`, `docs/sdk-guide.md`, `CLAUDE.md`, `AGENTS.md`, `README.md`
+- **Learnings for future iterations:**
+  - Documentation-only stories can still be quality-checked: `ruff check .` catches any Python syntax errors in doc strings embedded in test stubs; `pytest` verifies nothing was broken by file renaming or import changes.
+  - The PRD had 6 distinct doc files to update — attacking them in order (config → cli-reference → sdk-guide → CLAUDE.md → AGENTS.md → README.md) from most specific to most general avoids repetition and ensures cross-references are correct.
+  - `docs/sdk-guide.md` had an implicit dependency: new plugin resource sections must appear BEFORE the existing Exception Handling section to match the ToC order.
+  - For SDK guide plugin sections, always include a "Return conventions" table (mirrors resource module behavior) so readers don't need to read source code.
+---
+
 ## Codebase Patterns
 - **PortfoliosResource pattern**: Plugin API resources follow the same pattern as core resources (TYPE_CHECKING guard, _client.call(), typed returns). dict-returning methods (get_portfolio_projects, get_portfolio_tasks, get_portfolio_task_count, get_portfolio_overview) do NOT use PluginPortfolio.from_api() — they return raw dicts or {}. Use `result or {}` for dict fallback (not `if not result: return []`).
 - **get_portfolio_by_name raises on False**: Unlike typical list methods that return [] on False, name-lookup methods raise KanboardNotFoundError on both None AND False (per AC).
