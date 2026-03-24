@@ -137,6 +137,17 @@ class AppContext:
         "(username + password, required for 'me' commands)."
     ),
 )
+@click.option(
+    "--portfolio-backend",
+    "portfolio_backend",
+    envvar="KANBOARD_PORTFOLIO_BACKEND",
+    type=click.Choice(["local", "remote"], case_sensitive=False),
+    default=None,
+    help=(
+        "Portfolio orchestration backend: 'local' (default, local JSON store) or "
+        "'remote' (Kanboard Portfolio Plugin API)."
+    ),
+)
 @click.pass_context
 def cli(
     ctx: click.Context,
@@ -146,6 +157,7 @@ def cli(
     output: str,
     verbose: bool,
     auth_mode: str | None,
+    portfolio_backend: str | None,
 ) -> None:
     r"""Kanboard CLI — manage your Kanboard instance from the terminal.
 
@@ -177,6 +189,7 @@ def cli(
             profile=profile,
             output_format=output,
             auth_mode=auth_mode,
+            cli_portfolio_backend=portfolio_backend,
         )
         app_ctx.config = config
         app_ctx.client = KanboardClient(

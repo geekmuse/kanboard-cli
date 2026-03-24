@@ -349,3 +349,155 @@ def test_app_context_fields() -> None:
     assert ctx.client is client
     assert ctx.output == "json"
     assert ctx.verbose is True
+
+
+# ---------------------------------------------------------------------------
+# --portfolio-backend global option (US-007)
+# ---------------------------------------------------------------------------
+
+
+def test_help_shows_portfolio_backend_option(runner: CliRunner) -> None:
+    """``kanboard --help`` output shows the ``--portfolio-backend`` option."""
+    result = runner.invoke(cli, ["--help"])
+    assert result.exit_code == 0
+    assert "--portfolio-backend" in result.output
+
+
+@pytest.mark.parametrize("backend", ["local", "remote"])
+def test_portfolio_backend_choice_valid(
+    runner: CliRunner, mock_config: KanboardConfig, backend: str
+) -> None:
+    """``--portfolio-backend`` accepts both valid choices and passes them to resolve."""
+    import click
+
+    captured: list[AppContext] = []
+    cmd_name = f"_test_pb_valid_{backend}"
+
+    @cli.command(cmd_name)
+    @click.pass_context
+    def _cmd(ctx: click.Context) -> None:
+        captured.append(ctx.obj)
+
+    resolved = KanboardConfig(
+        url="http://kanboard.test/jsonrpc.php",
+        token="tok",
+        profile="default",
+        output_format="table",
+        portfolio_backend=backend,
+    )
+    with (
+        patch("kanboard_cli.main.KanboardConfig.resolve", return_value=resolved) as mock_resolve,
+        patch("kanboard_cli.main.KanboardClient"),
+    ):
+        result = runner.invoke(cli, ["--portfolio-backend", backend, cmd_name])
+
+    cli.commands.pop(cmd_name, None)
+
+    assert result.exit_code == 0
+    mock_resolve.assert_called_once()
+    _, kwargs = mock_resolve.call_args
+    assert kwargs["cli_portfolio_backend"] == backend
+    assert captured[0].config.portfolio_backend == backend
+
+
+def test_portfolio_backend_choice_invalid(runner: CliRunner) -> None:
+    """``--portfolio-backend`` rejects unknown values."""
+    result = runner.invoke(cli, ["--portfolio-backend", "file", "task", "--help"])
+    assert result.exit_code != 0
+    assert "Invalid value" in result.output
+
+
+def test_portfolio_backend_none_by_default(runner: CliRunner, mock_config: KanboardConfig) -> None:
+    """When ``--portfolio-backend`` is omitted, None is passed as cli_portfolio_backend."""
+    captured: list[AppContext] = []
+
+    import click
+
+    @cli.command("_test_pb_default")
+    @click.pass_context
+    def _test_pb_default(ctx: click.Context) -> None:
+        captured.append(ctx.obj)
+
+    with (
+        patch("kanboard_cli.main.KanboardConfig.resolve", return_value=mock_config) as mock_resolve,
+        patch("kanboard_cli.main.KanboardClient"),
+    ):
+        result = runner.invoke(cli, ["_test_pb_default"])
+
+    cli.commands.pop("_test_pb_default", None)
+
+    assert result.exit_code == 0
+    _, kwargs = mock_resolve.call_args
+    assert kwargs.get("cli_portfolio_backend") is None
+
+
+def test_portfolio_backend_remote_passed_to_resolve(
+    runner: CliRunner, mock_config: KanboardConfig
+) -> None:
+    """``--portfolio-backend remote`` passes ``cli_portfolio_backend='remote'`` to resolve."""
+    captured: list[AppContext] = []
+
+    import click
+
+    @cli.command("_test_pb_remote")
+    @click.pass_context
+    def _test_pb_remote(ctx: click.Context) -> None:
+        captured.append(ctx.obj)
+
+    remote_config = KanboardConfig(
+        url="http://kanboard.test/jsonrpc.php",
+        token="tok",
+        profile="default",
+        output_format="table",
+        portfolio_backend="remote",
+    )
+    with (
+        patch(
+            "kanboard_cli.main.KanboardConfig.resolve", return_value=remote_config
+        ) as mock_resolve,
+        patch("kanboard_cli.main.KanboardClient"),
+    ):
+        result = runner.invoke(cli, ["--portfolio-backend", "remote", "_test_pb_remote"])
+
+    cli.commands.pop("_test_pb_remote", None)
+
+    assert result.exit_code == 0
+    _, kwargs = mock_resolve.call_args
+    assert kwargs["cli_portfolio_backend"] == "remote"
+    assert captured[0].config.portfolio_backend == "remote"
+
+
+def test_portfolio_backend_local_passed_to_resolve(
+    runner: CliRunner, mock_config: KanboardConfig
+) -> None:
+    """``--portfolio-backend local`` passes ``cli_portfolio_backend='local'`` to resolve."""
+    captured: list[AppContext] = []
+
+    import click
+
+    @cli.command("_test_pb_local")
+    @click.pass_context
+    def _test_pb_local(ctx: click.Context) -> None:
+        captured.append(ctx.obj)
+
+    local_config = KanboardConfig(
+        url="http://kanboard.test/jsonrpc.php",
+        token="tok",
+        profile="default",
+        output_format="table",
+        portfolio_backend="local",
+    )
+    with (
+        patch(
+            "kanboard_cli.main.KanboardConfig.resolve", return_value=local_config
+        ) as mock_resolve,
+        patch("kanboard_cli.main.KanboardClient"),
+    ):
+        result = runner.invoke(cli, ["--portfolio-backend", "local", "_test_pb_local"])
+
+    cli.commands.pop("_test_pb_local", None)
+
+    assert result.exit_code == 0
+    _, kwargs = mock_resolve.call_args
+    assert kwargs["cli_portfolio_backend"] == "local"
+    assert captured[0].config.portfolio_backend == "local"
