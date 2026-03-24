@@ -2003,3 +2003,482 @@ def test_portfolio_dependencies_remote_not_found(
     )
 
     assert result.exit_code != 0
+
+
+# ===========================================================================
+# portfolio migrate (US-011)
+# ===========================================================================
+
+
+def _make_local_portfolio_with_milestones() -> Portfolio:
+    """Build a Portfolio with milestones and task assignments for migrate tests."""
+    from kanboard.models import Milestone
+
+    return Portfolio(
+        name="Local Portfolio",
+        description="Local desc",
+        project_ids=[1, 2],
+        milestones=[
+            Milestone(
+                name="Sprint 1",
+                portfolio_name="Local Portfolio",
+                target_date=None,
+                task_ids=[10, 20],
+            ),
+        ],
+        created_at=datetime(2026, 1, 1),
+        updated_at=datetime(2026, 1, 2),
+    )
+
+
+def _make_remote_portfolio_with_diff() -> Portfolio:
+    """Build a Portfolio representing diverged remote data for migrate diff tests."""
+    from kanboard.models import Milestone
+
+    return Portfolio(
+        name="Local Portfolio",
+        description="Remote desc",
+        project_ids=[1, 3],  # project #2 missing, project #3 extra vs local
+        milestones=[
+            Milestone(
+                name="Sprint 1",
+                portfolio_name="Local Portfolio",
+                target_date=None,
+                task_ids=[10, 30],  # task #20 missing, task #30 extra vs local
+            ),
+            Milestone(
+                name="Sprint 2",  # only on remote
+                portfolio_name="Local Portfolio",
+                target_date=None,
+                task_ids=[],
+            ),
+        ],
+        created_at=datetime(2026, 1, 1),
+        updated_at=datetime(2026, 1, 2),
+    )
+
+
+# -- migrate status ----------------------------------------------------------
+
+
+def test_migrate_status_local_counts(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio migrate status`` shows correct local store counts."""
+    from kanboard.models import Milestone
+
+    mock_store.load.return_value = [
+        Portfolio(
+            name="P1",
+            description="",
+            project_ids=[1, 2],
+            milestones=[
+                Milestone(name="M1", portfolio_name="P1", target_date=None, task_ids=[10, 20]),
+                Milestone(name="M2", portfolio_name="P1", target_date=None, task_ids=[30]),
+            ],
+            created_at=datetime(2026, 1, 1),
+            updated_at=datetime(2026, 1, 2),
+        ),
+    ]
+
+    mock_remote = MagicMock()
+    mock_remote.load.return_value = []
+
+    with patch("kanboard.orchestration.backend.create_backend", return_value=mock_remote):
+        result = _invoke(
+            runner, mock_config, mock_client, mock_store, ["portfolio", "migrate", "status"]
+        )
+
+    assert result.exit_code == 0
+    assert "Backend Configuration" in result.output
+    assert "Active backend" in result.output
+    assert "local" in result.output
+    assert "Local Store" in result.output
+    assert "Portfolios       : 1" in result.output
+    assert "Milestones       : 2" in result.output
+    assert "Task assignments : 3" in result.output
+
+
+def test_migrate_status_plugin_detected(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio migrate status`` shows plugin detected and remote counts."""
+    from kanboard.models import Milestone
+
+    mock_store.load.return_value = []
+
+    remote_pf = Portfolio(
+        name="R1",
+        description="",
+        project_ids=[1],
+        milestones=[
+            Milestone(name="RM1", portfolio_name="R1", target_date=None, task_ids=[100, 200]),
+        ],
+        created_at=datetime(2026, 1, 1),
+        updated_at=datetime(2026, 1, 2),
+    )
+    mock_remote = MagicMock()
+    mock_remote.load.return_value = [remote_pf]
+
+    with patch("kanboard.orchestration.backend.create_backend", return_value=mock_remote):
+        result = _invoke(
+            runner, mock_config, mock_client, mock_store, ["portfolio", "migrate", "status"]
+        )
+
+    assert result.exit_code == 0
+    assert "Remote (Plugin API)" in result.output
+    assert "Plugin detected  : Yes" in result.output
+    assert "Portfolios       : 1" in result.output
+    assert "Milestones       : 1" in result.output
+    assert "Task assignments : 2" in result.output
+
+
+def test_migrate_status_no_client(
+    runner: CliRunner,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio migrate status`` shows 'Not configured' when no client available."""
+    mock_store.load.return_value = []
+
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch(
+                "kanboard_cli.main.KanboardConfig.resolve",
+                side_effect=KanboardConfigError("No config"),
+            )
+        )
+        stack.enter_context(
+            patch("kanboard_cli.commands.portfolio._get_store", return_value=mock_store)
+        )
+        result = runner.invoke(cli, ["portfolio", "migrate", "status"])
+
+    assert result.exit_code == 0
+    assert "Not configured" in result.output
+
+
+def test_migrate_status_plugin_not_detected(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio migrate status`` shows 'Plugin detected: No' when plugin is missing."""
+    mock_store.load.return_value = []
+
+    mock_remote = MagicMock()
+    mock_remote.load.side_effect = KanboardConfigError(
+        "The kanboard-plugin-portfolio-management plugin is not installed"
+    )
+
+    with patch("kanboard.orchestration.backend.create_backend", return_value=mock_remote):
+        result = _invoke(
+            runner, mock_config, mock_client, mock_store, ["portfolio", "migrate", "status"]
+        )
+
+    assert result.exit_code == 0
+    assert "Plugin detected  : No" in result.output
+    assert "kanboard-plugin-portfolio-management" in result.output
+
+
+def test_migrate_status_remote_unreachable(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio migrate status`` shows unreachable warning when remote fails."""
+    from kanboard.exceptions import KanboardConnectionError
+
+    mock_store.load.return_value = []
+
+    mock_remote = MagicMock()
+    mock_remote.load.side_effect = KanboardConnectionError("Connection refused")
+
+    with patch("kanboard.orchestration.backend.create_backend", return_value=mock_remote):
+        result = _invoke(
+            runner, mock_config, mock_client, mock_store, ["portfolio", "migrate", "status"]
+        )
+
+    assert result.exit_code == 0
+    assert "Unreachable" in result.output
+
+
+def test_migrate_status_config_source_default(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio migrate status`` shows 'config file / default' source when no env var."""
+    import os
+
+    mock_store.load.return_value = []
+    mock_remote = MagicMock()
+    mock_remote.load.return_value = []
+
+    env_backup = os.environ.pop("KANBOARD_PORTFOLIO_BACKEND", None)
+    try:
+        with patch("kanboard.orchestration.backend.create_backend", return_value=mock_remote):
+            result = _invoke(
+                runner, mock_config, mock_client, mock_store, ["portfolio", "migrate", "status"]
+            )
+    finally:
+        if env_backup is not None:
+            os.environ["KANBOARD_PORTFOLIO_BACKEND"] = env_backup
+
+    assert result.exit_code == 0
+    assert "config file / default" in result.output
+
+
+# -- migrate diff ------------------------------------------------------------
+
+
+def test_migrate_diff_no_name_no_all(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio migrate diff`` without NAME or --all shows usage error."""
+    mock_store.load.return_value = []
+    mock_remote = MagicMock()
+    mock_remote.load.return_value = []
+
+    with patch("kanboard.orchestration.backend.create_backend", return_value=mock_remote):
+        result = _invoke(
+            runner, mock_config, mock_client, mock_store, ["portfolio", "migrate", "diff"]
+        )
+
+    assert result.exit_code != 0
+    assert "NAME" in result.output or "--all" in result.output
+
+
+def test_migrate_diff_portfolio_both_sides_same(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio migrate diff`` shows 'both' for identical portfolio on both sides."""
+    from kanboard.models import Milestone
+
+    pf = Portfolio(
+        name="Shared",
+        description="",
+        project_ids=[1],
+        milestones=[Milestone(name="M1", portfolio_name="Shared", target_date=None, task_ids=[42])],
+        created_at=datetime(2026, 1, 1),
+        updated_at=datetime(2026, 1, 2),
+    )
+    mock_store.load.return_value = [pf]
+
+    mock_remote = MagicMock()
+    mock_remote.load.return_value = [pf]
+
+    with patch("kanboard.orchestration.backend.create_backend", return_value=mock_remote):
+        result = _invoke(
+            runner,
+            mock_config,
+            mock_client,
+            mock_store,
+            ["portfolio", "migrate", "diff", "Shared"],
+        )
+
+    assert result.exit_code == 0
+    assert "Shared" in result.output
+    assert "both" in result.output
+
+
+def test_migrate_diff_project_and_milestone_differences(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio migrate diff`` shows local/remote only for differing projects and milestones."""
+    local_pf = _make_local_portfolio_with_milestones()
+    remote_pf = _make_remote_portfolio_with_diff()
+    mock_store.load.return_value = [local_pf]
+
+    mock_remote = MagicMock()
+    mock_remote.load.return_value = [remote_pf]
+
+    with patch("kanboard.orchestration.backend.create_backend", return_value=mock_remote):
+        result = _invoke(
+            runner,
+            mock_config,
+            mock_client,
+            mock_store,
+            ["portfolio", "migrate", "diff", "Local Portfolio"],
+        )
+
+    assert result.exit_code == 0
+    # project #2 is local only, project #3 is remote only, project #1 is both
+    assert "local only" in result.output
+    assert "remote only" in result.output
+    assert "both" in result.output
+    # Sprint 2 is remote only milestone
+    assert "Sprint 2" in result.output
+
+
+def test_migrate_diff_portfolio_local_only(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio migrate diff`` shows 'local only' when portfolio missing on remote."""
+    local_pf = _make_portfolio(name="Local Only")
+    mock_store.load.return_value = [local_pf]
+
+    mock_remote = MagicMock()
+    mock_remote.load.return_value = []
+
+    with patch("kanboard.orchestration.backend.create_backend", return_value=mock_remote):
+        result = _invoke(
+            runner,
+            mock_config,
+            mock_client,
+            mock_store,
+            ["portfolio", "migrate", "diff", "Local Only"],
+        )
+
+    assert result.exit_code == 0
+    assert "Local Only" in result.output
+    assert "local only" in result.output
+
+
+def test_migrate_diff_portfolio_remote_only(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio migrate diff`` shows 'remote only' when portfolio missing locally."""
+    mock_store.load.return_value = []
+
+    remote_pf = _make_portfolio(name="Remote Only")
+    mock_remote = MagicMock()
+    mock_remote.load.return_value = [remote_pf]
+
+    with patch("kanboard.orchestration.backend.create_backend", return_value=mock_remote):
+        result = _invoke(
+            runner,
+            mock_config,
+            mock_client,
+            mock_store,
+            ["portfolio", "migrate", "diff", "Remote Only"],
+        )
+
+    assert result.exit_code == 0
+    assert "Remote Only" in result.output
+    assert "remote only" in result.output
+
+
+def test_migrate_diff_all(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio migrate diff --all`` compares every portfolio on either side."""
+    local_pf = _make_portfolio(name="Local P")
+    shared_pf = _make_portfolio(name="Shared P")
+    remote_pf = _make_portfolio(name="Remote P")
+    mock_store.load.return_value = [local_pf, shared_pf]
+
+    mock_remote = MagicMock()
+    mock_remote.load.return_value = [remote_pf, shared_pf]
+
+    with patch("kanboard.orchestration.backend.create_backend", return_value=mock_remote):
+        result = _invoke(
+            runner,
+            mock_config,
+            mock_client,
+            mock_store,
+            ["portfolio", "migrate", "diff", "--all"],
+        )
+
+    assert result.exit_code == 0
+    assert "Local P" in result.output
+    assert "Remote P" in result.output
+    assert "Shared P" in result.output
+
+
+def test_migrate_diff_remote_unreachable(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio migrate diff`` warns and shows local items as 'local only' when unreachable."""
+    from kanboard.exceptions import KanboardConnectionError
+
+    local_pf = _make_portfolio(name="My Portfolio")
+    mock_store.load.return_value = [local_pf]
+
+    mock_remote = MagicMock()
+    mock_remote.load.side_effect = KanboardConnectionError("Connection refused")
+
+    with patch("kanboard.orchestration.backend.create_backend", return_value=mock_remote):
+        result = _invoke(
+            runner,
+            mock_config,
+            mock_client,
+            mock_store,
+            ["portfolio", "migrate", "diff", "My Portfolio"],
+        )
+
+    assert result.exit_code == 0
+    assert "My Portfolio" in result.output
+    assert "local only" in result.output
+
+
+def test_migrate_diff_json_output(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio migrate diff`` with JSON output returns structured diff rows."""
+    from kanboard.models import Milestone
+
+    pf = Portfolio(
+        name="My Portfolio",
+        description="",
+        project_ids=[1],
+        milestones=[
+            Milestone(name="M1", portfolio_name="My Portfolio", target_date=None, task_ids=[42])
+        ],
+        created_at=datetime(2026, 1, 1),
+        updated_at=datetime(2026, 1, 2),
+    )
+    mock_store.load.return_value = [pf]
+
+    mock_remote = MagicMock()
+    mock_remote.load.return_value = []
+
+    with patch("kanboard.orchestration.backend.create_backend", return_value=mock_remote):
+        result = _invoke(
+            runner,
+            mock_config,
+            mock_client,
+            mock_store,
+            ["--output", "json", "portfolio", "migrate", "diff", "My Portfolio"],
+        )
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert isinstance(data, list)
+    assert len(data) >= 1
+    assert all(row["portfolio"] == "My Portfolio" for row in data)
+    statuses = [row["status"] for row in data]
+    assert "local only" in statuses
+    cols = set(data[0].keys())
+    assert cols == {"portfolio", "category", "item", "local", "remote", "status"}

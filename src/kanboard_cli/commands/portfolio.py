@@ -33,6 +33,7 @@ from kanboard.exceptions import (
 from kanboard_cli.formatters import format_output, format_success
 
 if TYPE_CHECKING:
+    from kanboard.models import Portfolio
     from kanboard.orchestration.dependencies import DependencyAnalyzer
     from kanboard.orchestration.portfolio import PortfolioManager
     from kanboard.orchestration.store import LocalPortfolioStore
@@ -72,6 +73,9 @@ _BLOCKED_COLUMNS = ["task_id", "title", "project", "blocked_by_task", "blocked_b
 
 # Columns for ``portfolio blocking`` table output.
 _BLOCKING_COLUMNS = ["task_id", "title", "project", "blocks_task", "blocks_project"]
+
+# Columns for ``portfolio migrate diff`` table output.
+_DIFF_COLUMNS = ["portfolio", "category", "item", "local", "remote", "status"]
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +184,71 @@ def _get_analyzer(app_ctx: AppContext) -> DependencyAnalyzer:
     if app_ctx.client is None:
         raise click.ClickException("No Kanboard configuration found. Run 'kanboard config init'.")
     return DependencyAnalyzer(app_ctx.client)
+
+
+def _build_portfolio_diff_rows(
+    portfolio_name: str,
+    local_pf: Portfolio | None,
+    remote_pf: Portfolio | None,
+) -> list[dict[str, Any]]:
+    """Build diff rows comparing a local and remote portfolio.
+
+    Compares project membership, milestone names, and task assignments
+    between the two portfolio instances.  Either side may be ``None`` when
+    the portfolio does not exist on that backend.
+
+    Args:
+        portfolio_name: Name of the portfolio being compared.
+        local_pf: Local portfolio model, or ``None`` if absent locally.
+        remote_pf: Remote portfolio model, or ``None`` if absent on remote.
+
+    Returns:
+        List of diff row dicts with keys: ``portfolio``, ``category``,
+        ``item``, ``local``, ``remote``, ``status``.
+    """
+
+    def _row(category: str, item: str, has_local: bool, has_remote: bool) -> dict[str, Any]:
+        if has_local and has_remote:
+            status = "both"
+        elif has_local:
+            status = "local only"
+        elif has_remote:
+            status = "remote only"
+        else:
+            status = "not found"
+        return {
+            "portfolio": portfolio_name,
+            "category": category,
+            "item": item,
+            "local": "yes" if has_local else "-",
+            "remote": "yes" if has_remote else "-",
+            "status": status,
+        }
+
+    rows: list[dict[str, Any]] = []
+
+    # Portfolio-level existence row
+    rows.append(_row("portfolio", portfolio_name, local_pf is not None, remote_pf is not None))
+
+    # Project membership
+    local_pids: set[int] = set(local_pf.project_ids) if local_pf else set()
+    remote_pids: set[int] = set(remote_pf.project_ids) if remote_pf else set()
+    for pid in sorted(local_pids | remote_pids):
+        rows.append(_row("project", f"#{pid}", pid in local_pids, pid in remote_pids))
+
+    # Milestone membership + task assignments
+    local_ms: dict[str, Any] = {m.name: m for m in local_pf.milestones} if local_pf else {}
+    remote_ms: dict[str, Any] = {m.name: m for m in remote_pf.milestones} if remote_pf else {}
+    for mname in sorted(set(local_ms) | set(remote_ms)):
+        rows.append(_row("milestone", mname, mname in local_ms, mname in remote_ms))
+        lm = local_ms.get(mname)
+        rm = remote_ms.get(mname)
+        local_tids: set[int] = set(lm.task_ids) if lm else set()
+        remote_tids: set[int] = set(rm.task_ids) if rm else set()
+        for tid in sorted(local_tids | remote_tids):
+            rows.append(_row("task", f"#{tid} ({mname})", tid in local_tids, tid in remote_tids))
+
+    return rows
 
 
 # ---------------------------------------------------------------------------
@@ -922,3 +991,163 @@ def portfolio_critical_path(ctx: click.Context, name: str) -> None:
     critical = analyzer.get_critical_path(tasks)
     output = render_critical_path(critical, edges)
     click.echo(output, nl=False)
+
+
+# ---------------------------------------------------------------------------
+# portfolio migrate (read-only migration helpers)
+# ---------------------------------------------------------------------------
+
+
+@portfolio.group("migrate")
+def portfolio_migrate() -> None:
+    """Read-only migration helpers — compare local and remote backend data."""
+
+
+@portfolio_migrate.command("status")
+@click.pass_context
+def migrate_status(ctx: click.Context) -> None:
+    r"""Show migration status: backend config, local counts, remote counts.
+
+    Reads the local store and probes the remote plugin API (if configured).
+    All operations are non-destructive.
+
+    \b
+    Examples:
+        kanboard portfolio migrate status
+    """
+    import os
+
+    app_ctx: AppContext = ctx.obj
+
+    # ── Backend configuration ──────────────────────────────────────────────
+    backend_value = "local"
+    if app_ctx.config is not None:
+        backend_value = app_ctx.config.portfolio_backend
+
+    env_val = os.environ.get("KANBOARD_PORTFOLIO_BACKEND")
+    config_source = (
+        f"env var (KANBOARD_PORTFOLIO_BACKEND={env_val!r})" if env_val else "config file / default"
+    )
+
+    click.echo("Backend Configuration")
+    click.echo(f"  Active backend : {backend_value}")
+    click.echo(f"  Config source  : {config_source}")
+    click.echo()
+
+    # ── Local store ────────────────────────────────────────────────────────
+    click.echo("Local Store")
+    local_store = _get_store()
+    try:
+        local_portfolios = local_store.load()
+        local_portfolio_count = len(local_portfolios)
+        local_milestone_count = sum(len(p.milestones) for p in local_portfolios)
+        local_task_count = sum(len(m.task_ids) for p in local_portfolios for m in p.milestones)
+        click.echo(f"  Portfolios       : {local_portfolio_count}")
+        click.echo(f"  Milestones       : {local_milestone_count}")
+        click.echo(f"  Task assignments : {local_task_count}")
+    except Exception as exc:
+        click.echo(f"  Status : \u26a0 Error reading store \u2014 {exc}")
+    click.echo()
+
+    # ── Remote (plugin API) ────────────────────────────────────────────────
+    click.echo("Remote (Plugin API)")
+    if app_ctx.client is None:
+        click.echo("  Status : Not configured (no Kanboard URL/token)")
+        return
+
+    from kanboard.orchestration.backend import create_backend
+
+    try:
+        remote_backend = create_backend("remote", client=app_ctx.client)
+        remote_portfolios = remote_backend.load()
+        remote_milestone_count = sum(len(p.milestones) for p in remote_portfolios)
+        remote_task_count = sum(len(m.task_ids) for p in remote_portfolios for m in p.milestones)
+        click.echo("  Plugin detected  : Yes")
+        click.echo(f"  Portfolios       : {len(remote_portfolios)}")
+        click.echo(f"  Milestones       : {remote_milestone_count}")
+        click.echo(f"  Task assignments : {remote_task_count}")
+    except KanboardConfigError as exc:
+        if "kanboard-plugin-portfolio-management" in str(exc):
+            click.echo("  Plugin detected  : No")
+            click.echo(f"  Detail           : {exc}")
+        else:
+            click.echo(f"  Status : \u26a0 Configuration error \u2014 {exc}")
+    except (KanboardConnectionError, KanboardAPIError, Exception) as exc:
+        click.echo(f"  Status : \u26a0 Unreachable \u2014 {exc}")
+
+
+@portfolio_migrate.command("diff")
+@click.argument("name", required=False, default=None)
+@click.option(
+    "--all",
+    "all_portfolios",
+    is_flag=True,
+    default=False,
+    help="Compare all portfolios found on either side.",
+)
+@click.pass_context
+def migrate_diff(ctx: click.Context, name: str | None, all_portfolios: bool) -> None:
+    r"""Compare local and remote portfolio state, showing differences.
+
+    NAME compares a single named portfolio.  Use ``--all`` to compare every
+    portfolio found on either the local store or the remote plugin API.
+
+    \b
+    Examples:
+        kanboard portfolio migrate diff "My Portfolio"
+        kanboard portfolio migrate diff --all
+        kanboard --output json portfolio migrate diff "My Portfolio"
+    """
+    app_ctx: AppContext = ctx.obj
+
+    if not all_portfolios and name is None:
+        raise click.UsageError("Provide a portfolio NAME or use --all to compare all portfolios.")
+
+    # ── Fetch local portfolios ─────────────────────────────────────────────
+    local_store = _get_store()
+    try:
+        local_portfolios_list = local_store.load()
+    except Exception as exc:
+        raise click.ClickException(f"Failed to read local store: {exc}") from exc
+    local_by_name: dict[str, Any] = {p.name: p for p in local_portfolios_list}
+
+    # ── Fetch remote portfolios ────────────────────────────────────────────
+    remote_by_name: dict[str, Any] = {}
+    remote_ok = False
+    if app_ctx.client is not None:
+        from kanboard.orchestration.backend import create_backend
+
+        try:
+            remote_backend = create_backend("remote", client=app_ctx.client)
+            remote_portfolios_list = remote_backend.load()
+            remote_by_name = {p.name: p for p in remote_portfolios_list}
+            remote_ok = True
+        except KanboardConfigError as exc:
+            click.echo(f"\u26a0 Warning: Remote backend unavailable \u2014 {exc}", err=True)
+        except (KanboardConnectionError, KanboardAPIError, Exception) as exc:
+            click.echo(f"\u26a0 Warning: Remote unreachable \u2014 {exc}", err=True)
+    else:
+        click.echo(
+            "\u26a0 Warning: No Kanboard configuration \u2014 remote data unavailable.",
+            err=True,
+        )
+
+    # ── Determine which portfolios to compare ─────────────────────────────
+    if all_portfolios:
+        names_to_compare = sorted(set(local_by_name) | set(remote_by_name))
+    else:
+        assert name is not None  # validated above
+        names_to_compare = [name]
+
+    if not names_to_compare:
+        click.echo("No portfolios found on either side.")
+        return
+
+    # ── Build and render diff rows ─────────────────────────────────────────
+    all_rows: list[dict[str, Any]] = []
+    for pf_name in names_to_compare:
+        local_pf = local_by_name.get(pf_name)
+        remote_pf = remote_by_name.get(pf_name) if remote_ok else None
+        all_rows.extend(_build_portfolio_diff_rows(pf_name, local_pf, remote_pf))
+
+    format_output(all_rows, app_ctx.output, columns=_DIFF_COLUMNS)
