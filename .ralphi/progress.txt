@@ -122,6 +122,34 @@ Corrective Plan: N/A
   - Adding `envvar=` to the Click option for `--portfolio-backend` is safe (Click's `case_sensitive=False` still applies); both Click and `KanboardConfig.resolve()` honour the env var independently.
 ---
 
+## 2026-03-24 - US-010
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Added plugin detection probe to `RemotePortfolioBackend` in `src/kanboard/orchestration/backend.py`:
+  - Added `_PLUGIN_NOT_INSTALLED` module-level constant for the error message (DRY)
+  - Added `_JSONRPC_METHOD_NOT_FOUND = -32601` constant for the JSON-RPC method-not-found code
+  - Added `self._plugin_detected: bool | None = None` to `__init__` (None = not probed, True = detected, False = not detected)
+  - Added `_ensure_plugin_detected()` method: no-op if `True`, raises `KanboardConfigError` if `False`, probes via `get_all_portfolios()` if `None`; sets `_plugin_detected = True` on success, `False` on `-32601`; other API errors propagate without caching
+  - Added `_ensure_plugin_detected()` call as first line in all 11 public methods except `load()`
+  - For `load()`: folded probe into the actual `get_all_portfolios()` call to avoid double API requests; first call sets `_plugin_detected = True` on success or `False` on `-32601`
+- Added 10 new `TestPluginDetection` tests to `tests/unit/orchestration/test_backend.py`:
+  - `test_load_sets_plugin_detected_on_success`, `test_load_not_detected_raises_config_error`
+  - `test_load_not_detected_error_mentions_plugin_name`, `test_load_not_detected_error_mentions_local_backend`
+  - `test_load_non_32601_api_error_propagates` (non-detection errors don't cache)
+  - `test_probe_caches_detected_true`, `test_probe_caches_detected_false` (caching verified)
+  - `test_ensure_probe_called_before_create_portfolio`, `test_ensure_probe_not_called_again_on_create_portfolio`
+  - `test_create_portfolio_not_detected_raises`
+- Files changed: `src/kanboard/orchestration/backend.py`, `tests/unit/orchestration/test_backend.py`
+- **Learnings for future iterations:**
+  - For `load()` specifically, the probe is folded into the actual `get_all_portfolios()` call — this preserves the existing `assert_called_once()` test and avoids a wasted double API call on first invocation
+  - `_ensure_plugin_detected()` does NOT cache on non-32601 API errors (auth failures, network errors); the state remains `None` so the next call will try again
+  - JSON-RPC "Method Not Found" is code -32601 (not -32700 parse error, not -32600 invalid request)
+  - The `_plugin_detected` flag follows None/True/False (not Optional[bool]) semantics; using `is True` / `is False` / `is None` guards are safe
+---
+
 ## Codebase Patterns
 - **PortfoliosResource pattern**: Plugin API resources follow the same pattern as core resources (TYPE_CHECKING guard, _client.call(), typed returns). dict-returning methods (get_portfolio_projects, get_portfolio_tasks, get_portfolio_task_count, get_portfolio_overview) do NOT use PluginPortfolio.from_api() — they return raw dicts or {}. Use `result or {}` for dict fallback (not `if not result: return []`).
 - **get_portfolio_by_name raises on False**: Unlike typical list methods that return [] on False, name-lookup methods raise KanboardNotFoundError on both None AND False (per AC).
