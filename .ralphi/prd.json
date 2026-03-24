@@ -213,8 +213,8 @@
       ],
       "notes": "This is the most impactful wiring change. Take care with the dependency subcommands \u2014 local backend uses DependencyAnalyzer (client-side graph traversal), remote backend uses PortfoliosResource methods (server-side SQL).",
       "startedAt": "2026-03-24T03:57:32.990Z",
-      "updatedAt": "2026-03-24T04:10:30.565223Z",
-      "completedAt": "2026-03-24T04:10:30.568059Z"
+      "updatedAt": "2026-03-24T04:12:59.795Z",
+      "completedAt": "2026-03-24T04:12:59.795Z"
     },
     {
       "id": "US-009",
@@ -229,12 +229,15 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 9,
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-006",
         "US-007"
       ],
-      "notes": "Simpler than portfolio wiring since there are fewer asymmetries \u2014 milestone CRUD maps cleanly to plugin API."
+      "notes": "Simpler than portfolio wiring since there are fewer asymmetries \u2014 milestone CRUD maps cleanly to plugin API.",
+      "startedAt": "2026-03-24T04:13:00.523Z",
+      "updatedAt": "2026-03-24T04:22:08.936589Z",
+      "completedAt": "2026-03-24T04:22:08.936589Z"
     },
     {
       "id": "US-010",

@@ -1,3 +1,31 @@
+## 2026-03-24 - US-009
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Refactored `src/kanboard_cli/commands/milestone.py` for dual-backend support:
+  - Added `_get_backend(app_ctx)` helper — identical pattern to portfolio.py; calls `_get_store()` for local, `create_backend("remote", client=...)` for remote
+  - Added `_is_remote_backend(app_ctx)` helper — checks `app_ctx.config.portfolio_backend == "remote"`
+  - Updated `_get_manager(app_ctx, backend: Any)` to accept `Any` instead of `LocalPortfolioStore` (same `# type: ignore[arg-type]` pattern)
+  - All 7 subcommands now use `_get_backend(app_ctx)` instead of `_get_store()` directly
+  - `milestone remove` skips `PortfolioManager.sync_metadata()` for remote backend (local-only side effect)
+  - `milestone progress` adds a full remote path: resolves portfolio_id via `client.portfolios.get_portfolio_by_name()`, fetches milestones via `client.milestones.get_portfolio_milestones()`, gets per-milestone progress via `client.milestones.get_milestone_progress()`, converts `PluginMilestone` + `PluginMilestoneProgress` → `MilestoneProgress` for rendering
+  - Updated module docstring to describe dual-backend behavior
+- Added `KanboardNotFoundError` to imports (needed for remote backend exception handling)
+- Added 10 new CLI tests in `tests/cli/test_milestone.py`:
+  - `mock_remote_config` fixture (portfolio_backend='remote')
+  - `mock_remote_backend` fixture (MagicMock)
+  - `_invoke_remote()` helper
+  - Tests: list (table + JSON), create (success + with-date), remove (success + skips-metadata-sync), progress-single, progress-all, progress-no-milestones, progress-milestone-not-found
+- Files changed: `src/kanboard_cli/commands/milestone.py`, `tests/cli/test_milestone.py`
+- **Learnings for future iterations:**
+  - `milestone progress` remote path requires `PluginMilestone` + `PluginMilestoneProgress` → `MilestoneProgress` conversion since `render_milestone_progress` takes `MilestoneProgress`; blocked_task_ids defaults to [] (not available server-side)
+  - The remote path for `milestone progress` doesn't call `_get_backend()` — it goes directly to `client.portfolios` and `client.milestones`; tests just need `_is_remote_backend` to return True (via `mock_remote_config.portfolio_backend='remote'`)
+  - For remote `milestone progress` tests, mock `client.portfolios.get_portfolio_by_name` and `client.milestones.xxx` directly — no `_get_backend` patch needed
+  - `milestone show` for remote backend works transparently: `_get_backend()` returns `RemotePortfolioBackend`, `PortfolioManager(client, RemotePortfolioBackend)` computes progress client-side — this is the less optimized path (vs getMilestoneProgress server-side) but is correct per spec
+---
+
 ## 2026-03-24 - US-008
 Session: N/A
 Review Outcome: PASS
