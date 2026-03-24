@@ -59,6 +59,7 @@ from kanboard.resources.group_members import GroupMembersResource
 from kanboard.resources.groups import GroupsResource
 from kanboard.resources.links import LinksResource
 from kanboard.resources.me import MeResource
+from kanboard.resources.milestones import MilestonesResource
 from kanboard.resources.portfolios import PortfoliosResource
 from kanboard.resources.project_files import ProjectFilesResource
 from kanboard.resources.project_metadata import ProjectMetadataResource
@@ -111,6 +112,7 @@ __all__ = [
     "MeResource",
     "Milestone",
     "MilestoneProgress",
+    "MilestonesResource",
     "PluginMilestone",
     "PluginMilestoneProgress",
     "PluginPortfolio",
