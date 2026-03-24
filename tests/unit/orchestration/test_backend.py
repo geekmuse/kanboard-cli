@@ -5,6 +5,7 @@ Covers:
 - create_backend() factory — all input combinations
 - RemotePortfolioBackend method delegation (each of the 12 protocol methods)
 - Name-to-ID translation in RemotePortfolioBackend
+- Plugin detection probe: detected, not-detected, caching
 - Error paths: missing client, invalid backend_type, milestone not found
 """
 
@@ -16,7 +17,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from kanboard.exceptions import KanboardConfigError, KanboardNotFoundError
+from kanboard.exceptions import KanboardAPIError, KanboardConfigError, KanboardNotFoundError
 from kanboard.models import Milestone, PluginMilestone, PluginPortfolio, Portfolio
 from kanboard.orchestration.backend import (
     PortfolioBackend,
@@ -694,3 +695,142 @@ class TestNameToIdTranslation:
         backend.remove_task_from_milestone("X", "M", 100)
 
         mock_m.remove_task_from_milestone.assert_called_once_with(77, 100)
+
+
+# ---------------------------------------------------------------------------
+# Plugin detection probe
+# ---------------------------------------------------------------------------
+
+
+class TestPluginDetection:
+    """Plugin detection probe: caching, detected, and not-detected scenarios."""
+
+    # ------------------------------------------------------------------
+    # load() folds probe into actual API call
+    # ------------------------------------------------------------------
+
+    def test_load_sets_plugin_detected_on_success(self) -> None:
+        """load() marks plugin as detected after a successful get_all_portfolios."""
+        backend, mock_p, _mock_m = _make_remote_backend()
+        mock_p.get_all_portfolios.return_value = []
+
+        backend.load()
+
+        assert backend._plugin_detected is True
+        mock_p.get_all_portfolios.assert_called_once()
+
+    def test_load_not_detected_raises_config_error(self) -> None:
+        """load() raises KanboardConfigError when plugin returns -32601."""
+        backend, mock_p, _ = _make_remote_backend()
+        mock_p.get_all_portfolios.side_effect = KanboardAPIError("Method not found", code=-32601)
+
+        with pytest.raises(KanboardConfigError) as exc_info:
+            backend.load()
+
+        assert exc_info.value.field == "portfolio_backend"
+        assert backend._plugin_detected is False
+
+    def test_load_not_detected_error_mentions_plugin_name(self) -> None:
+        """Error message from load() names kanboard-plugin-portfolio-management."""
+        backend, mock_p, _ = _make_remote_backend()
+        mock_p.get_all_portfolios.side_effect = KanboardAPIError("nope", code=-32601)
+
+        with pytest.raises(KanboardConfigError) as exc_info:
+            backend.load()
+
+        assert "kanboard-plugin-portfolio-management" in str(exc_info.value)
+
+    def test_load_not_detected_error_mentions_local_backend(self) -> None:
+        """Error message from load() mentions --portfolio-backend local."""
+        backend, mock_p, _ = _make_remote_backend()
+        mock_p.get_all_portfolios.side_effect = KanboardAPIError("nope", code=-32601)
+
+        with pytest.raises(KanboardConfigError) as exc_info:
+            backend.load()
+
+        assert "--portfolio-backend local" in str(exc_info.value)
+
+    def test_load_non_32601_api_error_propagates(self) -> None:
+        """A non-32601 API error during load() propagates unchanged."""
+        backend, mock_p, _ = _make_remote_backend()
+        mock_p.get_all_portfolios.side_effect = KanboardAPIError("auth failed", code=-32600)
+
+        with pytest.raises(KanboardAPIError) as exc_info:
+            backend.load()
+
+        assert exc_info.value.code == -32600
+        # Detection state should remain None (not cached on unrelated errors)
+        assert backend._plugin_detected is None
+
+    # ------------------------------------------------------------------
+    # _ensure_plugin_detected() caching
+    # ------------------------------------------------------------------
+
+    def test_probe_caches_detected_true(self) -> None:
+        """After detection, _plugin_detected is True and probe is not re-called."""
+        backend, mock_p, mock_m = _make_remote_backend()
+        mock_p.get_all_portfolios.return_value = []
+        mock_p.get_portfolio_by_name.return_value = _plugin_portfolio(id=1, name="A")
+        mock_p.get_portfolio_projects.return_value = []
+        mock_m.get_portfolio_milestones.return_value = []
+
+        backend.load()  # first call — probe via load()
+        backend.get_portfolio("A")  # second call — should NOT re-probe
+
+        # get_all_portfolios was called exactly once (by load, not by get_portfolio)
+        mock_p.get_all_portfolios.assert_called_once()
+
+    def test_probe_caches_detected_false(self) -> None:
+        """After not-detected is cached, second call raises without re-probing."""
+        backend, mock_p, _ = _make_remote_backend()
+        mock_p.get_all_portfolios.side_effect = KanboardAPIError("nope", code=-32601)
+
+        with pytest.raises(KanboardConfigError):
+            backend.load()  # sets _plugin_detected = False
+
+        # Second call should raise immediately without calling get_all_portfolios again
+        with pytest.raises(KanboardConfigError):
+            backend.load()
+
+        assert mock_p.get_all_portfolios.call_count == 1  # probe happened only once
+
+    def test_ensure_probe_called_before_create_portfolio(self) -> None:
+        """create_portfolio() probes the plugin on first call."""
+        backend, mock_p, mock_m = _make_remote_backend()
+        mock_p.create_portfolio.return_value = 5
+        mock_p.get_portfolio.return_value = _plugin_portfolio(id=5, name="X")
+        mock_p.get_portfolio_projects.return_value = []
+        mock_m.get_portfolio_milestones.return_value = []
+
+        backend.create_portfolio("X")
+
+        # _ensure_plugin_detected called get_all_portfolios for the probe
+        mock_p.get_all_portfolios.assert_called_once()
+        assert backend._plugin_detected is True
+
+    def test_ensure_probe_not_called_again_on_create_portfolio(self) -> None:
+        """create_portfolio() skips probe when plugin already detected."""
+        backend, mock_p, mock_m = _make_remote_backend()
+        mock_p.get_all_portfolios.return_value = []
+        mock_p.get_portfolio_projects.return_value = []
+        mock_m.get_portfolio_milestones.return_value = []
+
+        backend.load()  # primes detection
+
+        mock_p.create_portfolio.return_value = 5
+        mock_p.get_portfolio.return_value = _plugin_portfolio(id=5, name="X")
+        backend.create_portfolio("X")
+
+        # get_all_portfolios called once for load(); not again for create_portfolio
+        mock_p.get_all_portfolios.assert_called_once()
+
+    def test_create_portfolio_not_detected_raises(self) -> None:
+        """create_portfolio() raises KanboardConfigError when plugin is not installed."""
+        backend, mock_p, _ = _make_remote_backend()
+        mock_p.get_all_portfolios.side_effect = KanboardAPIError("nope", code=-32601)
+
+        with pytest.raises(KanboardConfigError) as exc_info:
+            backend.create_portfolio("X")
+
+        assert exc_info.value.field == "portfolio_backend"
+        assert "kanboard-plugin-portfolio-management" in str(exc_info.value)

@@ -30,7 +30,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-from kanboard.exceptions import KanboardConfigError
+from kanboard.exceptions import KanboardAPIError, KanboardConfigError
 from kanboard.models import Milestone, Portfolio
 from kanboard.orchestration.store import LocalPortfolioStore
 
@@ -230,6 +230,21 @@ class PortfolioBackend(Protocol):
 
 
 # ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+#: Error message raised when the portfolio plugin is not installed on the server.
+_PLUGIN_NOT_INSTALLED = (
+    "The kanboard-plugin-portfolio-management plugin is not installed on this "
+    "Kanboard server. Install the plugin or use --portfolio-backend local to "
+    "use the local file store instead."
+)
+
+#: JSON-RPC error code returned when a method does not exist on the server.
+_JSONRPC_METHOD_NOT_FOUND = -32601
+
+
+# ---------------------------------------------------------------------------
 # Remote backend
 # ---------------------------------------------------------------------------
 
@@ -261,6 +276,7 @@ class RemotePortfolioBackend:
         self._client = client
         self._portfolios: PortfoliosResource = client.portfolios  # type: ignore[assignment]
         self._milestones: MilestonesResource = client.milestones  # type: ignore[assignment]
+        self._plugin_detected: bool | None = None
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -350,16 +366,68 @@ class RemotePortfolioBackend:
         )
 
     # ------------------------------------------------------------------
+    # Plugin detection
+    # ------------------------------------------------------------------
+
+    def _ensure_plugin_detected(self) -> None:
+        """Probe the portfolio plugin API on first call; raise if not installed.
+
+        On the first invocation, calls :meth:`getAllPortfolios` and inspects
+        the response to determine whether the
+        ``kanboard-plugin-portfolio-management`` plugin is installed on the
+        server.  The detection result is cached on the instance so subsequent
+        calls skip the probe entirely.
+
+        Raises:
+            KanboardConfigError: The plugin is not installed on the Kanboard
+                server.
+        """
+        if self._plugin_detected is True:
+            return
+        if self._plugin_detected is False:
+            raise KanboardConfigError(_PLUGIN_NOT_INSTALLED, field="portfolio_backend")
+        # First call — probe by calling a plugin-specific API method.
+        try:
+            self._portfolios.get_all_portfolios()
+            self._plugin_detected = True
+        except KanboardAPIError as exc:
+            if exc.code == _JSONRPC_METHOD_NOT_FOUND:
+                self._plugin_detected = False
+                raise KanboardConfigError(_PLUGIN_NOT_INSTALLED, field="portfolio_backend") from exc
+            # Other API errors (auth, network, etc.) propagate; don't cache.
+            raise
+
+    # ------------------------------------------------------------------
     # PortfolioBackend interface — portfolio CRUD
     # ------------------------------------------------------------------
 
     def load(self) -> list[Portfolio]:
         """Return all portfolios from the plugin API.
 
+        On the first call this method folds the plugin detection probe into
+        the :meth:`getAllPortfolios` request, avoiding a redundant extra API
+        call.  Subsequent calls proceed without re-probing.
+
         Returns:
             A list of fully-populated :class:`~kanboard.models.Portfolio` objects.
+
+        Raises:
+            KanboardConfigError: The portfolio plugin is not installed on the
+                server.
         """
-        plugin_portfolios = self._portfolios.get_all_portfolios()
+        # If already cached as not-detected, raise immediately.
+        if self._plugin_detected is False:
+            raise KanboardConfigError(_PLUGIN_NOT_INSTALLED, field="portfolio_backend")
+        # On the first call the get_all_portfolios() response acts as the probe
+        # so we avoid a redundant second request.
+        try:
+            plugin_portfolios = self._portfolios.get_all_portfolios()
+        except KanboardAPIError as exc:
+            if exc.code == _JSONRPC_METHOD_NOT_FOUND and self._plugin_detected is None:
+                self._plugin_detected = False
+                raise KanboardConfigError(_PLUGIN_NOT_INSTALLED, field="portfolio_backend") from exc
+            raise
+        self._plugin_detected = True
         return [self._build_portfolio(p) for p in plugin_portfolios]
 
     def create_portfolio(
@@ -381,6 +449,7 @@ class RemotePortfolioBackend:
         Returns:
             The newly created :class:`~kanboard.models.Portfolio`.
         """
+        self._ensure_plugin_detected()
         portfolio_id = self._portfolios.create_portfolio(name, description=description)
         for project_id in project_ids or []:
             self._portfolios.add_project_to_portfolio(portfolio_id, project_id)
@@ -399,6 +468,7 @@ class RemotePortfolioBackend:
         Raises:
             KanboardNotFoundError: No portfolio with *name* exists on the server.
         """
+        self._ensure_plugin_detected()
         plugin_portfolio = self._portfolios.get_portfolio_by_name(name)
         return self._build_portfolio(plugin_portfolio)
 
@@ -415,6 +485,7 @@ class RemotePortfolioBackend:
         Raises:
             KanboardNotFoundError: No portfolio with *name* exists on the server.
         """
+        self._ensure_plugin_detected()
         portfolio_id = self._resolve_portfolio_id(name)
         self._portfolios.update_portfolio(portfolio_id, **kwargs)
         plugin_portfolio = self._portfolios.get_portfolio(portfolio_id)
@@ -429,6 +500,7 @@ class RemotePortfolioBackend:
         Returns:
             ``True`` if removed, ``False`` if not found.
         """
+        self._ensure_plugin_detected()
         try:
             portfolio_id = self._resolve_portfolio_id(name)
         except Exception:
@@ -452,6 +524,7 @@ class RemotePortfolioBackend:
         Raises:
             KanboardNotFoundError: No portfolio with *portfolio_name* exists.
         """
+        self._ensure_plugin_detected()
         portfolio_id = self._resolve_portfolio_id(portfolio_name)
         self._portfolios.add_project_to_portfolio(portfolio_id, project_id)
         plugin_portfolio = self._portfolios.get_portfolio(portfolio_id)
@@ -470,6 +543,7 @@ class RemotePortfolioBackend:
         Raises:
             KanboardNotFoundError: No portfolio with *portfolio_name* exists.
         """
+        self._ensure_plugin_detected()
         portfolio_id = self._resolve_portfolio_id(portfolio_name)
         self._portfolios.remove_project_from_portfolio(portfolio_id, project_id)
         plugin_portfolio = self._portfolios.get_portfolio(portfolio_id)
@@ -498,6 +572,7 @@ class RemotePortfolioBackend:
         Raises:
             KanboardNotFoundError: No portfolio with *portfolio_name* exists.
         """
+        self._ensure_plugin_detected()
         portfolio_id = self._resolve_portfolio_id(portfolio_name)
         kwargs: dict[str, Any] = {}
         if target_date is not None:
@@ -527,6 +602,7 @@ class RemotePortfolioBackend:
             KanboardConfigError: No milestone with *milestone_name* in the
                 portfolio.
         """
+        self._ensure_plugin_detected()
         portfolio_id = self._resolve_portfolio_id(portfolio_name)
         milestone_id = self._resolve_milestone_id(portfolio_id, milestone_name)
         self._milestones.update_milestone(milestone_id, **kwargs)
@@ -546,6 +622,7 @@ class RemotePortfolioBackend:
         Raises:
             KanboardNotFoundError: No portfolio with *portfolio_name* exists.
         """
+        self._ensure_plugin_detected()
         portfolio_id = self._resolve_portfolio_id(portfolio_name)
         try:
             milestone_id = self._resolve_milestone_id(portfolio_id, milestone_name)
@@ -584,6 +661,7 @@ class RemotePortfolioBackend:
             KanboardConfigError: No milestone with *milestone_name* in the
                 portfolio.
         """
+        self._ensure_plugin_detected()
         portfolio_id = self._resolve_portfolio_id(portfolio_name)
         milestone_id = self._resolve_milestone_id(portfolio_id, milestone_name)
         self._milestones.add_task_to_milestone(milestone_id, task_id)
@@ -611,6 +689,7 @@ class RemotePortfolioBackend:
             KanboardConfigError: No milestone with *milestone_name* in the
                 portfolio.
         """
+        self._ensure_plugin_detected()
         portfolio_id = self._resolve_portfolio_id(portfolio_name)
         milestone_id = self._resolve_milestone_id(portfolio_id, milestone_name)
         self._milestones.remove_task_from_milestone(milestone_id, task_id)
