@@ -2482,3 +2482,359 @@ def test_migrate_diff_json_output(
     assert "local only" in statuses
     cols = set(data[0].keys())
     assert cols == {"portfolio", "category", "item", "local", "remote", "status"}
+
+
+# ===========================================================================
+# portfolio migrate local-to-remote (US-012)
+# ===========================================================================
+
+
+def _make_local_portfolio_for_migration() -> Portfolio:
+    """Build a Portfolio with 2 projects, 1 milestone with 2 tasks for migration tests."""
+    from kanboard.models import Milestone
+
+    return Portfolio(
+        name="Migrate Me",
+        description="Migration test portfolio",
+        project_ids=[1, 2],
+        milestones=[
+            Milestone(
+                name="Sprint 1",
+                portfolio_name="Migrate Me",
+                target_date=None,
+                task_ids=[10, 20],
+            ),
+        ],
+        created_at=datetime(2026, 1, 1),
+        updated_at=datetime(2026, 1, 2),
+    )
+
+
+def test_migrate_local_to_remote_no_name_no_all(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio migrate local-to-remote`` without NAME or --all shows usage error."""
+    mock_store.load.return_value = []
+    result = _invoke(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        ["portfolio", "migrate", "local-to-remote"],
+    )
+    assert result.exit_code != 0
+    assert "NAME" in result.output or "--all" in result.output
+
+
+def test_migrate_local_to_remote_success(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``migrate local-to-remote <name>`` creates portfolio with projects, milestones, and tasks."""
+    pf = _make_local_portfolio_for_migration()
+    mock_store.load.return_value = [pf]
+    mock_client.portfolios.get_portfolio_by_name.side_effect = KanboardNotFoundError(
+        "Portfolio", "Migrate Me"
+    )
+    mock_client.portfolios.create_portfolio.return_value = 42
+    mock_client.portfolios.add_project_to_portfolio.return_value = True
+    mock_client.milestones.create_milestone.return_value = 7
+    mock_client.milestones.add_task_to_milestone.return_value = True
+
+    result = _invoke(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        ["portfolio", "migrate", "local-to-remote", "Migrate Me"],
+    )
+
+    assert result.exit_code == 0
+    assert "Creating portfolio 'Migrate Me'" in result.output
+    assert "Adding project #1" in result.output
+    assert "Adding project #2" in result.output
+    assert "Creating milestone 'Sprint 1'" in result.output
+    assert "Adding task #10" in result.output
+    assert "Adding task #20" in result.output
+    assert "migrated successfully" in result.output
+    assert "Migrated 1 portfolio" in result.output
+    assert "(0 failed)" in result.output
+
+    mock_client.portfolios.create_portfolio.assert_called_once_with(
+        "Migrate Me", description="Migration test portfolio"
+    )
+    mock_client.portfolios.add_project_to_portfolio.assert_any_call(42, 1)
+    mock_client.portfolios.add_project_to_portfolio.assert_any_call(42, 2)
+    mock_client.milestones.create_milestone.assert_called_once_with(42, "Sprint 1")
+    mock_client.milestones.add_task_to_milestone.assert_any_call(7, 10)
+    mock_client.milestones.add_task_to_milestone.assert_any_call(7, 20)
+
+
+def test_migrate_local_to_remote_dry_run(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``portfolio migrate local-to-remote --dry-run`` prints plans without any API calls."""
+    pf = _make_local_portfolio_for_migration()
+    mock_store.load.return_value = [pf]
+
+    result = _invoke(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        ["portfolio", "migrate", "local-to-remote", "Migrate Me", "--dry-run"],
+    )
+
+    assert result.exit_code == 0
+    assert "[dry-run]" in result.output
+    assert "Creating portfolio 'Migrate Me'" in result.output
+    assert "Adding project #1" in result.output
+    assert "Creating milestone 'Sprint 1'" in result.output
+    assert "Adding task #10" in result.output
+    assert "Migrated 1 portfolio" in result.output
+
+    # No remote API calls should be made in dry-run mode.
+    mock_client.portfolios.get_portfolio_by_name.assert_not_called()
+    mock_client.portfolios.create_portfolio.assert_not_called()
+    mock_client.portfolios.add_project_to_portfolio.assert_not_called()
+    mock_client.milestones.create_milestone.assert_not_called()
+    mock_client.milestones.add_task_to_milestone.assert_not_called()
+
+
+def test_migrate_local_to_remote_conflict_fail(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``migrate local-to-remote`` with --on-conflict fail errors when portfolio exists."""
+    pf = _make_local_portfolio_for_migration()
+    mock_store.load.return_value = [pf]
+
+    existing = MagicMock()
+    existing.id = 99
+    mock_client.portfolios.get_portfolio_by_name.return_value = existing
+
+    result = _invoke(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        ["portfolio", "migrate", "local-to-remote", "Migrate Me"],  # default: --on-conflict fail
+    )
+
+    assert result.exit_code != 0
+    assert "already exists" in result.output
+    mock_client.portfolios.create_portfolio.assert_not_called()
+
+
+def test_migrate_local_to_remote_conflict_skip(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``migrate local-to-remote --on-conflict skip`` skips portfolio when it exists on server."""
+    pf = _make_local_portfolio_for_migration()
+    mock_store.load.return_value = [pf]
+
+    existing = MagicMock()
+    existing.id = 99
+    mock_client.portfolios.get_portfolio_by_name.return_value = existing
+
+    result = _invoke(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        ["portfolio", "migrate", "local-to-remote", "Migrate Me", "--on-conflict", "skip"],
+    )
+
+    assert result.exit_code == 0
+    assert "skipping" in result.output
+    # Summary: 0 migrated (was skipped), 0 failed
+    assert "Migrated 0 portfolio" in result.output
+    assert "(0 failed)" in result.output
+    mock_client.portfolios.create_portfolio.assert_not_called()
+
+
+def test_migrate_local_to_remote_conflict_overwrite(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``migrate local-to-remote --on-conflict overwrite --yes`` removes and recreates."""
+    pf = _make_local_portfolio_for_migration()
+    mock_store.load.return_value = [pf]
+
+    existing = MagicMock()
+    existing.id = 99
+    mock_client.portfolios.get_portfolio_by_name.return_value = existing
+    mock_client.portfolios.remove_portfolio.return_value = True
+    mock_client.portfolios.create_portfolio.return_value = 42
+    mock_client.portfolios.add_project_to_portfolio.return_value = True
+    mock_client.milestones.create_milestone.return_value = 7
+    mock_client.milestones.add_task_to_milestone.return_value = True
+
+    result = _invoke(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        [
+            "portfolio",
+            "migrate",
+            "local-to-remote",
+            "Migrate Me",
+            "--on-conflict",
+            "overwrite",
+            "--yes",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Removing existing remote portfolio" in result.output
+    assert "Creating portfolio 'Migrate Me'" in result.output
+    assert "migrated successfully" in result.output
+    assert "Migrated 1 portfolio" in result.output
+
+    mock_client.portfolios.remove_portfolio.assert_called_once_with(99)
+    mock_client.portfolios.create_portfolio.assert_called_once_with(
+        "Migrate Me", description="Migration test portfolio"
+    )
+
+
+def test_migrate_local_to_remote_overwrite_requires_yes(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``migrate local-to-remote --on-conflict overwrite`` without --yes prompts."""
+    pf = _make_local_portfolio_for_migration()
+    mock_store.load.return_value = [pf]
+
+    # Respond "n" to the confirmation prompt -> should abort.
+    result = _invoke(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        ["portfolio", "migrate", "local-to-remote", "Migrate Me", "--on-conflict", "overwrite"],
+        input="n\n",
+    )
+
+    assert result.exit_code != 0
+    mock_client.portfolios.create_portfolio.assert_not_called()
+
+
+def test_migrate_local_to_remote_all(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``migrate local-to-remote --all`` migrates all local portfolios."""
+    from kanboard.models import Milestone
+
+    pf1 = Portfolio(
+        name="Portfolio A",
+        description="A",
+        project_ids=[1],
+        milestones=[],
+        created_at=datetime(2026, 1, 1),
+        updated_at=datetime(2026, 1, 2),
+    )
+    pf2 = Portfolio(
+        name="Portfolio B",
+        description="B",
+        project_ids=[2],
+        milestones=[Milestone(name="M1", portfolio_name="Portfolio B", target_date=None)],
+        created_at=datetime(2026, 1, 1),
+        updated_at=datetime(2026, 1, 2),
+    )
+    mock_store.load.return_value = [pf1, pf2]
+
+    # No conflicts on either portfolio.
+    mock_client.portfolios.get_portfolio_by_name.side_effect = KanboardNotFoundError(
+        "Portfolio", "any"
+    )
+    mock_client.portfolios.create_portfolio.side_effect = [10, 20]
+    mock_client.portfolios.add_project_to_portfolio.return_value = True
+    mock_client.milestones.create_milestone.return_value = 5
+
+    result = _invoke(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        ["portfolio", "migrate", "local-to-remote", "--all"],
+    )
+
+    assert result.exit_code == 0
+    assert "Portfolio A" in result.output
+    assert "Portfolio B" in result.output
+    assert "Migrated 2 portfolios" in result.output
+    assert "(0 failed)" in result.output
+    assert mock_client.portfolios.create_portfolio.call_count == 2
+
+
+def test_migrate_local_to_remote_partial_failure(
+    runner: CliRunner,
+    mock_config: KanboardConfig,
+    mock_client: MagicMock,
+    mock_store: MagicMock,
+) -> None:
+    """``migrate local-to-remote --all`` continues after a per-portfolio failure."""
+    pf1 = Portfolio(
+        name="Good Portfolio",
+        description="",
+        project_ids=[1],
+        milestones=[],
+        created_at=datetime(2026, 1, 1),
+        updated_at=datetime(2026, 1, 2),
+    )
+    pf2 = Portfolio(
+        name="Bad Portfolio",
+        description="",
+        project_ids=[2],
+        milestones=[],
+        created_at=datetime(2026, 1, 1),
+        updated_at=datetime(2026, 1, 2),
+    )
+    mock_store.load.return_value = [pf1, pf2]
+
+    # No conflict for either portfolio.
+    mock_client.portfolios.get_portfolio_by_name.side_effect = KanboardNotFoundError(
+        "Portfolio", "any"
+    )
+    # First call succeeds (Good Portfolio), second call raises (Bad Portfolio).
+    mock_client.portfolios.create_portfolio.side_effect = [
+        10,
+        KanboardAPIError("Server error creating Bad Portfolio"),
+    ]
+
+    result = _invoke(
+        runner,
+        mock_config,
+        mock_client,
+        mock_store,
+        ["portfolio", "migrate", "local-to-remote", "--all"],
+    )
+
+    assert result.exit_code == 0
+    assert "Good Portfolio" in result.output
+    # Error for Bad Portfolio logged to stderr (mix_stderr=True in CliRunner by default)
+    assert "Bad Portfolio" in result.output
+    # Summary: 1 migrated, 1 failed
+    assert "Migrated 1 portfolio" in result.output
+    assert "(1 failed)" in result.output

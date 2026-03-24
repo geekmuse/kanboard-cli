@@ -1076,6 +1076,234 @@ def migrate_status(ctx: click.Context) -> None:
         click.echo(f"  Status : \u26a0 Unreachable \u2014 {exc}")
 
 
+def _migrate_one_portfolio_local_to_remote(
+    pf: Portfolio,
+    app_ctx: AppContext,
+    *,
+    dry_run: bool,
+    on_conflict: str,
+) -> str:
+    """Migrate a single portfolio from local store to the remote plugin backend.
+
+    On success returns ``"ok"``.  When the portfolio is skipped due to a
+    ``"skip"`` conflict strategy, returns ``"skip"``.  All other failures
+    raise an exception so the caller can log them and continue (``--all``
+    mode) or convert them to :class:`~click.ClickException` (single mode).
+
+    Args:
+        pf: The local :class:`~kanboard.models.Portfolio` to migrate.
+        app_ctx: Current application context.
+        dry_run: When ``True``, print planned operations without executing
+            any remote API calls.
+        on_conflict: Conflict resolution strategy — ``"fail"``, ``"skip"``,
+            or ``"overwrite"``.
+
+    Returns:
+        ``"ok"`` on success, ``"skip"`` when portfolio was intentionally
+        skipped.
+
+    Raises:
+        ValueError: *on_conflict* is ``"fail"`` and a same-named portfolio
+            already exists on the server.
+        KanboardAPIError: A remote API call failed.
+        KanboardNotFoundError: An unexpected lookup failure occurred.
+    """
+    prefix = "[dry-run] " if dry_run else ""
+
+    # ── Conflict detection (remote read — skipped in dry-run) ──────────────
+    if not dry_run:
+        try:
+            existing = app_ctx.client.portfolios.get_portfolio_by_name(pf.name)  # type: ignore[union-attr]
+            # Portfolio exists on remote — apply conflict strategy.
+            if on_conflict == "fail":
+                raise ValueError(
+                    f"Portfolio '{pf.name}' already exists on the server. "
+                    "Use --on-conflict skip or --on-conflict overwrite to handle conflicts."
+                )
+            if on_conflict == "skip":
+                click.echo(f"Portfolio '{pf.name}' already exists on server — skipping.")
+                return "skip"
+            # overwrite — remove the existing remote portfolio first.
+            click.echo(f"Removing existing remote portfolio '{pf.name}'...")
+            app_ctx.client.portfolios.remove_portfolio(existing.id)  # type: ignore[union-attr]
+        except KanboardNotFoundError:
+            pass  # No conflict — proceed with migration.
+
+    # ── Create portfolio ───────────────────────────────────────────────────
+    click.echo(f"{prefix}Creating portfolio '{pf.name}'...")
+    portfolio_id: int | None = None
+    if not dry_run:
+        portfolio_id = app_ctx.client.portfolios.create_portfolio(  # type: ignore[union-attr]
+            pf.name, description=pf.description
+        )
+
+    # ── Add projects ───────────────────────────────────────────────────────
+    for project_id in pf.project_ids:
+        click.echo(f"{prefix}  Adding project #{project_id}...")
+        if not dry_run:
+            app_ctx.client.portfolios.add_project_to_portfolio(  # type: ignore[union-attr]
+                portfolio_id, project_id
+            )
+
+    # ── Create milestones and add tasks ────────────────────────────────────
+    for milestone in pf.milestones:
+        click.echo(f"{prefix}  Creating milestone '{milestone.name}'...")
+        milestone_id: int | None = None
+        if not dry_run:
+            ms_kwargs: dict[str, Any] = {}
+            if milestone.target_date is not None:
+                ms_kwargs["target_date"] = milestone.target_date
+            milestone_id = app_ctx.client.milestones.create_milestone(  # type: ignore[union-attr]
+                portfolio_id, milestone.name, **ms_kwargs
+            )
+        for task_id in milestone.task_ids:
+            click.echo(f"{prefix}    Adding task #{task_id} to milestone '{milestone.name}'...")
+            if not dry_run:
+                app_ctx.client.milestones.add_task_to_milestone(  # type: ignore[union-attr]
+                    milestone_id, task_id
+                )
+
+    click.echo(f"{prefix}Portfolio '{pf.name}' migrated successfully.")
+    return "ok"
+
+
+@portfolio_migrate.command("local-to-remote")
+@click.argument("name", required=False, default=None)
+@click.option(
+    "--all",
+    "all_portfolios",
+    is_flag=True,
+    default=False,
+    help="Migrate all local portfolios to the remote backend.",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Print planned operations without executing any remote API calls.",
+)
+@click.option(
+    "--on-conflict",
+    type=click.Choice(["skip", "overwrite", "fail"], case_sensitive=False),
+    default="fail",
+    show_default=True,
+    help=(
+        "Conflict resolution when a same-named portfolio already exists on the server: "
+        "fail=abort (default), skip=continue, overwrite=remove and recreate (requires --yes)."
+    ),
+)
+@click.option(
+    "--yes",
+    is_flag=True,
+    default=False,
+    help="Confirm destructive overwrite without an interactive prompt.",
+)
+@click.pass_context
+def migrate_local_to_remote(
+    ctx: click.Context,
+    name: str | None,
+    all_portfolios: bool,
+    dry_run: bool,
+    on_conflict: str,
+    yes: bool,
+) -> None:
+    r"""Migrate portfolio(s) from the local store to the remote plugin backend.
+
+    NAME migrates a single named portfolio.  Use ``--all`` to migrate every
+    portfolio found in the local store.
+
+    Progress is printed step-by-step.  Use ``--dry-run`` to preview all
+    planned operations without making any remote API calls.
+
+    Conflict resolution (``--on-conflict``) determines what happens when a
+    same-named portfolio already exists on the server:
+
+    \b
+    - fail (default): abort with an error
+    - skip: skip the portfolio and continue (useful with --all)
+    - overwrite: remove the server portfolio and recreate from local data
+      (requires --yes to confirm the destructive action)
+
+    Migration is **not** transactional — partial failures leave partial state
+    on the server that can be cleaned up with ``portfolio remove``.
+
+    \b
+    Examples:
+        kanboard portfolio migrate local-to-remote "My Portfolio"
+        kanboard portfolio migrate local-to-remote --all
+        kanboard portfolio migrate local-to-remote "My Portfolio" --dry-run
+        kanboard portfolio migrate local-to-remote --all --on-conflict skip
+        kanboard portfolio migrate local-to-remote "My Portfolio" \\
+            --on-conflict overwrite --yes
+    """
+    app_ctx: AppContext = ctx.obj
+
+    if not all_portfolios and name is None:
+        raise click.UsageError("Provide a portfolio NAME or use --all to migrate all portfolios.")
+
+    # Overwrite mode is destructive — require explicit confirmation.
+    if on_conflict == "overwrite" and not yes and not dry_run:
+        click.confirm(
+            "Overwrite will remove and recreate existing server portfolios. Continue?",
+            abort=True,
+        )
+
+    # Client is required for remote API calls (not needed in dry-run).
+    if not dry_run and app_ctx.client is None:
+        raise click.ClickException(
+            "Remote portfolio backend requires Kanboard configuration. Run 'kanboard config init'."
+        )
+
+    # Load the local portfolio store.
+    local_store = _get_store()
+    try:
+        local_portfolios = local_store.load()
+    except Exception as exc:
+        raise click.ClickException(f"Failed to read local store: {exc}") from exc
+
+    # Determine which portfolio(s) to migrate.
+    if all_portfolios:
+        portfolios_to_migrate = local_portfolios
+    else:
+        assert name is not None
+        matching = [p for p in local_portfolios if p.name == name]
+        if not matching:
+            raise click.ClickException(f"Portfolio '{name}' not found in local store.")
+        portfolios_to_migrate = matching
+
+    if not portfolios_to_migrate:
+        click.echo("No portfolios to migrate.")
+        return
+
+    migrated = 0
+    failed = 0
+
+    for pf in portfolios_to_migrate:
+        try:
+            status = _migrate_one_portfolio_local_to_remote(
+                pf,
+                app_ctx,
+                dry_run=dry_run,
+                on_conflict=on_conflict,
+            )
+            if status == "ok":
+                migrated += 1
+            # "skip" status: intentionally skipped — not counted as migrated or failed
+        except click.exceptions.Abort:
+            raise
+        except Exception as exc:
+            if all_portfolios:
+                click.echo(f"  \u2717 Error migrating '{pf.name}': {exc}", err=True)
+                failed += 1
+            else:
+                if isinstance(exc, click.ClickException):
+                    raise
+                raise click.ClickException(str(exc)) from exc
+
+    click.echo()
+    click.echo(f"Migrated {migrated} portfolio{'s' if migrated != 1 else ''} ({failed} failed).")
+
+
 @portfolio_migrate.command("diff")
 @click.argument("name", required=False, default=None)
 @click.option(
