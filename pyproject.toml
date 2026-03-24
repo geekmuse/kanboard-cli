@@ -22,7 +22,6 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "kanboard-sdk>=1.1.1",
     "click>=8.1",
     "rich>=13.0",
     "tomli-w>=1.0",
@@ -46,7 +45,7 @@ dev = [
 kanboard = "kanboard_cli.main:cli"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/kanboard_cli"]
+packages = ["src/kanboard", "src/kanboard_cli"]
 
 # ---------------------------------------------------------------------------
 # Ruff — strict linting
