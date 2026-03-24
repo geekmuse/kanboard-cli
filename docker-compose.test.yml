@@ -1,13 +1,20 @@
 # Integration test environment — Kanboard instance for pytest integration tests.
 #
+# The service builds from docker/Dockerfile.kanboard-plugin-test which extends
+# the official Kanboard image and attempts to install the
+# kanboard-plugin-portfolio-management plugin.  If the plugin repository is
+# unavailable the base image is used and plugin backend tests skip automatically.
+#
 # Usage:
 #   docker compose -f docker-compose.test.yml up -d --wait   # start and wait for health
-#   pytest tests/integration/ -v                              # run integration tests
+#   pytest tests/integration/ -v -m integration               # run integration tests
 #   docker compose -f docker-compose.test.yml down -v         # stop and remove volumes
 
 services:
   kanboard:
-    image: kanboard/kanboard:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.kanboard-plugin-test
     ports:
       - "4000:80"
     healthcheck:

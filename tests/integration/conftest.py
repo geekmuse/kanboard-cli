@@ -298,6 +298,33 @@ def cleanup_group_ids(
 
 
 @pytest.fixture()
+def cleanup_portfolio_ids(
+    kanboard_client: KanboardClient,
+) -> Generator[list[int], None, None]:
+    """Yield a mutable list; remove every portfolio ID added to it after the test.
+
+    Tests that create remote portfolios should append the resulting portfolio
+    ID to this list.  Teardown calls the plugin's ``removePortfolio`` API
+    for each ID, ignoring errors so other cleanup can continue.  Tests that
+    use this fixture are implicitly relying on the Portfolio Management plugin;
+    they should skip independently when the plugin is absent.
+
+    Args:
+        kanboard_client: The shared :class:`~kanboard.client.KanboardClient`.
+
+    Yields:
+        An initially empty list of integer portfolio IDs.
+    """
+    ids: list[int] = []
+    yield ids
+    for portfolio_id in ids:
+        try:
+            kanboard_client.portfolios.remove_portfolio(portfolio_id)
+        except Exception:
+            pass
+
+
+@pytest.fixture()
 def cleanup_link_ids(
     kanboard_client: KanboardClient,
 ) -> Generator[list[int], None, None]:
