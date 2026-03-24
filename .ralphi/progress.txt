@@ -19,6 +19,26 @@ Corrective Plan: N/A
   - The dict-returning dependency graph method uses same `result or {}` fallback as `get_portfolio_task_count` and `get_portfolio_overview`
 ---
 
+## 2026-03-23 - US-005
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Extended `KanboardConfig` dataclass in `src/kanboard/config.py` with `portfolio_backend: str = "local"` field
+- Added `_ENV_PORTFOLIO_BACKEND = "KANBOARD_PORTFOLIO_BACKEND"` and `_VALID_PORTFOLIO_BACKENDS = frozenset({"local", "remote"})` constants
+- Added `cli_portfolio_backend: str | None = None` parameter to `KanboardConfig.resolve()`
+- Implemented 4-layer resolution: CLI > `KANBOARD_PORTFOLIO_BACKEND` env var > TOML `portfolio_backend` profile key > `"local"` default
+- Added validation: raises `KanboardConfigError(field="portfolio_backend")` with actionable message when value is not 'local' or 'remote'
+- Updated docstrings in `KanboardConfig` class and `resolve()` method
+- Added 12 new unit tests in `tests/unit/test_config.py` covering all layers, both valid values, 3 invalid paths, and error message content
+- Files changed: `src/kanboard/config.py`, `tests/unit/test_config.py`
+- **Learnings for future iterations:**
+  - The `resolve()` signature now has `cli_portfolio_backend` as a keyword-only param after `config_file` — CLI commands wiring US-007 should pass it as a keyword argument
+  - Validation occurs **after** auth field validation (url → token/user-fields → portfolio_backend); invalid backend raises even when auth is valid
+  - `_VALID_PORTFOLIO_BACKENDS` is a module-level `frozenset` — a clean pattern for future enum-like string validations
+---
+
 ## Codebase Patterns
 - **PortfoliosResource pattern**: Plugin API resources follow the same pattern as core resources (TYPE_CHECKING guard, _client.call(), typed returns). dict-returning methods (get_portfolio_projects, get_portfolio_tasks, get_portfolio_task_count, get_portfolio_overview) do NOT use PluginPortfolio.from_api() — they return raw dicts or {}. Use `result or {}` for dict fallback (not `if not result: return []`).
 - **get_portfolio_by_name raises on False**: Unlike typical list methods that return [] on False, name-lookup methods raise KanboardNotFoundError on both None AND False (per AC).

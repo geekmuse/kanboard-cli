@@ -112,8 +112,8 @@
       ],
       "notes": "These are added to the existing PortfoliosResource file, not a separate module. Returns are list[dict]/dict (not typed models) because the plugin's dependency response shapes are complex and variable.",
       "startedAt": "2026-03-24T03:22:33.835Z",
-      "updatedAt": "2026-03-24T03:27:22.000Z",
-      "completedAt": "2026-03-24T03:27:22.000Z"
+      "updatedAt": "2026-03-24T03:27:53.552Z",
+      "completedAt": "2026-03-24T03:27:53.552Z"
     },
     {
       "id": "US-005",
@@ -131,9 +131,12 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 5,
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
-      "notes": "Independent of backend implementation \u2014 can be done in parallel with US-001 through US-004."
+      "notes": "Independent of backend implementation \u2014 can be done in parallel with US-001 through US-004.",
+      "startedAt": "2026-03-24T03:27:54.255Z",
+      "updatedAt": "2026-03-24T03:32:44.287924Z",
+      "completedAt": "2026-03-24T03:32:44.287924Z"
     },
     {
       "id": "US-006",
