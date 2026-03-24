@@ -247,3 +247,30 @@ Corrective Plan: N/A
   - `_resolve_milestone_id()` raises `KanboardConfigError` (not `KanboardNotFoundError`) for consistency with LocalPortfolioStore's milestone-not-found exception type
   - `remove_portfolio` and `remove_milestone` catch lookup exceptions and return `False` instead of propagating — matching LocalPortfolioStore's non-raising behavior on not-found for remove operations
 ---
+
+## 2026-03-23 - US-011
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Added `kanboard portfolio migrate` subcommand group to `src/kanboard_cli/commands/portfolio.py`:
+  - `portfolio_migrate` Click group registered as `portfolio.group("migrate")`
+  - `migrate_status` — shows Backend Configuration, Local Store counts (portfolios/milestones/task assignments), Remote (Plugin API) section with plugin detection status and remote counts; graceful handling for no client, plugin not detected, and unreachable remote
+  - `migrate_diff [NAME] [--all]` — compares local and remote portfolios; builds diff table with columns (portfolio, category, item, local, remote, status); status values: "both", "local only", "remote only", "not found"; handles remote unreachable by warning and treating remote as empty; `--all` flag unions both sides
+  - `_build_portfolio_diff_rows()` pure helper function produces diff rows for a single (local, remote) portfolio pair; handles all None combinations
+  - `_DIFF_COLUMNS` constant added alongside other column constants
+  - `Portfolio` added to TYPE_CHECKING imports (used in `_build_portfolio_diff_rows` signature)
+- Added 14 CLI tests in `tests/cli/test_portfolio.py`:
+  - Status tests: `test_migrate_status_local_counts`, `test_migrate_status_plugin_detected`, `test_migrate_status_no_client`, `test_migrate_status_plugin_not_detected`, `test_migrate_status_remote_unreachable`, `test_migrate_status_config_source_default`
+  - Diff tests: `test_migrate_diff_no_name_no_all`, `test_migrate_diff_portfolio_both_sides_same`, `test_migrate_diff_project_and_milestone_differences`, `test_migrate_diff_portfolio_local_only`, `test_migrate_diff_portfolio_remote_only`, `test_migrate_diff_all`, `test_migrate_diff_remote_unreachable`, `test_migrate_diff_json_output`
+  - `_make_local_portfolio_with_milestones()` and `_make_remote_portfolio_with_diff()` test helpers added
+- Files changed: `src/kanboard_cli/commands/portfolio.py`, `tests/cli/test_portfolio.py`
+- **Learnings for future iterations:**
+  - `Milestone` dataclass requires `target_date` as a positional arg (no default); must always pass `target_date=None` explicitly
+  - Patching inline-imported functions: `from kanboard.orchestration.backend import create_backend` inside a function body is intercepted by `patch("kanboard.orchestration.backend.create_backend", ...)` — works because Python's `from ... import` re-reads the module attribute at each function call
+  - `KanboardConnectionError` is not imported at module level in portfolio.py tests; import it inline inside test functions (`from kanboard.exceptions import KanboardConnectionError`)
+  - `BLE001` (blind exception) is not in the project's ruff rule set; the `# noqa: BLE001` directive is flagged as unused (RUF100) — remove it
+  - `migrate_status` uses plain `click.echo` output (not `format_output`) consistent with other informational commands like `portfolio sync`; `migrate_diff` uses `format_output` for tabular diff rows
+  - For `test_migrate_status_no_client`, patch `KanboardConfig.resolve` to raise `KanboardConfigError` (makes `app_ctx.client = None`) while separately patching `_get_store`
+---
