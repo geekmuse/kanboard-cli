@@ -110,3 +110,28 @@ Corrective Plan: N/A
   - get_portfolio_by_name() raises KanboardNotFoundError on both None and False (unlike list methods which return [])
   - `ruff format` may reformat new files even when `ruff check` passes — always run format after check
 ---
+
+## 2026-03-24 - US-006
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- Created `src/kanboard/orchestration/backend.py` with:
+  - `PortfolioBackend` — `@runtime_checkable` Protocol defining 12 method signatures matching `LocalPortfolioStore`'s public API (load, create_portfolio, get_portfolio, update_portfolio, remove_portfolio, add_project, remove_project, add_milestone, update_milestone, remove_milestone, add_task_to_milestone, remove_task_from_milestone)
+  - `RemotePortfolioBackend` — adapter wrapping `PortfoliosResource` + `MilestonesResource`; translates name-based interface to ID-based plugin API calls via `_resolve_portfolio_id()` and `_resolve_milestone_id()` helpers
+  - `_build_portfolio()` — fetches project_ids via `get_portfolio_projects()` and milestones via `get_portfolio_milestones()` to build full `Portfolio` model from `PluginPortfolio`
+  - `_to_milestone()` — fetches task_ids via `get_milestone_tasks()` to build `Milestone` model from `PluginMilestone`
+  - `create_backend()` factory — returns `LocalPortfolioStore` for 'local', `RemotePortfolioBackend` for 'remote', raises `KanboardConfigError` for missing client or invalid type
+- Updated `src/kanboard/orchestration/__init__.py` to export `PortfolioBackend`, `RemotePortfolioBackend`, `create_backend`
+- Updated `src/kanboard/__init__.py` to export all three new symbols (sorted per RUF022)
+- Added 50 unit tests in `tests/unit/orchestration/test_backend.py` — 100% coverage on backend.py
+- Files changed: `src/kanboard/orchestration/backend.py` (new), `src/kanboard/orchestration/__init__.py`, `src/kanboard/__init__.py`, `tests/unit/orchestration/test_backend.py` (new)
+- **Learnings for future iterations:**
+  - `PortfolioBackend` Protocol uses `load()` (not `list_portfolios`) — matching LocalPortfolioStore's actual method name so it satisfies the protocol without modification
+  - `@runtime_checkable` Protocol enables `isinstance(store, PortfolioBackend)` checks in tests
+  - `RemotePortfolioBackend` is O(2N+1) API calls for `load()` (1 getAllPortfolios + N getPortfolioProjects + N getPortfolioMilestones); acceptable for typical portfolio counts
+  - The `critical` flag in `add_task_to_milestone` is protocol-compatible but ignored server-side (plugin API doesn't support it natively)
+  - `_resolve_milestone_id()` raises `KanboardConfigError` (not `KanboardNotFoundError`) for consistency with LocalPortfolioStore's milestone-not-found exception type
+  - `remove_portfolio` and `remove_milestone` catch lookup exceptions and return `False` instead of propagating — matching LocalPortfolioStore's non-raising behavior on not-found for remove operations
+---
