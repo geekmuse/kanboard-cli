@@ -191,6 +191,24 @@ Corrective Plan: N/A
   - `ms_kwargs` is used as the variable name (not `kwargs`) to avoid shadowing; the loop variable scope means using a fresh dict per milestone iteration
 ---
 
+## 2026-03-24 - US-014
+Session: N/A
+Review Outcome: PASS
+Trajectory: ON_TRACK
+Trajectory Notes: N/A
+Corrective Plan: N/A
+- The test file `tests/unit/orchestration/test_backend.py` was already comprehensive (60 tests) from US-006 and US-010 iterations; US-014 identified 2 uncovered lines in `_ensure_plugin_detected()` and added 2 targeted tests to reach 100% coverage:
+  - `test_ensure_cached_false_raises_without_reprobe` — verifies that when `_plugin_detected` is already `False`, calling a non-`load()` method (e.g., `get_portfolio()`) hits line 388 of `_ensure_plugin_detected()` and raises `KanboardConfigError` without re-calling `get_all_portfolios`
+  - `test_ensure_non_32601_api_error_propagates_via_ensure` — verifies that a non-32601 error from `get_all_portfolios` propagates unchanged via `_ensure_plugin_detected()` (the `raise` at line 398) and does NOT cache `_plugin_detected`
+- Final coverage: 100% on `src/kanboard/orchestration/backend.py` (155 statements, 0 missed)
+- Total test count: 62 tests in `test_backend.py`
+- Files changed: `tests/unit/orchestration/test_backend.py`
+- **Learnings for future iterations:**
+  - When `load()` short-circuits with its own cached-False check, the `_ensure_plugin_detected()` code path for cached-False is NOT exercised — must call a different method (e.g., `get_portfolio()`) to exercise that branch
+  - Similarly, the non-32601 re-raise in `_ensure_plugin_detected()` is only reachable via non-`load()` methods, since `load()` has its own exception handler
+  - `pytest --cov=kanboard.orchestration.backend` (not `src/kanboard/orchestration/backend`) is the correct coverage measurement path for this project layout
+---
+
 ## Codebase Patterns
 - **PortfoliosResource pattern**: Plugin API resources follow the same pattern as core resources (TYPE_CHECKING guard, _client.call(), typed returns). dict-returning methods (get_portfolio_projects, get_portfolio_tasks, get_portfolio_task_count, get_portfolio_overview) do NOT use PluginPortfolio.from_api() — they return raw dicts or {}. Use `result or {}` for dict fallback (not `if not result: return []`).
 - **get_portfolio_by_name raises on False**: Unlike typical list methods that return [] on False, name-lookup methods raise KanboardNotFoundError on both None AND False (per AC).

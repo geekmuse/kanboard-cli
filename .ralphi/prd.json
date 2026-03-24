@@ -334,8 +334,8 @@
       ],
       "notes": "Mirror of US-012 in the opposite direction. Can be parallelized with US-012.",
       "startedAt": "2026-03-24T14:26:20.999Z",
-      "updatedAt": "2026-03-24T14:35:00.000Z",
-      "completedAt": "2026-03-24T14:35:00.000Z"
+      "updatedAt": "2026-03-24T14:38:41.214Z",
+      "completedAt": "2026-03-24T14:38:41.214Z"
     },
     {
       "id": "US-014",
@@ -351,12 +351,15 @@
         "ruff check passes, pytest passes"
       ],
       "priority": 14,
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-006",
         "US-010"
       ],
-      "notes": "Mock PortfoliosResource and MilestonesResource at the method level (not httpx level) for RemotePortfolioBackend tests — the resource modules have their own httpx-level tests."
+      "notes": "Mock PortfoliosResource and MilestonesResource at the method level (not httpx level) for RemotePortfolioBackend tests — the resource modules have their own httpx-level tests.",
+      "startedAt": "2026-03-24T14:38:41.564Z",
+      "updatedAt": "2026-03-24T15:05:00.000Z",
+      "completedAt": "2026-03-24T15:05:00.000Z"
     },
     {
       "id": "US-015",
