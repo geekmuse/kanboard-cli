@@ -296,6 +296,105 @@ class PortfoliosResource:
         return result or {}
 
     # ------------------------------------------------------------------
+    # Dependency queries
+    # ------------------------------------------------------------------
+
+    def get_portfolio_dependencies(self, portfolio_id: int, **kwargs: Any) -> list[dict[str, Any]]:
+        """Fetch all task dependencies within a portfolio.
+
+        Maps to the plugin ``getPortfolioDependencies`` JSON-RPC method.
+        Provides server-side SQL-based dependency analysis as an alternative
+        to the client-side ``DependencyAnalyzer``.
+
+        Args:
+            portfolio_id: ID of the portfolio to query.
+            **kwargs: Optional filter fields accepted by
+                ``getPortfolioDependencies``, e.g. ``cross_project_only=True``.
+
+        Returns:
+            A list of dependency data dicts; returns an empty list when the API
+            responds with ``False`` or ``None``.
+        """
+        result = self._client.call("getPortfolioDependencies", portfolio_id=portfolio_id, **kwargs)
+        if not result:
+            return []
+        return list(result)
+
+    def get_blocked_tasks(self, portfolio_id: int) -> list[dict[str, Any]]:
+        """Fetch all blocked tasks within a portfolio.
+
+        Maps to the plugin ``getBlockedTasks`` JSON-RPC method.
+
+        Args:
+            portfolio_id: ID of the portfolio to query.
+
+        Returns:
+            A list of blocked task data dicts; returns an empty list when the
+            API responds with ``False`` or ``None``.
+        """
+        result = self._client.call("getBlockedTasks", portfolio_id=portfolio_id)
+        if not result:
+            return []
+        return list(result)
+
+    def get_blocking_tasks(self, portfolio_id: int) -> list[dict[str, Any]]:
+        """Fetch all blocking tasks within a portfolio.
+
+        Maps to the plugin ``getBlockingTasks`` JSON-RPC method.
+
+        Args:
+            portfolio_id: ID of the portfolio to query.
+
+        Returns:
+            A list of blocking task data dicts; returns an empty list when the
+            API responds with ``False`` or ``None``.
+        """
+        result = self._client.call("getBlockingTasks", portfolio_id=portfolio_id)
+        if not result:
+            return []
+        return list(result)
+
+    def get_portfolio_critical_path(self, portfolio_id: int) -> list[dict[str, Any]]:
+        """Fetch the critical path of tasks within a portfolio.
+
+        Maps to the plugin ``getPortfolioCriticalPath`` JSON-RPC method.
+        Returns the sequence of tasks that determines the minimum completion
+        time for the portfolio, computed server-side.
+
+        Args:
+            portfolio_id: ID of the portfolio to query.
+
+        Returns:
+            A list of task data dicts representing the critical path; returns
+            an empty list when the API responds with ``False`` or ``None``.
+        """
+        result = self._client.call("getPortfolioCriticalPath", portfolio_id=portfolio_id)
+        if not result:
+            return []
+        return list(result)
+
+    def get_portfolio_dependency_graph(self, portfolio_id: int, **kwargs: Any) -> dict[str, Any]:
+        """Fetch the dependency graph structure for a portfolio.
+
+        Maps to the plugin ``getPortfolioDependencyGraph`` JSON-RPC method.
+        Returns a graph representation of all task dependencies suitable for
+        rendering or further analysis.
+
+        Args:
+            portfolio_id: ID of the portfolio to query.
+            **kwargs: Optional filter fields accepted by
+                ``getPortfolioDependencyGraph``, e.g. ``cross_project_only=True``.
+
+        Returns:
+            A dict representing the dependency graph (nodes and edges);
+            returns ``{}`` when the API responds with ``False`` or ``None``.
+        """
+        result = self._client.call(
+            "getPortfolioDependencyGraph", portfolio_id=portfolio_id, **kwargs
+        )
+        return result or {}
+
+    # ------------------------------------------------------------------
     # Overview
     # ------------------------------------------------------------------
 

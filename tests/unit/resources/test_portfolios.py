@@ -1,4 +1,4 @@
-"""Unit tests for PortfoliosResource — all 13 portfolio plugin API methods."""
+"""Unit tests for PortfoliosResource — all 18 portfolio plugin API methods."""
 
 from __future__ import annotations
 
@@ -542,6 +542,293 @@ def test_get_portfolio_overview_raises_on_api_error(httpx_mock: HTTPXMock) -> No
     with KanboardClient(_URL, _TOKEN) as client:
         with pytest.raises(KanboardAPIError, match="Plugin not installed"):
             client.portfolios.get_portfolio_overview(1)
+
+
+# ---------------------------------------------------------------------------
+# get_portfolio_dependencies
+# ---------------------------------------------------------------------------
+
+_DEPENDENCY_DATA: dict = {
+    "task_id": "10",
+    "dependency_id": "11",
+    "type": "finish_to_start",
+}
+
+
+def test_get_portfolio_dependencies_returns_list_of_dicts(httpx_mock: HTTPXMock) -> None:
+    """get_portfolio_dependencies() returns a list of dependency dicts on success."""
+    httpx_mock.add_response(json=_rpc_ok([_DEPENDENCY_DATA]))
+    with KanboardClient(_URL, _TOKEN) as client:
+        deps = client.portfolios.get_portfolio_dependencies(1)
+    assert len(deps) == 1
+    assert deps[0]["type"] == "finish_to_start"
+
+
+def test_get_portfolio_dependencies_with_cross_project_only_kwarg(
+    httpx_mock: HTTPXMock,
+) -> None:
+    """get_portfolio_dependencies() passes cross_project_only kwarg to the API."""
+    httpx_mock.add_response(json=_rpc_ok([_DEPENDENCY_DATA]))
+    with KanboardClient(_URL, _TOKEN) as client:
+        deps = client.portfolios.get_portfolio_dependencies(1, cross_project_only=True)
+    assert len(deps) == 1
+
+
+def test_get_portfolio_dependencies_returns_empty_list_on_false(
+    httpx_mock: HTTPXMock,
+) -> None:
+    """get_portfolio_dependencies() returns [] when the API returns False."""
+    httpx_mock.add_response(json=_rpc_ok(False))
+    with KanboardClient(_URL, _TOKEN) as client:
+        result = client.portfolios.get_portfolio_dependencies(1)
+    assert result == []
+
+
+def test_get_portfolio_dependencies_returns_empty_list_on_none(
+    httpx_mock: HTTPXMock,
+) -> None:
+    """get_portfolio_dependencies() returns [] when the API returns None."""
+    httpx_mock.add_response(json=_rpc_ok(None))
+    with KanboardClient(_URL, _TOKEN) as client:
+        result = client.portfolios.get_portfolio_dependencies(1)
+    assert result == []
+
+
+def test_get_portfolio_dependencies_returns_empty_list_on_empty(
+    httpx_mock: HTTPXMock,
+) -> None:
+    """get_portfolio_dependencies() returns [] when the API returns an empty list."""
+    httpx_mock.add_response(json=_rpc_ok([]))
+    with KanboardClient(_URL, _TOKEN) as client:
+        result = client.portfolios.get_portfolio_dependencies(1)
+    assert result == []
+
+
+# ---------------------------------------------------------------------------
+# get_blocked_tasks
+# ---------------------------------------------------------------------------
+
+_BLOCKED_TASK_DATA: dict = {
+    "id": "20",
+    "title": "Waiting on upstream",
+    "project_id": "3",
+    "blocked_by": "10",
+}
+
+
+def test_get_blocked_tasks_returns_list_of_dicts(httpx_mock: HTTPXMock) -> None:
+    """get_blocked_tasks() returns a list of blocked task dicts on success."""
+    httpx_mock.add_response(json=_rpc_ok([_BLOCKED_TASK_DATA]))
+    with KanboardClient(_URL, _TOKEN) as client:
+        tasks = client.portfolios.get_blocked_tasks(1)
+    assert len(tasks) == 1
+    assert tasks[0]["title"] == "Waiting on upstream"
+
+
+def test_get_blocked_tasks_returns_empty_list_on_false(httpx_mock: HTTPXMock) -> None:
+    """get_blocked_tasks() returns [] when the API returns False."""
+    httpx_mock.add_response(json=_rpc_ok(False))
+    with KanboardClient(_URL, _TOKEN) as client:
+        result = client.portfolios.get_blocked_tasks(1)
+    assert result == []
+
+
+def test_get_blocked_tasks_returns_empty_list_on_none(httpx_mock: HTTPXMock) -> None:
+    """get_blocked_tasks() returns [] when the API returns None."""
+    httpx_mock.add_response(json=_rpc_ok(None))
+    with KanboardClient(_URL, _TOKEN) as client:
+        result = client.portfolios.get_blocked_tasks(1)
+    assert result == []
+
+
+def test_get_blocked_tasks_returns_empty_list_on_empty(httpx_mock: HTTPXMock) -> None:
+    """get_blocked_tasks() returns [] when the API returns an empty list."""
+    httpx_mock.add_response(json=_rpc_ok([]))
+    with KanboardClient(_URL, _TOKEN) as client:
+        result = client.portfolios.get_blocked_tasks(1)
+    assert result == []
+
+
+def test_get_blocked_tasks_raises_on_api_error(httpx_mock: HTTPXMock) -> None:
+    """get_blocked_tasks() propagates KanboardAPIError from JSON-RPC error."""
+    httpx_mock.add_response(json=_rpc_err(-32001, "Plugin not installed"))
+    with KanboardClient(_URL, _TOKEN) as client:
+        with pytest.raises(KanboardAPIError, match="Plugin not installed"):
+            client.portfolios.get_blocked_tasks(1)
+
+
+# ---------------------------------------------------------------------------
+# get_blocking_tasks
+# ---------------------------------------------------------------------------
+
+_BLOCKING_TASK_DATA: dict = {
+    "id": "10",
+    "title": "Must finish first",
+    "project_id": "3",
+    "blocks": ["20", "21"],
+}
+
+
+def test_get_blocking_tasks_returns_list_of_dicts(httpx_mock: HTTPXMock) -> None:
+    """get_blocking_tasks() returns a list of blocking task dicts on success."""
+    httpx_mock.add_response(json=_rpc_ok([_BLOCKING_TASK_DATA]))
+    with KanboardClient(_URL, _TOKEN) as client:
+        tasks = client.portfolios.get_blocking_tasks(1)
+    assert len(tasks) == 1
+    assert tasks[0]["title"] == "Must finish first"
+
+
+def test_get_blocking_tasks_returns_empty_list_on_false(httpx_mock: HTTPXMock) -> None:
+    """get_blocking_tasks() returns [] when the API returns False."""
+    httpx_mock.add_response(json=_rpc_ok(False))
+    with KanboardClient(_URL, _TOKEN) as client:
+        result = client.portfolios.get_blocking_tasks(1)
+    assert result == []
+
+
+def test_get_blocking_tasks_returns_empty_list_on_none(httpx_mock: HTTPXMock) -> None:
+    """get_blocking_tasks() returns [] when the API returns None."""
+    httpx_mock.add_response(json=_rpc_ok(None))
+    with KanboardClient(_URL, _TOKEN) as client:
+        result = client.portfolios.get_blocking_tasks(1)
+    assert result == []
+
+
+def test_get_blocking_tasks_returns_empty_list_on_empty(httpx_mock: HTTPXMock) -> None:
+    """get_blocking_tasks() returns [] when the API returns an empty list."""
+    httpx_mock.add_response(json=_rpc_ok([]))
+    with KanboardClient(_URL, _TOKEN) as client:
+        result = client.portfolios.get_blocking_tasks(1)
+    assert result == []
+
+
+def test_get_blocking_tasks_raises_on_api_error(httpx_mock: HTTPXMock) -> None:
+    """get_blocking_tasks() propagates KanboardAPIError from JSON-RPC error."""
+    httpx_mock.add_response(json=_rpc_err(-32001, "Permission denied"))
+    with KanboardClient(_URL, _TOKEN) as client:
+        with pytest.raises(KanboardAPIError, match="Permission denied"):
+            client.portfolios.get_blocking_tasks(1)
+
+
+# ---------------------------------------------------------------------------
+# get_portfolio_critical_path
+# ---------------------------------------------------------------------------
+
+_CRITICAL_PATH_TASK: dict = {
+    "id": "10",
+    "title": "Critical task",
+    "project_id": "3",
+    "slack": "0",
+}
+
+
+def test_get_portfolio_critical_path_returns_list_of_dicts(httpx_mock: HTTPXMock) -> None:
+    """get_portfolio_critical_path() returns a list of task dicts on success."""
+    httpx_mock.add_response(json=_rpc_ok([_CRITICAL_PATH_TASK]))
+    with KanboardClient(_URL, _TOKEN) as client:
+        path = client.portfolios.get_portfolio_critical_path(1)
+    assert len(path) == 1
+    assert path[0]["title"] == "Critical task"
+    assert path[0]["slack"] == "0"
+
+
+def test_get_portfolio_critical_path_returns_empty_list_on_false(
+    httpx_mock: HTTPXMock,
+) -> None:
+    """get_portfolio_critical_path() returns [] when the API returns False."""
+    httpx_mock.add_response(json=_rpc_ok(False))
+    with KanboardClient(_URL, _TOKEN) as client:
+        result = client.portfolios.get_portfolio_critical_path(1)
+    assert result == []
+
+
+def test_get_portfolio_critical_path_returns_empty_list_on_none(
+    httpx_mock: HTTPXMock,
+) -> None:
+    """get_portfolio_critical_path() returns [] when the API returns None."""
+    httpx_mock.add_response(json=_rpc_ok(None))
+    with KanboardClient(_URL, _TOKEN) as client:
+        result = client.portfolios.get_portfolio_critical_path(1)
+    assert result == []
+
+
+def test_get_portfolio_critical_path_returns_empty_list_on_empty(
+    httpx_mock: HTTPXMock,
+) -> None:
+    """get_portfolio_critical_path() returns [] when the API returns an empty list."""
+    httpx_mock.add_response(json=_rpc_ok([]))
+    with KanboardClient(_URL, _TOKEN) as client:
+        result = client.portfolios.get_portfolio_critical_path(1)
+    assert result == []
+
+
+def test_get_portfolio_critical_path_raises_on_api_error(httpx_mock: HTTPXMock) -> None:
+    """get_portfolio_critical_path() propagates KanboardAPIError from JSON-RPC error."""
+    httpx_mock.add_response(json=_rpc_err(-32001, "Plugin not installed"))
+    with KanboardClient(_URL, _TOKEN) as client:
+        with pytest.raises(KanboardAPIError, match="Plugin not installed"):
+            client.portfolios.get_portfolio_critical_path(1)
+
+
+# ---------------------------------------------------------------------------
+# get_portfolio_dependency_graph
+# ---------------------------------------------------------------------------
+
+_GRAPH_DATA: dict = {
+    "nodes": [{"id": "10", "title": "Task A"}, {"id": "11", "title": "Task B"}],
+    "edges": [{"from": "10", "to": "11", "type": "finish_to_start"}],
+}
+
+
+def test_get_portfolio_dependency_graph_returns_dict(httpx_mock: HTTPXMock) -> None:
+    """get_portfolio_dependency_graph() returns the graph dict on success."""
+    httpx_mock.add_response(json=_rpc_ok(_GRAPH_DATA))
+    with KanboardClient(_URL, _TOKEN) as client:
+        graph = client.portfolios.get_portfolio_dependency_graph(1)
+    assert "nodes" in graph
+    assert "edges" in graph
+    assert len(graph["nodes"]) == 2
+    assert graph["edges"][0]["type"] == "finish_to_start"
+
+
+def test_get_portfolio_dependency_graph_with_cross_project_only_kwarg(
+    httpx_mock: HTTPXMock,
+) -> None:
+    """get_portfolio_dependency_graph() passes cross_project_only kwarg to the API."""
+    httpx_mock.add_response(json=_rpc_ok(_GRAPH_DATA))
+    with KanboardClient(_URL, _TOKEN) as client:
+        graph = client.portfolios.get_portfolio_dependency_graph(1, cross_project_only=True)
+    assert "nodes" in graph
+
+
+def test_get_portfolio_dependency_graph_returns_empty_dict_on_none(
+    httpx_mock: HTTPXMock,
+) -> None:
+    """get_portfolio_dependency_graph() returns {} when the API returns None."""
+    httpx_mock.add_response(json=_rpc_ok(None))
+    with KanboardClient(_URL, _TOKEN) as client:
+        result = client.portfolios.get_portfolio_dependency_graph(1)
+    assert result == {}
+
+
+def test_get_portfolio_dependency_graph_returns_empty_dict_on_false(
+    httpx_mock: HTTPXMock,
+) -> None:
+    """get_portfolio_dependency_graph() returns {} when the API returns False."""
+    httpx_mock.add_response(json=_rpc_ok(False))
+    with KanboardClient(_URL, _TOKEN) as client:
+        result = client.portfolios.get_portfolio_dependency_graph(1)
+    assert result == {}
+
+
+def test_get_portfolio_dependency_graph_raises_on_api_error(
+    httpx_mock: HTTPXMock,
+) -> None:
+    """get_portfolio_dependency_graph() propagates KanboardAPIError from JSON-RPC error."""
+    httpx_mock.add_response(json=_rpc_err(-32001, "Plugin not installed"))
+    with KanboardClient(_URL, _TOKEN) as client:
+        with pytest.raises(KanboardAPIError, match="Plugin not installed"):
+            client.portfolios.get_portfolio_dependency_graph(1)
 
 
 # ---------------------------------------------------------------------------
