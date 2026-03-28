@@ -4,6 +4,10 @@
 
 Python SDK (`import kanboard`) and Click-based CLI (`kanboard`) providing complete coverage of all 158 Kanboard JSON-RPC API methods, with a plugin system for user-defined workflows. Distributed as a single PyPI package `kanboard-cli`.
 
+## ⚠️ Kanboard Reference
+
+When working on Kanboard API integration, resource classes, or orchestration logic, load the `kanboard-dev` skill: read its `SKILL.md` for the documentation index. It contains the full Kanboard API auth model, plugin architecture, and project-specific context for this SDK at `docs/projects/kanboard-cli.md`.
+
 ## Tech Stack
 
 - **Language:** Python 3.11+ (required for `tomllib`, `Self`, `StrEnum`)
