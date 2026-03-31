@@ -483,7 +483,10 @@ class TestRemoteAddMilestone:
 
         result = backend.add_milestone("Alpha", "v1.0", target_date=td)
 
-        mock_m.create_milestone.assert_called_once_with(1, "v1.0", target_date=td)
+        import calendar
+
+        expected_ts = int(calendar.timegm(td.timetuple()))
+        mock_m.create_milestone.assert_called_once_with(1, "v1.0", target_date=expected_ts)
         assert result.target_date == td
 
 

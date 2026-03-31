@@ -576,7 +576,9 @@ class RemotePortfolioBackend:
         portfolio_id = self._resolve_portfolio_id(portfolio_name)
         kwargs: dict[str, Any] = {}
         if target_date is not None:
-            kwargs["target_date"] = target_date
+            # API expects a Unix timestamp (int); convert from datetime
+            import calendar
+            kwargs["target_date"] = int(calendar.timegm(target_date.timetuple()))
         milestone_id = self._milestones.create_milestone(portfolio_id, milestone_name, **kwargs)
         plugin_milestone = self._milestones.get_milestone(milestone_id)
         return self._to_milestone(plugin_milestone, portfolio_name)
