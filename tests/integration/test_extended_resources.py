@@ -931,7 +931,7 @@ def test_external_task_link_lifecycle_create_and_get(
     )
     assert isinstance(link, ExternalTaskLink)
     assert link.id == link_id
-    assert "github.com" in link.url
+    assert link.url == "https://github.com/example/repo/issues/1"
 
 
 @pytest.mark.integration
