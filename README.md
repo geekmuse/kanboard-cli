@@ -453,6 +453,7 @@ kanboard-cli/
 │   │   ├── resources/              # One test file per resource module
 │   │   └── orchestration/          # Orchestration unit tests (incl. test_backend.py)
 │   ├── integration/                # Docker-based lifecycle tests (incl. test_plugin_backend.py)
+│   ├── security/                   # Security fuzzing (API fuzz + Hypothesis property tests)
 │   └── cli/                        # CliRunner output tests
 ├── docs/
 │   ├── plan/                       # Architecture and build plan
@@ -492,6 +493,36 @@ make coverage         # Run tests with coverage report
 - **Unit tests** — Mocked `httpx` via `pytest-httpx`; covers all SDK resource methods and exception paths
 - **CLI tests** — Click `CliRunner`-based; verifies output across all four formats
 - **Integration tests** — Docker-based (`docker-compose.test.yml`) with a live Kanboard instance; full CRUD lifecycle for every resource
+- **Security fuzzing** — See [Security Testing](#security-testing) below
+
+### Security Testing
+
+kanboard-cli includes a two-layer security fuzzing framework:
+
+```bash
+# Install security dependencies
+pip install -e ".[security]"
+
+# Run Python-native security tests only (no Docker needed)
+./scripts/security-fuzz.sh --no-docker
+
+# Run the full suite including API fuzzing (requires Docker)
+./scripts/security-fuzz.sh
+
+# Run API fuzzing only
+./scripts/security-fuzz.sh --api-only
+```
+
+**Layer 1 — JSON-RPC API Fuzzing** (`tests/security/test_jsonrpc_fuzz.py`):  
+Sends malicious payloads to a live Dockerized Kanboard instance and asserts safe handling — SQL injection, XSS, path traversal, command injection, type confusion, boundary values, null bytes, unicode edge cases, protocol abuse, and auth boundary testing.  All 31 plugin API methods are also fuzzed via `api-schema.json`.
+
+**Layer 2 — Python-native Fuzz Testing** (`tests/security/test_sdk_fuzz.py`):  
+Uses [Hypothesis](https://hypothesis.readthedocs.io/) property-based testing (200 examples per test) to verify the SDK client, model deserialization, config resolution, CLI input handling, and response parsing all survive adversarial inputs.
+
+**Static analysis:**  
+[Bandit](https://bandit.readthedocs.io/) for Python security issues and [pip-audit](https://pypi.org/project/pip-audit/) for dependency vulnerabilities.
+
+The full suite runs nightly via GitHub Actions (`.github/workflows/security-fuzz.yml`) and on every release.
 
 ### Dependencies
 
@@ -505,6 +536,9 @@ make coverage         # Run tests with coverage report
 | `pytest-httpx`| HTTP mocking for tests (dev)              |
 | `ruff`        | Linter and formatter (dev)                |
 | `coverage`    | Code coverage reporting (dev)             |
+| `bandit`      | Python static security analysis (security)|
+| `pip-audit`   | Dependency vulnerability scanning (security)|
+| `hypothesis`  | Property-based fuzz testing (security)    |
 
 ## Exception Hierarchy
 

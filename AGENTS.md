@@ -11,9 +11,12 @@ ruff check . && ruff format --check . && pytest
 
 Individual commands:
 - `pytest` — Run unit and CLI tests
+- `pytest tests/security/ -m security` — Run security fuzz tests
+- `./scripts/security-fuzz.sh` — Full security suite (Bandit + pip-audit + Hypothesis + API fuzz)
 - `ruff check .` — Lint code
 - `ruff format .` — Format code
 - `pip install -e ".[dev]"` — Install with dev dependencies
+- `pip install -e ".[dev,security]"` — Install with dev + security dependencies
 
 ## Conventions
 
@@ -76,12 +79,20 @@ src/
     │   ├── portfolio.py     # 12 CRUD/query subcommands + migrate group (status/diff/local-to-remote/remote-to-local)
     │   └── milestone.py     # 7 subcommands for cross-project milestone management
     └── workflows/base.py    # BaseWorkflow ABC
+scripts/
+├── bump_version.py          # Semver version bump utility
+└── security-fuzz.sh         # Security fuzzing orchestrator (Bandit + pip-audit + Hypothesis + API fuzz)
 tests/
 ├── unit/                    # Mocked httpx tests
 │   ├── resources/           # One test file per resource module (incl. test_portfolios.py, test_milestones.py)
 │   └── orchestration/       # Orchestration unit tests (conftest + test_store, test_portfolio, test_dependencies, test_backend)
 ├── cli/                     # CliRunner output tests
-└── integration/             # Docker lifecycle tests (incl. test_plugin_backend.py)
+├── integration/             # Docker lifecycle tests (incl. test_plugin_backend.py)
+└── security/                # Security fuzzing tests (excluded from default pytest; use -m security)
+    ├── conftest.py          # Docker lifecycle fixtures, API method registry
+    ├── payloads.py          # Categorized attack payloads (SQLi, XSS, path traversal, etc.)
+    ├── test_jsonrpc_fuzz.py # API fuzzing against live Docker Kanboard
+    └── test_sdk_fuzz.py     # Hypothesis property-based SDK/CLI fuzz testing
 ```
 
 ## Testing
@@ -90,6 +101,13 @@ tests/
 - CLI tests use Click `CliRunner`; verify all 4 output formats (table, json, csv, quiet)
 - Integration tests run against Docker `kanboard/kanboard:latest` via `docker-compose.test.yml`
 - Test files mirror source structure: `src/kanboard/resources/tasks.py` → `tests/unit/resources/test_tasks.py`
+- Security fuzz tests in `tests/security/` — excluded from default `pytest` runs (use `-m security`)
+  - `test_jsonrpc_fuzz.py` — API fuzzing against Docker Kanboard (SQLi, XSS, path traversal, command injection, type confusion, auth boundaries, plugin method fuzzing)
+  - `test_sdk_fuzz.py` — Hypothesis property-based testing of SDK client, models, config, CLI inputs
+  - `payloads.py` — Categorized attack payload generators
+  - `conftest.py` — Docker lifecycle fixtures and API method registry
+- Static security: Bandit (Python) + pip-audit (dependency vulnerabilities)
+- Orchestrated via `scripts/security-fuzz.sh` and `.github/workflows/security-fuzz.yml` (nightly + post-release)
 
 ## Key References
 

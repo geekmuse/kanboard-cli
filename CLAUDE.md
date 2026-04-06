@@ -19,6 +19,7 @@ When working on Kanboard API integration, resource classes, or orchestration log
 - **Linting:** `ruff`
 - **Build:** `hatchling` backend, `src/` layout
 - **Integration tests:** Docker (`kanboard/kanboard:latest`) via `docker-compose.test.yml`
+- **Security fuzzing:** `bandit` (static), `pip-audit` (deps), `hypothesis` (property-based), API fuzzing (Docker)
 
 ## Architecture & Key Patterns
 
@@ -76,6 +77,11 @@ tests/unit/                      # Mocked httpx tests
   orchestration/                 # Orchestration unit tests (store, portfolio, dependencies, backend)
 tests/cli/                       # CliRunner output tests
 tests/integration/               # Docker lifecycle tests (incl. plugin backend tests)
+tests/security/                  # Security fuzzing suite
+  conftest.py                    # Docker lifecycle + fixtures for API fuzzing
+  payloads.py                    # Categorized attack payloads (SQLi, XSS, path traversal, etc.)
+  test_jsonrpc_fuzz.py           # API fuzzing against live Docker Kanboard
+  test_sdk_fuzz.py               # Hypothesis property-based SDK/CLI fuzz testing
 ```
 
 ## Coding Conventions
@@ -107,14 +113,21 @@ KanboardError
 ## Common Commands
 
 ```bash
-pip install -e ".[dev]"    # Install editable with dev deps
-make install               # Same via Makefile
-make lint                  # ruff check .
-make test                  # pytest (unit + CLI tests)
-make test-integration      # pytest integration/ (needs Docker)
-make coverage              # pytest with coverage
-ruff check src/ tests/     # Lint
-ruff format src/ tests/    # Format
+pip install -e ".[dev]"              # Install editable with dev deps
+pip install -e ".[dev,security]"     # Include security fuzzing deps
+make install                         # Same via Makefile
+make lint                            # ruff check .
+make test                            # pytest (unit + CLI tests)
+make test-integration                # pytest integration/ (needs Docker)
+make coverage                        # pytest with coverage
+ruff check src/ tests/               # Lint
+ruff format src/ tests/              # Format
+
+# Security fuzzing
+./scripts/security-fuzz.sh           # Full suite (Bandit + pip-audit + Hypothesis + API fuzz)
+./scripts/security-fuzz.sh --no-docker  # Python-native only (no Docker)
+./scripts/security-fuzz.sh --api-only   # API fuzz only (requires Docker)
+pytest tests/security/ -m security   # Run security tests directly
 ```
 
 ## API Coverage
