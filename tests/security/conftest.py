@@ -73,28 +73,36 @@ def _wait_for_kanboard(url: str, timeout: int = _HEALTH_TIMEOUT_SECS) -> bool:
 
 @pytest.fixture(scope="session")
 def docker_kanboard_fuzz():
-    """Start Docker Kanboard for API fuzzing; skip if Docker unavailable."""
-    if not _is_docker_available():
-        pytest.skip("Docker daemon not available — skipping API fuzz tests")
-        return
+    """Start Docker Kanboard for API fuzzing; skip if Docker unavailable.
 
-    try:
-        subprocess.run(
-            ["docker", "compose", "-f", str(_COMPOSE_FILE), "up", "-d", "--wait"],
-            check=True,
-            timeout=_DOCKER_COMPOSE_UP_TIMEOUT_SECS,
-        )
-    except subprocess.CalledProcessError as exc:
-        pytest.fail(f"docker compose up failed (exit {exc.returncode})")
-    except subprocess.TimeoutExpired:
-        pytest.fail(f"docker compose up timed out after {_DOCKER_COMPOSE_UP_TIMEOUT_SECS}s")
+    If KANBOARD_NO_DOCKER_TEARDOWN is set (e.g. in CI where the service is
+    started via a GitHub Actions ``services:`` block), skip Docker Compose
+    lifecycle and just wait for the existing service to become healthy.
+    """
+    external_service = bool(os.environ.get("KANBOARD_NO_DOCKER_TEARDOWN"))
+
+    if not external_service:
+        if not _is_docker_available():
+            pytest.skip("Docker daemon not available — skipping API fuzz tests")
+            return
+
+        try:
+            subprocess.run(
+                ["docker", "compose", "-f", str(_COMPOSE_FILE), "up", "-d", "--wait"],
+                check=True,
+                timeout=_DOCKER_COMPOSE_UP_TIMEOUT_SECS,
+            )
+        except subprocess.CalledProcessError as exc:
+            pytest.fail(f"docker compose up failed (exit {exc.returncode})")
+        except subprocess.TimeoutExpired:
+            pytest.fail(f"docker compose up timed out after {_DOCKER_COMPOSE_UP_TIMEOUT_SECS}s")
 
     if not _wait_for_kanboard(KANBOARD_URL):
         pytest.fail(f"Kanboard at {KANBOARD_URL} did not become healthy")
 
     yield
 
-    if not os.environ.get("KANBOARD_NO_DOCKER_TEARDOWN"):
+    if not external_service:
         subprocess.run(
             ["docker", "compose", "-f", str(_COMPOSE_FILE), "down", "-v"],
             check=False,
