@@ -20,8 +20,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
-from hypothesis import HealthCheck, given, settings
-from hypothesis import strategies as st
+
+hypothesis = pytest.importorskip("hypothesis", reason="hypothesis not installed")
+from hypothesis import HealthCheck, given, settings  # noqa: E402
+from hypothesis import strategies as st  # noqa: E402
 
 pytestmark = [pytest.mark.security]
 
