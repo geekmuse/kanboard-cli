@@ -25,6 +25,7 @@ env/
 .coverage
 htmlcov/
 .pytest_cache/
+.hypothesis/
 
 # Environment
 .env
@@ -33,6 +34,9 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Security fuzz reports
+reports/
 
 # Auto-generated SDK/CLI modules
 src/kanboard/resources/generated/

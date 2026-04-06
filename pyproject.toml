@@ -40,6 +40,11 @@ dev = [
     "ruff>=0.4",
     "coverage>=7.0",
 ]
+security = [
+    "bandit>=1.7",
+    "pip-audit>=2.7",
+    "hypothesis>=6.100",
+]
 
 [project.scripts]
 kanboard = "kanboard_cli.main:cli"
@@ -92,9 +97,10 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-m 'not integration'"
+addopts = "-m 'not integration and not security'"
 markers = [
     "integration: mark test as requiring a live Docker-backed Kanboard instance",
+    "security: mark test as a security fuzzing test (may require Docker)",
 ]
 
 # ---------------------------------------------------------------------------

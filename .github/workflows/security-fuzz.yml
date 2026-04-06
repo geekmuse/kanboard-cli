@@ -1,0 +1,140 @@
+name: Security Fuzz
+
+on:
+  # Nightly schedule
+  schedule:
+    - cron: '0 4 * * *'  # 04:00 UTC daily
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      skip_api_fuzz:
+        description: 'Skip Docker-based API fuzzing'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+  # Post-release
+  release:
+    types: [published]
+
+jobs:
+  # -----------------------------------------------------------------------
+  # Python-native security (no Docker needed)
+  # -----------------------------------------------------------------------
+  python-security:
+    name: Python Static & Fuzz
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install -e '.[dev,security]'
+
+      - name: Bandit — static security analysis
+        run: |
+          mkdir -p reports/security
+          python -m bandit -r src/ -f json -o reports/security/bandit-report.json \
+            --severity-level medium --confidence-level medium -x "tests/" || true
+          python -m bandit -r src/ -f txt \
+            --severity-level medium --confidence-level medium -x "tests/" \
+            | tee reports/security/bandit-report.txt || true
+
+      - name: pip-audit — dependency vulnerability scan
+        run: |
+          python -m pip_audit --format json --output reports/security/pip-audit-report.json --desc || true
+          python -m pip_audit --desc | tee reports/security/pip-audit-report.txt || true
+
+      - name: Hypothesis — property-based SDK/CLI fuzz testing
+        run: |
+          python -m pytest tests/security/test_sdk_fuzz.py \
+            -v -m security --tb=short \
+            --junit-xml=reports/security/hypothesis-results.xml
+
+      - name: Check Bandit for HIGH severity findings
+        run: |
+          HIGH=$(python -c "
+          import json
+          data = json.load(open('reports/security/bandit-report.json'))
+          high = [r for r in data.get('results', []) if r['issue_severity'] == 'HIGH']
+          print(len(high))
+          " 2>/dev/null || echo "0")
+          echo "High severity findings: $HIGH"
+          if [ "$HIGH" -gt 0 ]; then
+            echo "::warning::Bandit found $HIGH HIGH severity issue(s)"
+          fi
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: python-security-reports
+          path: reports/security/
+          retention-days: 30
+
+  # -----------------------------------------------------------------------
+  # JSON-RPC API fuzzing (Docker-backed)
+  # -----------------------------------------------------------------------
+  api-fuzz:
+    name: JSON-RPC API Fuzz
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_api_fuzz != 'true' }}
+    services:
+      kanboard:
+        image: kanboard/kanboard:latest
+        ports:
+          - 4000:80
+        options: >-
+          --health-cmd="curl -sf http://localhost/ || exit 1"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=24
+          --health-start-period=10s
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install -e '.[dev,security]'
+
+      - name: Wait for Kanboard
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4000/ > /dev/null 2>&1; then
+              echo "Kanboard is ready"
+              break
+            fi
+            echo "Waiting for Kanboard... ($i/30)"
+            sleep 2
+          done
+
+      - name: JSON-RPC API fuzzing
+        env:
+          KANBOARD_HOST: http://localhost:4000
+          KANBOARD_NO_DOCKER_TEARDOWN: "1"
+        run: |
+          mkdir -p reports/security
+          python -m pytest tests/security/test_jsonrpc_fuzz.py \
+            -v -m security --tb=short \
+            --junit-xml=reports/security/api-fuzz-results.xml
+
+      - name: Upload API fuzz reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: api-fuzz-reports
+          path: reports/security/
+          retention-days: 30
