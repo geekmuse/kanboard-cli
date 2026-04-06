@@ -34,6 +34,10 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# Auto-generated SDK/CLI modules
+src/kanboard/resources/generated/
+src/kanboard_cli/commands/generated/
+
 # ralphi
 .ralphi/*
 !.ralphi/config.yaml
