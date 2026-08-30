@@ -16,6 +16,7 @@ from typing import Any
 
 from rich.console import Console
 from rich.table import Table
+from rich.text import Text
 
 
 def _normalize(data: Any) -> list[dict[str, Any]]:
@@ -81,6 +82,28 @@ def _cell_str(value: Any) -> str:
     return str(value)
 
 
+def _terminal_cell(value: Any) -> Text:
+    """Return a Rich text cell with markup and control sequences neutralized."""
+    value_str = _cell_str(value)
+    safe = "".join(
+        char if ord(char) >= 32 and ord(char) != 127 else f"\\x{ord(char):02x}"
+        for char in value_str
+    )
+    return Text(safe)
+
+
+def _csv_cell(value: Any) -> str:
+    """Return a CSV cell protected against spreadsheet formula injection."""
+    value_str = _cell_str(value)
+    stripped = value_str.lstrip()
+    if isinstance(value, str) and (
+        value_str.startswith(("=", "+", "-", "@", "\t", "\r"))
+        or stripped.startswith(("=", "+", "-", "@"))
+    ):
+        return f"'{value_str}"
+    return value_str
+
+
 class _DatetimeEncoder(json.JSONEncoder):
     """JSON encoder that serialises :class:`~datetime.datetime` as ISO-8601 strings."""
 
@@ -143,7 +166,7 @@ def _format_table(rows: list[dict[str, Any]], columns: list[str] | None) -> None
     for col in cols:
         table.add_column(col)
     for row in rows:
-        table.add_row(*[_cell_str(row.get(col)) for col in cols])
+        table.add_row(*[_terminal_cell(row.get(col)) for col in cols])
     console = Console()
     console.print(table)
 
@@ -186,7 +209,7 @@ def _format_csv(rows: list[dict[str, Any]], columns: list[str] | None) -> None:
     )
     writer.writeheader()
     for row in rows:
-        writer.writerow({col: _cell_str(row.get(col)) for col in cols})
+        writer.writerow({col: _csv_cell(row.get(col)) for col in cols})
     print(buf.getvalue(), end="")
 
 

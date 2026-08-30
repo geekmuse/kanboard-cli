@@ -76,8 +76,7 @@ if [ "$API_ONLY" = false ]; then
             -o "$REPORT_DIR/bandit-report.json" \
             --severity-level medium \
             --confidence-level medium \
-            -x "tests/" \
-            || true  # bandit exits non-zero on findings; we parse the report
+            -x "tests/"
 
     # Also produce a human-readable report
     python -m bandit \
@@ -118,8 +117,7 @@ if [ "$API_ONLY" = false ]; then
         python -m pip_audit \
             --format json \
             --output "$REPORT_DIR/pip-audit-report.json" \
-            --desc \
-            || true
+            --desc
 
     # Human-readable too
     python -m pip_audit --desc > "$REPORT_DIR/pip-audit-report.txt" 2>&1 || true
@@ -138,6 +136,7 @@ if [ "$API_ONLY" = false ]; then
             tests/security/test_sdk_fuzz.py \
             -v \
             -m security \
+            --strict-markers \
             --tb=short \
             --junit-xml="$REPORT_DIR/hypothesis-results.xml" \
             --no-header
@@ -161,6 +160,7 @@ if [ "$NO_DOCKER" = false ]; then
                 tests/security/test_jsonrpc_fuzz.py \
                 -v \
                 -m security \
+                --strict-markers \
                 --tb=short \
                 --junit-xml="$REPORT_DIR/api-fuzz-results.xml" \
                 --no-header

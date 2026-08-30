@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -26,7 +27,9 @@ KANBOARD_USERNAME: str = os.environ.get("KANBOARD_USERNAME", "admin")
 KANBOARD_PASSWORD: str = os.environ.get("KANBOARD_PASSWORD", "admin")
 
 _COMPOSE_FILE: Path = Path(__file__).parent.parent.parent / "docker-compose.test.yml"
-_SCHEMA_FILE: Path = Path(__file__).parent.parent.parent.parent / "api-schema.json"
+_PROJECT_ROOT: Path = Path(__file__).parent.parent.parent
+_SCHEMA_FILE: Path = _PROJECT_ROOT / "api-schema.json"
+_RESOURCE_DIR: Path = _PROJECT_ROOT / "src" / "kanboard" / "resources"
 
 _HEALTH_TIMEOUT_SECS: int = 90
 _HEALTH_POLL_INTERVAL_SECS: float = 2.0
@@ -146,8 +149,7 @@ def bad_token_http_client(docker_kanboard_fuzz):
 # API method registry
 # ---------------------------------------------------------------------------
 
-# Core Kanboard methods with param signatures for fuzzing.
-# Focused on the most security-relevant categories.
+# Core Kanboard methods with param signatures for focused, stateful fuzzing.
 CORE_METHODS: list[dict[str, Any]] = [
     {"name": "getVersion", "params": []},
     {"name": "getTimezone", "params": []},
@@ -236,6 +238,24 @@ CORE_METHODS: list[dict[str, Any]] = [
 ]
 
 
+def _discover_sdk_api_methods() -> list[str]:
+    """Discover JSON-RPC methods referenced by all SDK resource modules."""
+    pattern = re.compile(r"""_client\.call\(\s*["']([^"']+)""")
+    methods: set[str] = set()
+    for resource_file in _RESOURCE_DIR.glob("*.py"):
+        methods.update(pattern.findall(resource_file.read_text(encoding="utf-8")))
+    return sorted(methods)
+
+
+@pytest.fixture(scope="session")
+def sdk_api_methods() -> list[str]:
+    """Return the complete method inventory implemented by SDK resources."""
+    methods = _discover_sdk_api_methods()
+    if len(methods) < 158:
+        pytest.fail(f"SDK method inventory unexpectedly shrank to {len(methods)} methods")
+    return methods
+
+
 @pytest.fixture(scope="session")
 def plugin_methods() -> list[dict[str, Any]]:
     """Load plugin API methods from api-schema.json if available."""
@@ -247,6 +267,6 @@ def plugin_methods() -> list[dict[str, Any]]:
 
 
 @pytest.fixture(scope="session")
-def all_api_methods(plugin_methods) -> list[dict[str, Any]]:
-    """Combined list of core + plugin methods for fuzzing."""
-    return CORE_METHODS + plugin_methods
+def all_api_methods(sdk_api_methods) -> list[str]:
+    """Return every method exposed by the SDK for protocol-level fuzzing."""
+    return sdk_api_methods

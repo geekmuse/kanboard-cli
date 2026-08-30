@@ -17,7 +17,7 @@ import httpx
 import pytest
 
 import tests.security.payloads as _p
-from tests.security.conftest import KANBOARD_URL
+from tests.security.conftest import CORE_METHODS, KANBOARD_URL
 
 pytestmark = [pytest.mark.security]
 
@@ -30,8 +30,20 @@ _CMDI = _p.COMMAND_INJECTION_STRINGS
 _FMTSTR = _p.FORMAT_STRING_PAYLOADS
 _NULL = _p.NULL_BYTE_STRINGS
 _UNICODE = _p.UNICODE_EDGE_CASES
-_STR_ATTACKS = _p.string_attack_payloads()[:30]
-_INT_ATTACKS = _p.integer_attack_payloads()
+_STR_ATTACKS = _p.string_attack_payloads()
+_KNOWN_UPSTREAM_TYPE_WARNING = pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "Kanboard v1.2.54 exposes PHP array-to-string warnings for collection values; "
+        "retain as a visible upstream finding until fixed"
+    ),
+)
+_INT_ATTACKS = [
+    pytest.param(payload, marks=_KNOWN_UPSTREAM_TYPE_WARNING)
+    if isinstance(payload, (list, dict))
+    else payload
+    for payload in _p.integer_attack_payloads()
+]
 _NULL_UNICODE = _p.NULL_BYTE_STRINGS + _p.UNICODE_EDGE_CASES
 _ENVELOPES = _p.malformed_envelopes()
 _RAW_BODIES = _p.raw_malformed_bodies()
@@ -110,7 +122,12 @@ def _send_rpc(
         "id": request_id,
         "params": params or {},
     }
-    return client.post(KANBOARD_URL, json=payload)
+    body = json.dumps(payload, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
+    return client.post(
+        KANBOARD_URL,
+        content=body.encode("ascii"),
+        headers={"Content-Type": "application/json"},
+    )
 
 
 def _send_raw(client: httpx.Client, body: str) -> httpx.Response:
@@ -159,6 +176,33 @@ class TestProtocolFuzzing:
     def test_raw_malformed_body(self, fuzz_http_client, body):
         resp = _send_raw(fuzz_http_client, body)
         _assert_safe_response(resp, f"raw body: {body[:80]}")
+
+
+class TestMethodInventory:
+    """Ensure every SDK-exposed method receives protocol abuse coverage."""
+
+    def test_sdk_method_inventory_is_complete(self, all_api_methods):
+        """The method inventory cannot silently shrink below advertised coverage."""
+        assert len(all_api_methods) >= 158
+        assert len(all_api_methods) == len(set(all_api_methods))
+        assert {method["name"] for method in CORE_METHODS} <= set(all_api_methods)
+
+    def test_all_sdk_methods_handle_malformed_params_safely(
+        self, fuzz_http_client, all_api_methods
+    ):
+        """Every SDK method safely rejects an unexpected adversarial parameter."""
+        findings: list[str] = []
+        for method_name in all_api_methods:
+            resp = _send_rpc(
+                fuzz_http_client,
+                method_name,
+                {"__unexpected_fuzz_parameter__": "' OR '1'='1' --"},
+            )
+            try:
+                _assert_safe_response(resp, f"method-inventory:{method_name}")
+            except AssertionError as exc:
+                findings.append(str(exc))
+        assert not findings, "Method inventory findings:\n" + "\n---\n".join(findings)
 
 
 # ===================================================================
@@ -339,7 +383,7 @@ class TestCommandInjection:
         )
         _assert_safe_response(resp, f"createProject name={payload!r}")
         body = resp.text
-        assert "uid=" not in body or "gid=" not in body, (
+        assert "uid=" not in body and "gid=" not in body, (
             f"Possible command injection: shell output for {payload!r}"
         )
         _cleanup_project(fuzz_http_client, resp)

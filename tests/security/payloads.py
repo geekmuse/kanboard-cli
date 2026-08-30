@@ -152,9 +152,6 @@ BOUNDARY_INTEGERS: list[Any] = [
     -2147483649,  # INT_MIN - 1
     9999999999999999,
     9.999999999e18,
-    float("inf"),
-    float("-inf"),
-    float("nan"),
 ]
 
 BOUNDARY_STRINGS: list[str] = [
@@ -278,6 +275,8 @@ def raw_malformed_bodies() -> list[str]:
         "42",  # JSON number
         '"just a string"',  # JSON string
         "[]",  # empty array
+        '{"jsonrpc":"2.0","method":"getTask","id":1,"params":{"task_id":NaN}}',
+        '{"jsonrpc":"2.0","method":"getTask","id":1,"params":{"task_id":Infinity}}',
         "["
         + '{"jsonrpc":"2.0","method":"getVersion","id":1,"params":{}},' * 1000
         + "]",  # huge batch

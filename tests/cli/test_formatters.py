@@ -195,6 +195,15 @@ class TestCsvFormat:
         out = capsys.readouterr().out
         assert '"Alice, Bob"' in out
 
+    @pytest.mark.parametrize("payload", ["=1+1", "+cmd", "-cmd", "@SUM(A1:A2)", "\tcmd", "  =1+1"])
+    def test_formula_injection_is_neutralized(
+        self, capsys: pytest.CaptureFixture[str], payload: str
+    ) -> None:
+        """Spreadsheet formula prefixes are escaped in string cells."""
+        format_output([{"id": 1, "name": payload}], "csv")
+        lines = capsys.readouterr().out.splitlines()
+        assert lines[1].split(",", 1)[1].startswith("'")
+
     def test_datetime_in_cell(self, capsys: pytest.CaptureFixture[str]) -> None:
         """datetime values in cells are rendered as ISO-8601 strings."""
         dt = datetime(2024, 6, 1, 9, 30, 0)
@@ -303,6 +312,14 @@ class TestTableFormat:
         format_output([{"id": 1, "name": None}], "table")
         out = capsys.readouterr().out
         assert "id" in out
+
+    def test_table_neutralizes_control_sequences(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Terminal control characters are rendered as visible escapes."""
+        format_output([{"id": 1, "name": "safe\x1b[31m forged\nline"}], "table")
+        output = capsys.readouterr().out
+        assert "\x1b" not in output
+        assert "\\x1b" in output
+        assert "\\x0a" in output
 
     def test_table_dataclass_input(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Dataclass instances render correctly via asdict conversion."""

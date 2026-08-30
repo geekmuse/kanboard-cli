@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import click
 
 from kanboard.exceptions import KanboardAPIError, KanboardNotFoundError
+from kanboard_cli.downloads import write_download
 from kanboard_cli.formatters import format_output, format_success
 
 if TYPE_CHECKING:
@@ -156,8 +157,7 @@ def project_file_download(
     except KanboardAPIError as exc:
         raise click.ClickException(str(exc)) from exc
 
-    dest = pathlib.Path(output_path) if output_path else pathlib.Path(pf.name)
-    dest.write_bytes(base64.b64decode(b64))
+    dest = write_download(b64, pf.name, output_path)
     format_success(f"File #{file_id} downloaded to '{dest}'.", app.output)
 
 

@@ -64,7 +64,7 @@ json_values = st.recursive(
         st.none(),
         st.booleans(),
         st.integers(min_value=-(2**63), max_value=2**63),
-        st.floats(allow_nan=True, allow_infinity=True),
+        st.floats(allow_nan=False, allow_infinity=False),
         nasty_strings,
     ),
     lambda children: st.one_of(
@@ -73,6 +73,12 @@ json_values = st.recursive(
     ),
     max_leaves=10,
 )
+
+
+def test_sdk_api_inventory_cannot_silently_shrink(sdk_api_methods):
+    """Security coverage tracks at least the advertised 158 API methods."""
+    assert len(sdk_api_methods) >= 158
+    assert len(sdk_api_methods) == len(set(sdk_api_methods))
 
 
 # ===================================================================
@@ -99,7 +105,7 @@ class TestClientSerialization:
         payload = client._build_request(method, params)
 
         # Must be JSON-serializable
-        serialized = json.dumps(payload)
+        serialized = json.dumps(payload, allow_nan=False)
         assert isinstance(serialized, str)
         assert len(serialized) > 0
 
@@ -130,16 +136,14 @@ class TestClientSerialization:
     def test_extract_result_handles_arbitrary_dicts(self, data):
         """_extract_result should not crash on arbitrary response dicts."""
         from kanboard.client import KanboardClient
-        from kanboard.exceptions import KanboardAPIError
+        from kanboard.exceptions import KanboardError
 
         client = KanboardClient.__new__(KanboardClient)
 
         try:
             client._extract_result(data, "fuzzMethod")
-        except KanboardAPIError:
-            pass  # expected when "error" key present
-        except (TypeError, KeyError, AttributeError):
-            pass  # tolerable for truly wild dicts
+        except KanboardError:
+            pass  # malformed/error responses must use the typed hierarchy
 
 
 # ===================================================================
@@ -251,8 +255,8 @@ class TestConfigFuzzing:
         with patch.dict(os.environ, env_patch, clear=False):
             try:
                 KanboardConfig.resolve()
-            except (KanboardError, ValueError, TypeError, KeyError, OSError):
-                pass  # expected for bad config values
+            except KanboardError:
+                pass  # expected for invalid or incomplete config values
 
 
 # ===================================================================
@@ -336,9 +340,7 @@ class TestResponseHandling:
         try:
             client.call("getVersion")
         except KanboardError:
-            pass  # expected
-        except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
-            pass  # acceptable for edge cases
+            pass  # malformed responses must use the typed hierarchy
 
     @_FUZZ_SETTINGS
     @given(
@@ -365,6 +367,4 @@ class TestResponseHandling:
         try:
             client.call("getVersion")
         except KanboardError:
-            pass
-        except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
             pass

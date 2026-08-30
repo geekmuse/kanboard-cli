@@ -202,7 +202,7 @@ class KanboardClient:
         raw = self._send(json.dumps(payload))
         data = self._parse_json(raw, method)
         result = self._extract_result(data, method)
-        logger.debug("JSON-RPC response: method=%s result=%r", method, result)
+        logger.debug("JSON-RPC response received: method=%s", method)
         return result
 
     def batch(self, calls: list[tuple[str, dict[str, Any]]]) -> list[Any]:
@@ -241,7 +241,25 @@ class KanboardClient:
                 raw_body=raw,
             )
 
-        id_to_item: dict[int, dict[str, Any]] = {item.get("id"): item for item in response_list}
+        id_to_item: dict[int, dict[str, Any]] = {}
+        for item in response_list:
+            if not isinstance(item, dict):
+                raise KanboardResponseError(
+                    "Batch response items must be JSON objects",
+                    raw_body=raw,
+                )
+            response_id = item.get("id")
+            if not isinstance(response_id, int):
+                raise KanboardResponseError(
+                    "Batch response item has an invalid request id",
+                    raw_body=raw,
+                )
+            if response_id in id_to_item:
+                raise KanboardResponseError(
+                    f"Duplicate batch response for request id={response_id}",
+                    raw_body=raw,
+                )
+            id_to_item[response_id] = item
 
         results: list[Any] = []
         for req in requests:
@@ -389,11 +407,18 @@ class KanboardClient:
             The value of the ``result`` field (may be ``None`` for not-found resources).
 
         Raises:
-            KanboardAPIError: The response contains an ``error`` field.
+            KanboardAPIError: The response contains a valid ``error`` field.
+            KanboardResponseError: The response envelope or error object is malformed.
         """
+        if not isinstance(data, dict):
+            raise KanboardResponseError("JSON-RPC response must be an object")
         if "error" in data:
             error = data["error"]
-            code: int | None = error.get("code")
-            message: str = error.get("message", "Unknown API error")
+            if not isinstance(error, dict):
+                raise KanboardResponseError("JSON-RPC error must be an object")
+            raw_code = error.get("code")
+            code = raw_code if isinstance(raw_code, int) else None
+            raw_message = error.get("message", "Unknown API error")
+            message = raw_message if isinstance(raw_message, str) else "Unknown API error"
             raise KanboardAPIError(message, method=method, code=code)
         return data.get("result")

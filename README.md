@@ -236,8 +236,7 @@ kanboard task overdue
 ```python
 from kanboard import KanboardClient
 
-with KanboardClient(url="https://kanboard.example.com/jsonrpc.php",
-                     token="your-api-token") as kb:
+with KanboardClient(url="https://kanboard.example.com/jsonrpc.php", token="your-api-token") as kb:
     # Create a project
     project_id = kb.projects.create_project(name="My Project")
 
@@ -380,6 +379,7 @@ kanboard-cli supports user-defined workflow plugins for custom automation.
 import click
 from kanboard_cli.workflows.base import BaseWorkflow
 
+
 class MyWorkflow(BaseWorkflow):
     @property
     def name(self) -> str:
@@ -514,15 +514,15 @@ pip install -e ".[security]"
 ```
 
 **Layer 1 — JSON-RPC API Fuzzing** (`tests/security/test_jsonrpc_fuzz.py`):  
-Sends malicious payloads to a live Dockerized Kanboard instance and asserts safe handling — SQL injection, XSS, path traversal, command injection, type confusion, boundary values, null bytes, unicode edge cases, protocol abuse, and auth boundary testing.  All 31 plugin API methods are also fuzzed via `api-schema.json`.
+Sends malicious payloads to a pinned, Dockerized Kanboard instance and asserts safe handling — SQL injection, XSS, path traversal, command injection, type confusion, boundary values, null bytes, Unicode edge cases, protocol abuse, and authentication boundaries. The suite derives the complete JSON-RPC method inventory from SDK resources and fails if advertised API coverage silently shrinks. Optional plugin-specific parameter fuzzing runs when a root-level `api-schema.json` is supplied.
 
 **Layer 2 — Python-native Fuzz Testing** (`tests/security/test_sdk_fuzz.py`):  
-Uses [Hypothesis](https://hypothesis.readthedocs.io/) property-based testing (200 examples per test) to verify the SDK client, model deserialization, config resolution, CLI input handling, and response parsing all survive adversarial inputs.
+Uses [Hypothesis](https://hypothesis.readthedocs.io/) property-based testing (200 examples per test) to enforce SDK transport, model, config, CLI, and malformed-response contracts with adversarial inputs. Focused regression tests also cover download path traversal, symlink/overwrite protection, private config permissions, secret-safe logging, terminal control characters, and CSV formula injection.
 
 **Static analysis:**  
-[Bandit](https://bandit.readthedocs.io/) for Python security issues and [pip-audit](https://pypi.org/project/pip-audit/) for dependency vulnerabilities.
+[Bandit](https://bandit.readthedocs.io/) and [pip-audit](https://pypi.org/project/pip-audit/) are enforced security gates rather than report-only checks.
 
-The full suite runs nightly via GitHub Actions (`.github/workflows/security-fuzz.yml`) and on every release.
+Python-native checks and API inventory validation run on relevant pull requests. The complete suite runs nightly, after releases, and by manual dispatch through `.github/workflows/security-fuzz.yml`. Workflow actions are pinned to immutable commits and reports are uploaded even when a gate fails.
 
 ### Dependencies
 

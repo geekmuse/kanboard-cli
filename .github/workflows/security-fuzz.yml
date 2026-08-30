@@ -1,94 +1,128 @@
 name: Security Fuzz
 
 on:
-  # Nightly schedule
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/security-fuzz.yml"
+      - "pyproject.toml"
+      - "scripts/security-fuzz.sh"
+      - "src/**"
+      - "tests/security/**"
   schedule:
-    - cron: '0 4 * * *'  # 04:00 UTC daily
-  # Manual trigger
+    - cron: "0 4 * * *"  # nightly, 04:00 UTC
   workflow_dispatch:
     inputs:
       skip_api_fuzz:
-        description: 'Skip Docker-based API fuzzing'
+        description: "Skip Docker-based API fuzzing"
         required: false
-        default: 'false'
+        default: "false"
         type: choice
-        options:
-          - 'false'
-          - 'true'
-  # Post-release
+        options: ["false", "true"]
   release:
     types: [published]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: security-fuzz-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PYTHONUNBUFFERED: "1"
+
 jobs:
-  # -----------------------------------------------------------------------
-  # Python-native security (no Docker needed)
-  # -----------------------------------------------------------------------
   python-security:
     name: Python Static & Fuzz
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
-          python-version: '3.12'
+          python-version: "3.12"
+          cache: pip
 
       - name: Install dependencies
-        run: |
-          pip install -e '.[dev,security]'
+        run: pip install -e '.[dev,security]'
 
       - name: Bandit — static security analysis
+        id: bandit
+        continue-on-error: true
         run: |
           mkdir -p reports/security
           python -m bandit -r src/ -f json -o reports/security/bandit-report.json \
-            --severity-level medium --confidence-level medium -x "tests/" || true
+            --severity-level medium --confidence-level medium -x tests/
+
+      - name: Bandit — human-readable report
+        if: always()
+        continue-on-error: true
+        run: |
           python -m bandit -r src/ -f txt \
-            --severity-level medium --confidence-level medium -x "tests/" \
-            | tee reports/security/bandit-report.txt || true
+            --severity-level medium --confidence-level medium -x tests/ \
+            > reports/security/bandit-report.txt
 
       - name: pip-audit — dependency vulnerability scan
+        id: pip_audit
+        continue-on-error: true
         run: |
-          python -m pip_audit --format json --output reports/security/pip-audit-report.json --desc || true
-          python -m pip_audit --desc | tee reports/security/pip-audit-report.txt || true
+          python -m pip_audit --format json \
+            --output reports/security/pip-audit-report.json --desc
 
-      - name: Hypothesis — property-based SDK/CLI fuzz testing
+      - name: pip-audit — human-readable report
+        if: always()
+        continue-on-error: true
+        run: python -m pip_audit --desc > reports/security/pip-audit-report.txt
+
+      - name: Validate API fuzz inventory collection
+        run: |
+          python -m pytest tests/security/test_jsonrpc_fuzz.py \
+            --collect-only -q -m security --strict-markers
+
+      - name: Hypothesis — SDK and CLI contracts
         run: |
           python -m pytest tests/security/test_sdk_fuzz.py \
-            -v -m security --tb=short \
+            -v -m security --strict-markers --tb=short \
             --junit-xml=reports/security/hypothesis-results.xml
 
-      - name: Check Bandit for HIGH severity findings
-        run: |
-          HIGH=$(python -c "
-          import json
-          data = json.load(open('reports/security/bandit-report.json'))
-          high = [r for r in data.get('results', []) if r['issue_severity'] == 'HIGH']
-          print(len(high))
-          " 2>/dev/null || echo "0")
-          echo "High severity findings: $HIGH"
-          if [ "$HIGH" -gt 0 ]; then
-            echo "::warning::Bandit found $HIGH HIGH severity issue(s)"
-          fi
-
-      - name: Upload security reports
+      - name: Upload Python security reports
         if: always()
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: python-security-reports
           path: reports/security/
+          if-no-files-found: error
           retention-days: 30
 
-  # -----------------------------------------------------------------------
-  # JSON-RPC API fuzzing (Docker-backed)
-  # -----------------------------------------------------------------------
+      - name: Enforce static security gates
+        if: always()
+        env:
+          BANDIT_OUTCOME: ${{ steps.bandit.outcome }}
+          PIP_AUDIT_OUTCOME: ${{ steps.pip_audit.outcome }}
+        run: |
+          failed=0
+          if [ "$BANDIT_OUTCOME" != "success" ]; then
+            echo "::error::Bandit found medium/high confidence security findings"
+            failed=1
+          fi
+          if [ "$PIP_AUDIT_OUTCOME" != "success" ]; then
+            echo "::error::pip-audit found vulnerable dependencies"
+            failed=1
+          fi
+          exit "$failed"
+
   api-fuzz:
     name: JSON-RPC API Fuzz
+    if: github.event_name != 'pull_request' && github.event.inputs.skip_api_fuzz != 'true'
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.skip_api_fuzz != 'true' }}
+    timeout-minutes: 35
     services:
       kanboard:
-        image: kanboard/kanboard:latest
+        image: kanboard/kanboard:v1.2.54@sha256:8df6c4339134b6c196da9a262daa42ab8ce395f528a48d4a3dd7038c296f34c1
         ports:
           - 4000:80
         options: >-
@@ -99,27 +133,17 @@ jobs:
           --health-start-period=10s
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
-          python-version: '3.12'
+          python-version: "3.12"
+          cache: pip
 
       - name: Install dependencies
-        run: |
-          pip install -e '.[dev,security]'
-
-      - name: Wait for Kanboard
-        run: |
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:4000/ > /dev/null 2>&1; then
-              echo "Kanboard is ready"
-              break
-            fi
-            echo "Waiting for Kanboard... ($i/30)"
-            sleep 2
-          done
+        run: pip install -e '.[dev,security]'
 
       - name: JSON-RPC API fuzzing
         env:
@@ -128,13 +152,14 @@ jobs:
         run: |
           mkdir -p reports/security
           python -m pytest tests/security/test_jsonrpc_fuzz.py \
-            -v -m security --tb=short \
+            -v -m security --strict-markers --tb=short \
             --junit-xml=reports/security/api-fuzz-results.xml
 
       - name: Upload API fuzz reports
         if: always()
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: api-fuzz-reports
           path: reports/security/
+          if-no-files-found: warn
           retention-days: 30

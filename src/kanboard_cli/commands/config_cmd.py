@@ -5,6 +5,7 @@ Subcommands: init, show, path, profiles, test.
 
 from __future__ import annotations
 
+import os
 import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -26,6 +27,29 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
+
+def _write_private_config(path: Path, content: bytes) -> None:
+    """Write configuration bytes with owner-only permissions.
+
+    Args:
+        path: Destination config file.
+        content: TOML content to write.
+    """
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(path, flags, 0o600)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(content)
+    except BaseException:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        raise
+    path.chmod(0o600)
 
 
 def _mask_token(token: str) -> str:
@@ -112,8 +136,12 @@ def config_init(ctx: click.Context, force: bool) -> None:
         },
     }
 
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    CONFIG_FILE.write_bytes(tomli_w.dumps(data).encode())
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    CONFIG_DIR.chmod(0o700)
+    try:
+        _write_private_config(CONFIG_FILE, tomli_w.dumps(data).encode())
+    except OSError as exc:
+        raise click.ClickException(f"Unable to write config file: {exc}") from exc
 
     app_ctx: AppContext = ctx.obj
     format_success(f"Config written to {CONFIG_FILE}", app_ctx.output)

@@ -1,5 +1,7 @@
 """Unit tests for KanboardClient JSON-RPC transport layer."""
 
+import logging
+
 import httpx
 import pytest
 from pytest_httpx import HTTPXMock
@@ -259,12 +261,67 @@ def test_call_non_json_response_raises_response_error(httpx_mock: HTTPXMock) -> 
     assert "html" in str(err).lower()
 
 
+@pytest.mark.parametrize("response", [True, 42, [], "result"])
+def test_call_non_object_response_raises_response_error(
+    httpx_mock: HTTPXMock, response: object
+) -> None:
+    """call() rejects JSON values that are not response objects."""
+    httpx_mock.add_response(json=response)
+    with KanboardClient(_URL, _TOKEN) as client:
+        with pytest.raises(KanboardResponseError, match="must be an object"):
+            client.call("getVersion")
+
+
+def test_call_null_response_raises_response_error(httpx_mock: HTTPXMock) -> None:
+    """call() rejects a JSON null response as a malformed envelope."""
+    httpx_mock.add_response(text="null")
+    with KanboardClient(_URL, _TOKEN) as client:
+        with pytest.raises(KanboardResponseError, match="must be an object"):
+            client.call("getVersion")
+
+
+def test_call_malformed_error_raises_response_error(httpx_mock: HTTPXMock) -> None:
+    """A malformed JSON-RPC error is mapped to a typed response error."""
+    httpx_mock.add_response(json={"jsonrpc": "2.0", "id": 1, "error": "secret"})
+    with KanboardClient(_URL, _TOKEN) as client:
+        with pytest.raises(KanboardResponseError, match="error must be an object"):
+            client.call("getVersion")
+
+
+def test_call_debug_log_does_not_include_result(
+    httpx_mock: HTTPXMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Sensitive response values are not copied into debug logs."""
+    secret = "server-secret-token"
+    httpx_mock.add_response(json=_rpc_ok(secret))
+    with caplog.at_level(logging.DEBUG, logger="kanboard.client"):
+        with KanboardClient(_URL, _TOKEN) as client:
+            assert client.call("getProjectById") == secret
+    assert secret not in caplog.text
+
+
 def test_call_empty_response_raises_response_error(httpx_mock: HTTPXMock) -> None:
     """call() raises KanboardResponseError when the server returns empty body."""
     httpx_mock.add_response(text="")
     with KanboardClient(_URL, _TOKEN) as client:
         with pytest.raises(KanboardResponseError):
             client.call("getVersion")
+
+
+def test_batch_rejects_non_object_item(httpx_mock: HTTPXMock) -> None:
+    """batch() rejects response array items that are not objects."""
+    httpx_mock.add_response(json=[42])
+    with KanboardClient(_URL, _TOKEN) as client:
+        with pytest.raises(KanboardResponseError, match="must be JSON objects"):
+            client.batch([("getVersion", {})])
+
+
+def test_batch_rejects_duplicate_ids(httpx_mock: HTTPXMock) -> None:
+    """batch() rejects ambiguous duplicate response IDs."""
+    httpx_mock.add_response(json=[_rpc_ok("one"), _rpc_ok("two")])
+    with KanboardClient(_URL, _TOKEN) as client:
+        with pytest.raises(KanboardResponseError, match="Duplicate batch response"):
+            client.batch([("getVersion", {})])
 
 
 def test_batch_non_array_response_raises_response_error(httpx_mock: HTTPXMock) -> None:

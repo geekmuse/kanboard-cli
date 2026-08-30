@@ -23,5 +23,12 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Security
+- Hardened downloaded-file handling against path traversal, symlink attacks, unsafe overwrites, malformed base64, and permissive file modes.
+- Config files and directories are now written with owner-only permissions.
+- JSON-RPC debug logging no longer records complete response values.
+- CSV formula prefixes and terminal control characters are neutralized in human-facing output.
+- Security CI now runs on relevant pull requests, pins actions and the Kanboard image, enforces Bandit and pip-audit findings, validates API method inventory, applies timeouts/concurrency, and always publishes reports.
+
 ### Added
 - Project scaffolding: `src/` layout, `pyproject.toml`, Makefile, LICENSE (US-001)

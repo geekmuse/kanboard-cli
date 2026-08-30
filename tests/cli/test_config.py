@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tomllib
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -133,6 +134,8 @@ def test_config_init_creates_file(runner: CliRunner, tmp_path: Path) -> None:
     assert data["profiles"]["default"]["url"] == "http://my.server/jsonrpc.php"
     assert data["profiles"]["default"]["token"] == "mysecrettoken"
     assert data["settings"]["default_profile"] == "default"
+    assert config_file.stat().st_mode & 0o777 == 0o600
+    assert config_dir.stat().st_mode & 0o777 == 0o700
 
 
 def test_config_init_creates_directory(runner: CliRunner, tmp_path: Path) -> None:
@@ -207,6 +210,38 @@ def test_config_init_force_overwrites(runner: CliRunner, tmp_path: Path) -> None
         data = tomllib.load(fh)
     assert data["profiles"]["default"]["url"] == "http://new.server/jsonrpc.php"
     assert data["profiles"]["default"]["token"] == "newtoken"
+
+
+def test_config_init_force_refuses_symlink(runner: CliRunner, tmp_path: Path) -> None:
+    """``config init --force`` cannot overwrite a symlink target."""
+    if not hasattr(os, "O_NOFOLLOW"):
+        pytest.skip("O_NOFOLLOW is unavailable on this platform")
+    config_dir = tmp_path / ".config" / "kanboard"
+    config_dir.mkdir(parents=True)
+    target = tmp_path / "target.toml"
+    target.write_text("keep = true")
+    config_file = config_dir / "config.toml"
+    try:
+        config_file.symlink_to(target)
+    except OSError:
+        pytest.skip("symlinks are unavailable on this platform")
+
+    with (
+        patch("kanboard_cli.commands.config_cmd.CONFIG_DIR", config_dir),
+        patch("kanboard_cli.commands.config_cmd.CONFIG_FILE", config_file),
+        patch(
+            "kanboard_cli.main.KanboardConfig.resolve",
+            side_effect=KanboardConfigError("no config", field="url"),
+        ),
+    ):
+        result = runner.invoke(
+            cli,
+            ["config", "init", "--force"],
+            input="http://new.server/jsonrpc.php\nnewtoken\n",
+        )
+
+    assert result.exit_code != 0
+    assert target.read_text() == "keep = true"
 
 
 def test_config_init_success_message(runner: CliRunner, tmp_path: Path) -> None:
