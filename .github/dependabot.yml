@@ -9,6 +9,10 @@ updates:
       day: "monday"
     commit-message:
       prefix: "chore(ci)"
+    groups:
+      codeql-actions:
+        patterns:
+          - "github/codeql-action/*"
 
   # Python dependencies (CLI)
   - package-ecosystem: "pip"
